@@ -1,0 +1,327 @@
+## 🛠 Build Request
+
+Build me a **Mission Control dashboard app**.
+
+This is a centralized command center for managing:
+
+- My AI agent: [AGENT NAME]
+
+• My company/project: [COMPANY NAME]
+
+• My personal brand / content / education business: [BUSINESS TYPE]
+
+---
+
+# 🧭 App Structure
+
+Use a left sidebar navigation with these screens:
+
+---
+
+## 1️⃣ Dashboard (Home)
+
+Top section: Key metrics cards
+
+Include:
+
+• Active tasks count
+
+• Content pipeline status (items per stage)
+
+• Upcoming events (next 48h)
+
+• Recent AI agent activity
+
+Below metrics:
+
+• Live activity feed showing what [AGENT NAME] has done
+
+• Include timestamps
+
+• Show status indicators (green = active, yellow = pending, red = error, gray = idle)
+
+---
+
+## 2️⃣ Tasks Board
+
+Kanban board with columns:
+
+[Column 1]
+
+[Column 2]
+
+[Column 3]
+
+[Column 4]
+
+Each task card shows:
+
+• Title
+
+• Assignee ([Me] or [AGENT NAME])
+
+• Priority (low/medium/high/urgent)
+
+• Due date
+
+• Status
+
+Features:
+
+• Drag and drop between columns
+
+• Click to expand full description + comments
+
+• Filters: assignee, priority, project
+
+Projects:
+
+• [Project Type 1]
+
+• [Project Type 2]
+
+• [Project Type 3]
+
+---
+
+## 3️⃣ Content Pipeline
+
+Kanban board for content creation.
+
+Columns:
+
+[Stage 1]
+
+[Stage 2]
+
+[Stage 3]
+
+[Stage 4]
+
+[Stage 5]
+
+[Stage 6]
+
+[Stage 7]
+
+Each card shows:
+
+• Title
+
+• Platform ([YouTube/X/LinkedIn/Other])
+
+• Assigned day
+
+• Status
+
+Card supports:
+
+• Full script (rich text editor)
+
+• Image attachments
+
+• External draft links
+
+Include:
+
+• Calendar view toggle
+
+• Weekly posting schedule
+
+Weekly Structure:
+
+• Monday: [Theme]
+
+• Tuesday: [Theme]
+
+• Wednesday: [Theme]
+
+• Thursday: [Theme]
+
+• Friday: [Theme]
+
+---
+
+## 4️⃣ Calendar
+
+Full calendar view with:
+
+• Month / Week / Day toggle
+
+Display:
+
+• Scheduled tasks
+
+• Content publishing
+
+• Meetings
+
+• Automations / cron jobs
+
+Color coding:
+
+• [Category 1] = blue
+
+• [Category 2] = green
+
+• [Category 3] = purple
+
+• [Category 4] = gray
+
+Click event → view details
+
+Allow new event creation.
+
+---
+
+## 5️⃣ Memory
+
+Searchable document library.
+
+Each memory card shows:
+
+• Title
+
+• Date created
+
+• Category
+
+• Preview snippet
+
+Categories:
+
+• [Category 1]
+
+• [Category 2]
+
+• [Category 3]
+
+• [Category 4]
+
+• Archive
+
+Features:
+
+• Global full-text search
+
+• Filter + sort
+
+• Click to expand full rich-text document view
+
+---
+
+## 6️⃣ AI Team View
+
+Show AI org chart.
+
+Top:
+
+• [AGENT NAME]
+
+• Avatar
+
+• Role description
+
+• Current status
+
+Sub-agents grouped by:
+
+• Developers
+
+• Writers
+
+• Researchers
+
+• Operators
+
+(or customize roles)
+
+Each agent card:
+
+• Name
+
+• Role
+
+• Current task
+
+• Status
+
+• Last active timestamp
+
+Click agent → show:
+
+• Responsibilities
+
+• Recent work
+
+• Performance metrics
+
+---
+
+## 7️⃣ Contacts / CRM
+
+Simple contact cards.
+
+Each includes:
+
+• Name
+
+• Role
+
+• Communication handle
+
+• Timezone
+
+• Compensation summary (optional)
+
+• Notes
+
+Categories:
+
+• Internal Team
+
+• Content Team
+
+• External
+
+• Clients
+
+---
+
+## 8️⃣ Settings
+
+Include:
+
+- Cron job manager
+
+• Integration status (Slack, Notion, etc.)
+
+• Agent configuration panel
+
+Show integrations with status indicators.
+
+---
+
+# 🎨 Design Principles
+
+- Dark mode only
+
+• Clean card layouts
+
+• Generous spacing
+
+• Minimal animations
+
+• Optimized for desktop
+
+• Subtle accent colors
+
+Status dots:
+
+• Green = active
+
+• Yellow = pending
+
+• Red = error
+
+• Gray = idle
