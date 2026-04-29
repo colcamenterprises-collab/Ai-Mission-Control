@@ -23,4 +23,13 @@ export interface Agent {
   avatarInitials: string;
   tasksCompleted: number;
   successRate: number;
+  isPluggedIn: boolean;
+  /** @nullable */
+  provider?: string | null;
+  /** @nullable */
+  model?: string | null;
+  /** @nullable */
+  apiKeyHint?: string | null;
+  /** @nullable */
+  endpoint?: string | null;
 }

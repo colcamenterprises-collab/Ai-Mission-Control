@@ -611,6 +611,11 @@ export const ListAgentsResponseItem = zod.object({
   avatarInitials: zod.string(),
   tasksCompleted: zod.number(),
   successRate: zod.number(),
+  isPluggedIn: zod.boolean(),
+  provider: zod.string().nullish(),
+  model: zod.string().nullish(),
+  apiKeyHint: zod.string().nullish(),
+  endpoint: zod.string().nullish(),
 });
 export const ListAgentsResponse = zod.array(ListAgentsResponseItem);
 
@@ -624,6 +629,11 @@ export const CreateAgentBody = zod.object({
   isLead: zod.boolean(),
   responsibilities: zod.string().nullish(),
   avatarInitials: zod.string(),
+  isPluggedIn: zod.boolean().optional(),
+  provider: zod.string().nullish(),
+  model: zod.string().nullish(),
+  apiKey: zod.string().nullish(),
+  endpoint: zod.string().nullish(),
 });
 
 /**
@@ -646,6 +656,11 @@ export const GetAgentResponse = zod.object({
   avatarInitials: zod.string(),
   tasksCompleted: zod.number(),
   successRate: zod.number(),
+  isPluggedIn: zod.boolean(),
+  provider: zod.string().nullish(),
+  model: zod.string().nullish(),
+  apiKeyHint: zod.string().nullish(),
+  endpoint: zod.string().nullish(),
 });
 
 /**
@@ -656,9 +671,19 @@ export const UpdateAgentParams = zod.object({
 });
 
 export const UpdateAgentBody = zod.object({
+  name: zod.string().optional(),
+  role: zod.string().optional(),
+  department: zod
+    .enum(["Developers", "Writers", "Researchers", "Operators"])
+    .optional(),
   status: zod.enum(["active", "pending", "error", "idle"]).optional(),
   currentTask: zod.string().nullish(),
   responsibilities: zod.string().nullish(),
+  isPluggedIn: zod.boolean().optional(),
+  provider: zod.string().nullish(),
+  model: zod.string().nullish(),
+  apiKey: zod.string().nullish(),
+  endpoint: zod.string().nullish(),
 });
 
 export const UpdateAgentResponse = zod.object({
@@ -674,6 +699,11 @@ export const UpdateAgentResponse = zod.object({
   avatarInitials: zod.string(),
   tasksCompleted: zod.number(),
   successRate: zod.number(),
+  isPluggedIn: zod.boolean(),
+  provider: zod.string().nullish(),
+  model: zod.string().nullish(),
+  apiKeyHint: zod.string().nullish(),
+  endpoint: zod.string().nullish(),
 });
 
 /**

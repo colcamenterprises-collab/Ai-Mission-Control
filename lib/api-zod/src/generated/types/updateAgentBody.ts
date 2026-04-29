@@ -5,12 +5,25 @@
  * Mission Control API
  * OpenAPI spec version: 0.1.0
  */
+import type { UpdateAgentBodyDepartment } from "./updateAgentBodyDepartment";
 import type { UpdateAgentBodyStatus } from "./updateAgentBodyStatus";
 
 export interface UpdateAgentBody {
+  name?: string;
+  role?: string;
+  department?: UpdateAgentBodyDepartment;
   status?: UpdateAgentBodyStatus;
   /** @nullable */
   currentTask?: string | null;
   /** @nullable */
   responsibilities?: string | null;
+  isPluggedIn?: boolean;
+  /** @nullable */
+  provider?: string | null;
+  /** @nullable */
+  model?: string | null;
+  /** @nullable */
+  apiKey?: string | null;
+  /** @nullable */
+  endpoint?: string | null;
 }

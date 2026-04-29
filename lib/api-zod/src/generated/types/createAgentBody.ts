@@ -15,4 +15,13 @@ export interface CreateAgentBody {
   /** @nullable */
   responsibilities?: string | null;
   avatarInitials: string;
+  isPluggedIn?: boolean;
+  /** @nullable */
+  provider?: string | null;
+  /** @nullable */
+  model?: string | null;
+  /** @nullable */
+  apiKey?: string | null;
+  /** @nullable */
+  endpoint?: string | null;
 }

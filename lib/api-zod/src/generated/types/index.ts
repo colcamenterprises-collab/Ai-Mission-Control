@@ -51,6 +51,7 @@ export * from "./task";
 export * from "./taskPriority";
 export * from "./taskStatus";
 export * from "./updateAgentBody";
+export * from "./updateAgentBodyDepartment";
 export * from "./updateAgentBodyStatus";
 export * from "./updateContentBody";
 export * from "./updateContentBodyPlatform";

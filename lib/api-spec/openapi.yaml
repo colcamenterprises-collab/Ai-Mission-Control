@@ -1032,6 +1032,16 @@ components:
           type: integer
         successRate:
           type: integer
+        isPluggedIn:
+          type: boolean
+        provider:
+          type: ["string", "null"]
+        model:
+          type: ["string", "null"]
+        apiKeyHint:
+          type: ["string", "null"]
+        endpoint:
+          type: ["string", "null"]
       required:
         - id
         - name
@@ -1043,6 +1053,7 @@ components:
         - avatarInitials
         - tasksCompleted
         - successRate
+        - isPluggedIn
 
     CreateAgentBody:
       type: object
@@ -1060,17 +1071,44 @@ components:
           type: ["string", "null"]
         avatarInitials:
           type: string
+        isPluggedIn:
+          type: boolean
+        provider:
+          type: ["string", "null"]
+        model:
+          type: ["string", "null"]
+        apiKey:
+          type: ["string", "null"]
+        endpoint:
+          type: ["string", "null"]
       required: [name, role, department, isLead, avatarInitials]
 
     UpdateAgentBody:
       type: object
       properties:
+        name:
+          type: string
+        role:
+          type: string
+        department:
+          type: string
+          enum: [Developers, Writers, Researchers, Operators]
         status:
           type: string
           enum: [active, pending, error, idle]
         currentTask:
           type: ["string", "null"]
         responsibilities:
+          type: ["string", "null"]
+        isPluggedIn:
+          type: boolean
+        provider:
+          type: ["string", "null"]
+        model:
+          type: ["string", "null"]
+        apiKey:
+          type: ["string", "null"]
+        endpoint:
           type: ["string", "null"]
 
     Contact:

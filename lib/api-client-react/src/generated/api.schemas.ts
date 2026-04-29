@@ -407,6 +407,15 @@ export interface Agent {
   avatarInitials: string;
   tasksCompleted: number;
   successRate: number;
+  isPluggedIn: boolean;
+  /** @nullable */
+  provider?: string | null;
+  /** @nullable */
+  model?: string | null;
+  /** @nullable */
+  apiKeyHint?: string | null;
+  /** @nullable */
+  endpoint?: string | null;
 }
 
 export type CreateAgentBodyDepartment =
@@ -427,7 +436,26 @@ export interface CreateAgentBody {
   /** @nullable */
   responsibilities?: string | null;
   avatarInitials: string;
+  isPluggedIn?: boolean;
+  /** @nullable */
+  provider?: string | null;
+  /** @nullable */
+  model?: string | null;
+  /** @nullable */
+  apiKey?: string | null;
+  /** @nullable */
+  endpoint?: string | null;
 }
+
+export type UpdateAgentBodyDepartment =
+  (typeof UpdateAgentBodyDepartment)[keyof typeof UpdateAgentBodyDepartment];
+
+export const UpdateAgentBodyDepartment = {
+  Developers: "Developers",
+  Writers: "Writers",
+  Researchers: "Researchers",
+  Operators: "Operators",
+} as const;
 
 export type UpdateAgentBodyStatus =
   (typeof UpdateAgentBodyStatus)[keyof typeof UpdateAgentBodyStatus];
@@ -440,11 +468,23 @@ export const UpdateAgentBodyStatus = {
 } as const;
 
 export interface UpdateAgentBody {
+  name?: string;
+  role?: string;
+  department?: UpdateAgentBodyDepartment;
   status?: UpdateAgentBodyStatus;
   /** @nullable */
   currentTask?: string | null;
   /** @nullable */
   responsibilities?: string | null;
+  isPluggedIn?: boolean;
+  /** @nullable */
+  provider?: string | null;
+  /** @nullable */
+  model?: string | null;
+  /** @nullable */
+  apiKey?: string | null;
+  /** @nullable */
+  endpoint?: string | null;
 }
 
 export type ContactCategory =

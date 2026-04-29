@@ -16,6 +16,11 @@ export const agentsTable = pgTable("agents", {
   tasksCompleted: integer("tasks_completed").notNull().default(0),
   successRate: integer("success_rate").notNull().default(100),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  isPluggedIn: boolean("is_plugged_in").notNull().default(false),
+  provider: text("provider"),
+  model: text("model"),
+  apiKey: text("api_key"),
+  endpoint: text("endpoint"),
 });
 
 export const insertAgentSchema = createInsertSchema(agentsTable).omit({ id: true, createdAt: true });

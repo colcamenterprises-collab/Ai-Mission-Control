@@ -4,6 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { useListAgents } from "@workspace/api-client-react";
+import { Plug, Wifi, WifiOff } from "lucide-react";
+import { useLocation } from "wouter";
 
 const CRON_JOBS = [
   { id: 1, name: "Daily Agent Briefing", schedule: "0 8 * * *", description: "Generate daily summary at 8am", enabled: true, lastRun: "Today 08:00", status: "active" as const },
@@ -39,9 +42,50 @@ const STATUS_DOT: Record<string, string> = {
   error: "bg-red-500",
 };
 
+const PROVIDER_COLORS: Record<string, string> = {
+  openai: "from-emerald-600 to-emerald-800",
+  anthropic: "from-orange-600 to-orange-800",
+  gemini: "from-blue-600 to-blue-800",
+  groq: "from-purple-600 to-purple-800",
+  mistral: "from-sky-600 to-sky-800",
+  ollama: "from-slate-600 to-slate-800",
+  custom: "from-rose-600 to-rose-800",
+};
+
+const PROVIDER_INITIALS: Record<string, string> = {
+  openai: "OA",
+  anthropic: "AN",
+  gemini: "GG",
+  groq: "GQ",
+  mistral: "MS",
+  ollama: "OL",
+  custom: "CX",
+};
+
+const PROVIDER_NAMES: Record<string, string> = {
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  gemini: "Google Gemini",
+  groq: "Groq",
+  mistral: "Mistral AI",
+  ollama: "Ollama (Local)",
+  custom: "Custom",
+};
+
 export default function Settings() {
   const [cronJobs, setCronJobs] = useState(CRON_JOBS);
   const [config, setConfig] = useState(AGENT_CONFIG);
+  const { data: agents } = useListAgents();
+  const [, navigate] = useLocation();
+
+  const pluggedAgents = agents?.filter(a => a.isPluggedIn && a.provider) ?? [];
+
+  const byProvider = pluggedAgents.reduce<Record<string, typeof pluggedAgents>>((acc, agent) => {
+    const p = agent.provider!;
+    if (!acc[p]) acc[p] = [];
+    acc[p].push(agent);
+    return acc;
+  }, {});
 
   const toggleCron = (id: number) => {
     setCronJobs(prev => prev.map(j => j.id === id ? { ...j, enabled: !j.enabled } : j));
@@ -54,6 +98,75 @@ export default function Settings() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-10">
+
+        {/* AI Providers */}
+        <section>
+          <h2 className="font-mono text-sm uppercase text-muted-foreground mb-4 flex items-center gap-2">
+            <span>AI Providers</span>
+            <div className="flex-1 h-px bg-border ml-2" />
+          </h2>
+
+          {pluggedAgents.length === 0 ? (
+            <div className="bg-card border border-dashed border-border rounded-xl p-8 flex flex-col items-center gap-4 text-center">
+              <Plug className="w-10 h-10 text-muted-foreground/30" />
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">No AI providers connected yet</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Go to the AI Team page to plug in your first agent.</p>
+              </div>
+              <Button size="sm" variant="outline" className="gap-2 text-xs" onClick={() => navigate("/team")}>
+                <Plug className="w-3.5 h-3.5" />
+                Go to AI Team
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {Object.entries(byProvider).map(([provider, providerAgents]) => (
+                <div key={provider} className="bg-card border border-border rounded-xl overflow-hidden">
+                  <div className={`flex items-center gap-3 p-4 bg-gradient-to-r ${PROVIDER_COLORS[provider] ?? "from-slate-600 to-slate-800"} bg-opacity-10 border-b border-border`}>
+                    <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${PROVIDER_COLORS[provider] ?? "from-slate-600 to-slate-800"} flex items-center justify-center`}>
+                      <span className="font-mono text-xs font-bold text-white">{PROVIDER_INITIALS[provider] ?? "??"}</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">{PROVIDER_NAMES[provider] ?? provider}</p>
+                      <p className="text-xs text-muted-foreground">{providerAgents.length} agent{providerAgents.length !== 1 ? "s" : ""} connected</p>
+                    </div>
+                    <div className="ml-auto flex items-center gap-1.5">
+                      <Wifi className="w-3.5 h-3.5 text-green-400" />
+                      <span className="text-xs text-green-400 font-mono">Connected</span>
+                    </div>
+                  </div>
+                  <div className="divide-y divide-border">
+                    {providerAgents.map(agent => (
+                      <div key={agent.id} className="flex items-center gap-4 p-3 hover:bg-secondary/30 transition-colors">
+                        <div className="w-7 h-7 rounded-full bg-primary/20 border border-border flex items-center justify-center flex-shrink-0">
+                          <span className="font-mono text-xs text-primary">{agent.avatarInitials}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{agent.name}</p>
+                          <p className="text-xs text-muted-foreground">{agent.role}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-mono text-primary">{agent.model}</p>
+                          {agent.apiKeyHint && (
+                            <p className="text-xs text-muted-foreground font-mono">{agent.apiKeyHint}</p>
+                          )}
+                        </div>
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_DOT[agent.status] ?? "bg-muted-foreground"}`} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              <Button size="sm" variant="outline" className="gap-2 text-xs" onClick={() => navigate("/team")}>
+                <Plug className="w-3.5 h-3.5" />
+                Plug In Another Agent
+              </Button>
+            </div>
+          )}
+        </section>
+
+        <Separator />
 
         {/* Cron Job Manager */}
         <section>
@@ -97,7 +210,11 @@ export default function Settings() {
                   <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
                     <span className="font-mono text-xs font-bold text-primary">{integration.icon}</span>
                   </div>
-                  <div className={`w-2 h-2 rounded-full ${integration.status === "connected" ? "bg-green-500" : "bg-muted-foreground/30"}`} />
+                  {integration.status === "connected" ? (
+                    <Wifi className="w-3.5 h-3.5 text-green-400" />
+                  ) : (
+                    <WifiOff className="w-3.5 h-3.5 text-muted-foreground/40" />
+                  )}
                 </div>
                 <p className="font-medium text-sm">{integration.name}</p>
                 <p className="text-xs text-muted-foreground mt-1">{integration.description}</p>

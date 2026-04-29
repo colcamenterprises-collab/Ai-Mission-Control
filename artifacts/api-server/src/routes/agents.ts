@@ -14,9 +14,21 @@ import { serializeDates } from "../utils/serialize.js";
 
 const router: IRouter = Router();
 
+function maskApiKey(apiKey: string | null | undefined): string | null {
+  if (!apiKey) return null;
+  if (apiKey.length <= 4) return "••••";
+  return "••••" + apiKey.slice(-4);
+}
+
+function maskAgentForResponse(agent: typeof agentsTable.$inferSelect) {
+  const { apiKey, ...rest } = agent;
+  return { ...rest, apiKeyHint: maskApiKey(apiKey) };
+}
+
 router.get("/agents", async (_req, res): Promise<void> => {
   const agents = await db.select().from(agentsTable).orderBy(agentsTable.id);
-  res.json(ListAgentsResponse.parse(serializeDates(agents)));
+  const masked = agents.map(maskAgentForResponse);
+  res.json(ListAgentsResponse.parse(serializeDates(masked)));
 });
 
 router.post("/agents", async (req, res): Promise<void> => {
@@ -25,8 +37,16 @@ router.post("/agents", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [agent] = await db.insert(agentsTable).values(parsed.data).returning();
-  res.status(201).json(GetAgentResponse.parse(serializeDates(agent)));
+  const { apiKey, ...rest } = parsed.data;
+  const insertData = {
+    ...rest,
+    apiKey: apiKey ?? null,
+    lastActive: "just now",
+    status: "idle" as const,
+    isPluggedIn: rest.isPluggedIn ?? false,
+  };
+  const [agent] = await db.insert(agentsTable).values(insertData).returning();
+  res.status(201).json(GetAgentResponse.parse(serializeDates(maskAgentForResponse(agent))));
 });
 
 router.get("/agents/:id", async (req, res): Promise<void> => {
@@ -40,7 +60,7 @@ router.get("/agents/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Agent not found" });
     return;
   }
-  res.json(GetAgentResponse.parse(serializeDates(agent)));
+  res.json(GetAgentResponse.parse(serializeDates(maskAgentForResponse(agent))));
 });
 
 router.patch("/agents/:id", async (req, res): Promise<void> => {
@@ -54,12 +74,31 @@ router.patch("/agents/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [agent] = await db.update(agentsTable).set(parsed.data).where(eq(agentsTable.id, params.data.id)).returning();
+  const { apiKey, ...rest } = parsed.data;
+  const updateData: Partial<typeof agentsTable.$inferInsert> = { ...rest };
+  if (apiKey !== undefined) {
+    updateData.apiKey = apiKey;
+  }
+  const [agent] = await db.update(agentsTable).set(updateData).where(eq(agentsTable.id, params.data.id)).returning();
   if (!agent) {
     res.status(404).json({ error: "Agent not found" });
     return;
   }
-  res.json(UpdateAgentResponse.parse(serializeDates(agent)));
+  res.json(UpdateAgentResponse.parse(serializeDates(maskAgentForResponse(agent))));
+});
+
+router.delete("/agents/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const [agent] = await db.delete(agentsTable).where(eq(agentsTable.id, id)).returning();
+  if (!agent) {
+    res.status(404).json({ error: "Agent not found" });
+    return;
+  }
+  res.sendStatus(204);
 });
 
 export default router;
