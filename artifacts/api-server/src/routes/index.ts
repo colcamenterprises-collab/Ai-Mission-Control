@@ -8,6 +8,7 @@ import memoriesRouter from "./memories";
 import agentsRouter from "./agents";
 import contactsRouter from "./contacts";
 import activityRouter from "./activity";
+import integrationsRouter from "./integrations";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(memoriesRouter);
 router.use(agentsRouter);
 router.use(contactsRouter);
 router.use(activityRouter);
+router.use(integrationsRouter);
 
 export default router;

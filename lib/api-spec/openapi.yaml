@@ -16,6 +16,7 @@ tags:
   - name: contacts
   - name: activity
   - name: dashboard
+  - name: integrations
 
 paths:
   /healthz:
@@ -621,6 +622,179 @@ paths:
               schema:
                 $ref: "#/components/schemas/Agent"
 
+  # ─── INTEGRATIONS ─────────────────────────────────────────────
+  /integrations:
+    get:
+      operationId: listIntegrations
+      tags: [integrations]
+      summary: List all app integrations
+      responses:
+        "200":
+          description: Integrations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Integration"
+    post:
+      operationId: createIntegration
+      tags: [integrations]
+      summary: Connect a new app integration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIntegrationBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Integration"
+
+  /integrations/{id}:
+    get:
+      operationId: getIntegration
+      tags: [integrations]
+      summary: Get an integration with its assigned agents
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Integration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationDetail"
+    patch:
+      operationId: updateIntegration
+      tags: [integrations]
+      summary: Update an integration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIntegrationBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Integration"
+    delete:
+      operationId: deleteIntegration
+      tags: [integrations]
+      summary: Remove an integration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /integrations/{id}/agents:
+    get:
+      operationId: listIntegrationAgents
+      tags: [integrations]
+      summary: List agents assigned to an integration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Assigned agents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IntegrationAgent"
+    post:
+      operationId: assignAgentToIntegration
+      tags: [integrations]
+      summary: Assign an agent to an integration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignAgentBody"
+      responses:
+        "201":
+          description: Assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntegrationAgent"
+
+  /integrations/{id}/agents/{agentId}:
+    delete:
+      operationId: unassignAgentFromIntegration
+      tags: [integrations]
+      summary: Remove an agent from an integration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Unassigned
+
+  /agents/{id}/integrations:
+    get:
+      operationId: listAgentIntegrations
+      tags: [integrations]
+      summary: List integrations assigned to an agent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Agent integrations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Integration"
+
   # ─── CONTACTS / CRM ───────────────────────────────────────────
   /contacts:
     get:
@@ -1110,6 +1284,136 @@ components:
           type: ["string", "null"]
         endpoint:
           type: ["string", "null"]
+
+    Integration:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        url:
+          type: string
+        description:
+          type: ["string", "null"]
+        category:
+          type: string
+          enum: [dashboard, crm, analytics, ecommerce, social, productivity, devtools, custom]
+        iconInitials:
+          type: string
+        iconColor:
+          type: string
+        status:
+          type: string
+          enum: [connected, disconnected, error, pending]
+        isPublic:
+          type: boolean
+        apiKeyHint:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required: [id, name, url, category, iconInitials, iconColor, status, isPublic, createdAt]
+
+    IntegrationDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        url:
+          type: string
+        description:
+          type: ["string", "null"]
+        category:
+          type: string
+        iconInitials:
+          type: string
+        iconColor:
+          type: string
+        status:
+          type: string
+        isPublic:
+          type: boolean
+        apiKeyHint:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        agents:
+          type: array
+          items:
+            $ref: "#/components/schemas/IntegrationAgent"
+      required: [id, name, url, category, iconInitials, iconColor, status, isPublic, createdAt, agents]
+
+    IntegrationAgent:
+      type: object
+      properties:
+        id:
+          type: integer
+        agentId:
+          type: integer
+        integrationId:
+          type: integer
+        role:
+          type: ["string", "null"]
+        assignedAt:
+          type: string
+        agentName:
+          type: string
+        agentAvatarInitials:
+          type: string
+        agentStatus:
+          type: string
+      required: [id, agentId, integrationId, assignedAt, agentName, agentAvatarInitials, agentStatus]
+
+    CreateIntegrationBody:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+        description:
+          type: ["string", "null"]
+        category:
+          type: string
+          enum: [dashboard, crm, analytics, ecommerce, social, productivity, devtools, custom]
+        iconInitials:
+          type: string
+        iconColor:
+          type: string
+        isPublic:
+          type: boolean
+        apiKey:
+          type: ["string", "null"]
+      required: [name, url, category, iconInitials, iconColor]
+
+    UpdateIntegrationBody:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+        description:
+          type: ["string", "null"]
+        category:
+          type: string
+          enum: [dashboard, crm, analytics, ecommerce, social, productivity, devtools, custom]
+        status:
+          type: string
+          enum: [connected, disconnected, error, pending]
+        apiKey:
+          type: ["string", "null"]
+
+    AssignAgentBody:
+      type: object
+      properties:
+        agentId:
+          type: integer
+        role:
+          type: ["string", "null"]
+      required: [agentId]
 
     Contact:
       type: object

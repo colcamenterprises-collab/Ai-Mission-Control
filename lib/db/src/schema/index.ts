@@ -5,3 +5,4 @@ export * from "./memories";
 export * from "./agents";
 export * from "./contacts";
 export * from "./activity";
+export * from "./integrations";

@@ -487,6 +487,143 @@ export interface UpdateAgentBody {
   endpoint?: string | null;
 }
 
+export type IntegrationCategory =
+  (typeof IntegrationCategory)[keyof typeof IntegrationCategory];
+
+export const IntegrationCategory = {
+  dashboard: "dashboard",
+  crm: "crm",
+  analytics: "analytics",
+  ecommerce: "ecommerce",
+  social: "social",
+  productivity: "productivity",
+  devtools: "devtools",
+  custom: "custom",
+} as const;
+
+export type IntegrationStatus =
+  (typeof IntegrationStatus)[keyof typeof IntegrationStatus];
+
+export const IntegrationStatus = {
+  connected: "connected",
+  disconnected: "disconnected",
+  error: "error",
+  pending: "pending",
+} as const;
+
+export interface Integration {
+  id: number;
+  name: string;
+  url: string;
+  /** @nullable */
+  description?: string | null;
+  category: IntegrationCategory;
+  iconInitials: string;
+  iconColor: string;
+  status: IntegrationStatus;
+  isPublic: boolean;
+  /** @nullable */
+  apiKeyHint?: string | null;
+  createdAt: string;
+}
+
+export interface IntegrationAgent {
+  id: number;
+  agentId: number;
+  integrationId: number;
+  /** @nullable */
+  role?: string | null;
+  assignedAt: string;
+  agentName: string;
+  agentAvatarInitials: string;
+  agentStatus: string;
+}
+
+export interface IntegrationDetail {
+  id: number;
+  name: string;
+  url: string;
+  /** @nullable */
+  description?: string | null;
+  category: string;
+  iconInitials: string;
+  iconColor: string;
+  status: string;
+  isPublic: boolean;
+  /** @nullable */
+  apiKeyHint?: string | null;
+  createdAt: string;
+  agents: IntegrationAgent[];
+}
+
+export type CreateIntegrationBodyCategory =
+  (typeof CreateIntegrationBodyCategory)[keyof typeof CreateIntegrationBodyCategory];
+
+export const CreateIntegrationBodyCategory = {
+  dashboard: "dashboard",
+  crm: "crm",
+  analytics: "analytics",
+  ecommerce: "ecommerce",
+  social: "social",
+  productivity: "productivity",
+  devtools: "devtools",
+  custom: "custom",
+} as const;
+
+export interface CreateIntegrationBody {
+  name: string;
+  url: string;
+  /** @nullable */
+  description?: string | null;
+  category: CreateIntegrationBodyCategory;
+  iconInitials: string;
+  iconColor: string;
+  isPublic?: boolean;
+  /** @nullable */
+  apiKey?: string | null;
+}
+
+export type UpdateIntegrationBodyCategory =
+  (typeof UpdateIntegrationBodyCategory)[keyof typeof UpdateIntegrationBodyCategory];
+
+export const UpdateIntegrationBodyCategory = {
+  dashboard: "dashboard",
+  crm: "crm",
+  analytics: "analytics",
+  ecommerce: "ecommerce",
+  social: "social",
+  productivity: "productivity",
+  devtools: "devtools",
+  custom: "custom",
+} as const;
+
+export type UpdateIntegrationBodyStatus =
+  (typeof UpdateIntegrationBodyStatus)[keyof typeof UpdateIntegrationBodyStatus];
+
+export const UpdateIntegrationBodyStatus = {
+  connected: "connected",
+  disconnected: "disconnected",
+  error: "error",
+  pending: "pending",
+} as const;
+
+export interface UpdateIntegrationBody {
+  name?: string;
+  url?: string;
+  /** @nullable */
+  description?: string | null;
+  category?: UpdateIntegrationBodyCategory;
+  status?: UpdateIntegrationBodyStatus;
+  /** @nullable */
+  apiKey?: string | null;
+}
+
+export interface AssignAgentBody {
+  agentId: number;
+  /** @nullable */
+  role?: string | null;
+}
+
 export type ContactCategory =
   (typeof ContactCategory)[keyof typeof ContactCategory];
 

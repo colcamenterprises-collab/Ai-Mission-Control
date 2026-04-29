@@ -19,6 +19,7 @@ import type {
 import type {
   ActivityEntry,
   Agent,
+  AssignAgentBody,
   CalendarEvent,
   Contact,
   ContentItem,
@@ -26,10 +27,14 @@ import type {
   CreateContactBody,
   CreateContentBody,
   CreateEventBody,
+  CreateIntegrationBody,
   CreateMemoryBody,
   CreateTaskBody,
   DashboardSummary,
   HealthStatus,
+  Integration,
+  IntegrationAgent,
+  IntegrationDetail,
   ListActivityParams,
   ListContactsParams,
   ListContentParams,
@@ -43,6 +48,7 @@ import type {
   Task,
   UpdateAgentBody,
   UpdateContentBody,
+  UpdateIntegrationBody,
   UpdateTaskBody,
 } from "./api.schemas";
 
@@ -2692,6 +2698,776 @@ export const useUpdateAgent = <
 > => {
   return useMutation(getUpdateAgentMutationOptions(options));
 };
+
+/**
+ * @summary List all app integrations
+ */
+export const getListIntegrationsUrl = () => {
+  return `/api/integrations`;
+};
+
+export const listIntegrations = async (
+  options?: RequestInit,
+): Promise<Integration[]> => {
+  return customFetch<Integration[]>(getListIntegrationsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListIntegrationsQueryKey = () => {
+  return [`/api/integrations`] as const;
+};
+
+export const getListIntegrationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listIntegrations>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listIntegrations>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListIntegrationsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listIntegrations>>
+  > = ({ signal }) => listIntegrations({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listIntegrations>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListIntegrationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listIntegrations>>
+>;
+export type ListIntegrationsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all app integrations
+ */
+
+export function useListIntegrations<
+  TData = Awaited<ReturnType<typeof listIntegrations>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listIntegrations>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListIntegrationsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Connect a new app integration
+ */
+export const getCreateIntegrationUrl = () => {
+  return `/api/integrations`;
+};
+
+export const createIntegration = async (
+  createIntegrationBody: CreateIntegrationBody,
+  options?: RequestInit,
+): Promise<Integration> => {
+  return customFetch<Integration>(getCreateIntegrationUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createIntegrationBody),
+  });
+};
+
+export const getCreateIntegrationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createIntegration>>,
+    TError,
+    { data: BodyType<CreateIntegrationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createIntegration>>,
+  TError,
+  { data: BodyType<CreateIntegrationBody> },
+  TContext
+> => {
+  const mutationKey = ["createIntegration"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createIntegration>>,
+    { data: BodyType<CreateIntegrationBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createIntegration(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateIntegrationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createIntegration>>
+>;
+export type CreateIntegrationMutationBody = BodyType<CreateIntegrationBody>;
+export type CreateIntegrationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Connect a new app integration
+ */
+export const useCreateIntegration = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createIntegration>>,
+    TError,
+    { data: BodyType<CreateIntegrationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createIntegration>>,
+  TError,
+  { data: BodyType<CreateIntegrationBody> },
+  TContext
+> => {
+  return useMutation(getCreateIntegrationMutationOptions(options));
+};
+
+/**
+ * @summary Get an integration with its assigned agents
+ */
+export const getGetIntegrationUrl = (id: number) => {
+  return `/api/integrations/${id}`;
+};
+
+export const getIntegration = async (
+  id: number,
+  options?: RequestInit,
+): Promise<IntegrationDetail> => {
+  return customFetch<IntegrationDetail>(getGetIntegrationUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetIntegrationQueryKey = (id: number) => {
+  return [`/api/integrations/${id}`] as const;
+};
+
+export const getGetIntegrationQueryOptions = <
+  TData = Awaited<ReturnType<typeof getIntegration>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getIntegration>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetIntegrationQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getIntegration>>> = ({
+    signal,
+  }) => getIntegration(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getIntegration>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetIntegrationQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getIntegration>>
+>;
+export type GetIntegrationQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get an integration with its assigned agents
+ */
+
+export function useGetIntegration<
+  TData = Awaited<ReturnType<typeof getIntegration>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getIntegration>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetIntegrationQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update an integration
+ */
+export const getUpdateIntegrationUrl = (id: number) => {
+  return `/api/integrations/${id}`;
+};
+
+export const updateIntegration = async (
+  id: number,
+  updateIntegrationBody: UpdateIntegrationBody,
+  options?: RequestInit,
+): Promise<Integration> => {
+  return customFetch<Integration>(getUpdateIntegrationUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateIntegrationBody),
+  });
+};
+
+export const getUpdateIntegrationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateIntegration>>,
+    TError,
+    { id: number; data: BodyType<UpdateIntegrationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateIntegration>>,
+  TError,
+  { id: number; data: BodyType<UpdateIntegrationBody> },
+  TContext
+> => {
+  const mutationKey = ["updateIntegration"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateIntegration>>,
+    { id: number; data: BodyType<UpdateIntegrationBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateIntegration(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateIntegrationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateIntegration>>
+>;
+export type UpdateIntegrationMutationBody = BodyType<UpdateIntegrationBody>;
+export type UpdateIntegrationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update an integration
+ */
+export const useUpdateIntegration = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateIntegration>>,
+    TError,
+    { id: number; data: BodyType<UpdateIntegrationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateIntegration>>,
+  TError,
+  { id: number; data: BodyType<UpdateIntegrationBody> },
+  TContext
+> => {
+  return useMutation(getUpdateIntegrationMutationOptions(options));
+};
+
+/**
+ * @summary Remove an integration
+ */
+export const getDeleteIntegrationUrl = (id: number) => {
+  return `/api/integrations/${id}`;
+};
+
+export const deleteIntegration = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteIntegrationUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteIntegrationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteIntegration>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteIntegration>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteIntegration"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteIntegration>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteIntegration(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteIntegrationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteIntegration>>
+>;
+
+export type DeleteIntegrationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove an integration
+ */
+export const useDeleteIntegration = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteIntegration>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteIntegration>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteIntegrationMutationOptions(options));
+};
+
+/**
+ * @summary List agents assigned to an integration
+ */
+export const getListIntegrationAgentsUrl = (id: number) => {
+  return `/api/integrations/${id}/agents`;
+};
+
+export const listIntegrationAgents = async (
+  id: number,
+  options?: RequestInit,
+): Promise<IntegrationAgent[]> => {
+  return customFetch<IntegrationAgent[]>(getListIntegrationAgentsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListIntegrationAgentsQueryKey = (id: number) => {
+  return [`/api/integrations/${id}/agents`] as const;
+};
+
+export const getListIntegrationAgentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listIntegrationAgents>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listIntegrationAgents>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListIntegrationAgentsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listIntegrationAgents>>
+  > = ({ signal }) => listIntegrationAgents(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listIntegrationAgents>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListIntegrationAgentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listIntegrationAgents>>
+>;
+export type ListIntegrationAgentsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List agents assigned to an integration
+ */
+
+export function useListIntegrationAgents<
+  TData = Awaited<ReturnType<typeof listIntegrationAgents>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listIntegrationAgents>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListIntegrationAgentsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Assign an agent to an integration
+ */
+export const getAssignAgentToIntegrationUrl = (id: number) => {
+  return `/api/integrations/${id}/agents`;
+};
+
+export const assignAgentToIntegration = async (
+  id: number,
+  assignAgentBody: AssignAgentBody,
+  options?: RequestInit,
+): Promise<IntegrationAgent> => {
+  return customFetch<IntegrationAgent>(getAssignAgentToIntegrationUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(assignAgentBody),
+  });
+};
+
+export const getAssignAgentToIntegrationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof assignAgentToIntegration>>,
+    TError,
+    { id: number; data: BodyType<AssignAgentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof assignAgentToIntegration>>,
+  TError,
+  { id: number; data: BodyType<AssignAgentBody> },
+  TContext
+> => {
+  const mutationKey = ["assignAgentToIntegration"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof assignAgentToIntegration>>,
+    { id: number; data: BodyType<AssignAgentBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return assignAgentToIntegration(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AssignAgentToIntegrationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof assignAgentToIntegration>>
+>;
+export type AssignAgentToIntegrationMutationBody = BodyType<AssignAgentBody>;
+export type AssignAgentToIntegrationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Assign an agent to an integration
+ */
+export const useAssignAgentToIntegration = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof assignAgentToIntegration>>,
+    TError,
+    { id: number; data: BodyType<AssignAgentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof assignAgentToIntegration>>,
+  TError,
+  { id: number; data: BodyType<AssignAgentBody> },
+  TContext
+> => {
+  return useMutation(getAssignAgentToIntegrationMutationOptions(options));
+};
+
+/**
+ * @summary Remove an agent from an integration
+ */
+export const getUnassignAgentFromIntegrationUrl = (
+  id: number,
+  agentId: number,
+) => {
+  return `/api/integrations/${id}/agents/${agentId}`;
+};
+
+export const unassignAgentFromIntegration = async (
+  id: number,
+  agentId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getUnassignAgentFromIntegrationUrl(id, agentId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getUnassignAgentFromIntegrationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unassignAgentFromIntegration>>,
+    TError,
+    { id: number; agentId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof unassignAgentFromIntegration>>,
+  TError,
+  { id: number; agentId: number },
+  TContext
+> => {
+  const mutationKey = ["unassignAgentFromIntegration"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof unassignAgentFromIntegration>>,
+    { id: number; agentId: number }
+  > = (props) => {
+    const { id, agentId } = props ?? {};
+
+    return unassignAgentFromIntegration(id, agentId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UnassignAgentFromIntegrationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof unassignAgentFromIntegration>>
+>;
+
+export type UnassignAgentFromIntegrationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove an agent from an integration
+ */
+export const useUnassignAgentFromIntegration = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof unassignAgentFromIntegration>>,
+    TError,
+    { id: number; agentId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof unassignAgentFromIntegration>>,
+  TError,
+  { id: number; agentId: number },
+  TContext
+> => {
+  return useMutation(getUnassignAgentFromIntegrationMutationOptions(options));
+};
+
+/**
+ * @summary List integrations assigned to an agent
+ */
+export const getListAgentIntegrationsUrl = (id: number) => {
+  return `/api/agents/${id}/integrations`;
+};
+
+export const listAgentIntegrations = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Integration[]> => {
+  return customFetch<Integration[]>(getListAgentIntegrationsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListAgentIntegrationsQueryKey = (id: number) => {
+  return [`/api/agents/${id}/integrations`] as const;
+};
+
+export const getListAgentIntegrationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAgentIntegrations>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAgentIntegrations>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListAgentIntegrationsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listAgentIntegrations>>
+  > = ({ signal }) => listAgentIntegrations(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAgentIntegrations>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAgentIntegrationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAgentIntegrations>>
+>;
+export type ListAgentIntegrationsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List integrations assigned to an agent
+ */
+
+export function useListAgentIntegrations<
+  TData = Awaited<ReturnType<typeof listAgentIntegrations>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAgentIntegrations>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAgentIntegrationsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List all contacts

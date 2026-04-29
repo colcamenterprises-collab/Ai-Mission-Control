@@ -707,6 +707,222 @@ export const UpdateAgentResponse = zod.object({
 });
 
 /**
+ * @summary List all app integrations
+ */
+export const ListIntegrationsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  url: zod.string(),
+  description: zod.string().nullish(),
+  category: zod.enum([
+    "dashboard",
+    "crm",
+    "analytics",
+    "ecommerce",
+    "social",
+    "productivity",
+    "devtools",
+    "custom",
+  ]),
+  iconInitials: zod.string(),
+  iconColor: zod.string(),
+  status: zod.enum(["connected", "disconnected", "error", "pending"]),
+  isPublic: zod.boolean(),
+  apiKeyHint: zod.string().nullish(),
+  createdAt: zod.string(),
+});
+export const ListIntegrationsResponse = zod.array(ListIntegrationsResponseItem);
+
+/**
+ * @summary Connect a new app integration
+ */
+export const CreateIntegrationBody = zod.object({
+  name: zod.string(),
+  url: zod.string(),
+  description: zod.string().nullish(),
+  category: zod.enum([
+    "dashboard",
+    "crm",
+    "analytics",
+    "ecommerce",
+    "social",
+    "productivity",
+    "devtools",
+    "custom",
+  ]),
+  iconInitials: zod.string(),
+  iconColor: zod.string(),
+  isPublic: zod.boolean().optional(),
+  apiKey: zod.string().nullish(),
+});
+
+/**
+ * @summary Get an integration with its assigned agents
+ */
+export const GetIntegrationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetIntegrationResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  url: zod.string(),
+  description: zod.string().nullish(),
+  category: zod.string(),
+  iconInitials: zod.string(),
+  iconColor: zod.string(),
+  status: zod.string(),
+  isPublic: zod.boolean(),
+  apiKeyHint: zod.string().nullish(),
+  createdAt: zod.string(),
+  agents: zod.array(
+    zod.object({
+      id: zod.number(),
+      agentId: zod.number(),
+      integrationId: zod.number(),
+      role: zod.string().nullish(),
+      assignedAt: zod.string(),
+      agentName: zod.string(),
+      agentAvatarInitials: zod.string(),
+      agentStatus: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Update an integration
+ */
+export const UpdateIntegrationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateIntegrationBody = zod.object({
+  name: zod.string().optional(),
+  url: zod.string().optional(),
+  description: zod.string().nullish(),
+  category: zod
+    .enum([
+      "dashboard",
+      "crm",
+      "analytics",
+      "ecommerce",
+      "social",
+      "productivity",
+      "devtools",
+      "custom",
+    ])
+    .optional(),
+  status: zod
+    .enum(["connected", "disconnected", "error", "pending"])
+    .optional(),
+  apiKey: zod.string().nullish(),
+});
+
+export const UpdateIntegrationResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  url: zod.string(),
+  description: zod.string().nullish(),
+  category: zod.enum([
+    "dashboard",
+    "crm",
+    "analytics",
+    "ecommerce",
+    "social",
+    "productivity",
+    "devtools",
+    "custom",
+  ]),
+  iconInitials: zod.string(),
+  iconColor: zod.string(),
+  status: zod.enum(["connected", "disconnected", "error", "pending"]),
+  isPublic: zod.boolean(),
+  apiKeyHint: zod.string().nullish(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Remove an integration
+ */
+export const DeleteIntegrationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List agents assigned to an integration
+ */
+export const ListIntegrationAgentsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListIntegrationAgentsResponseItem = zod.object({
+  id: zod.number(),
+  agentId: zod.number(),
+  integrationId: zod.number(),
+  role: zod.string().nullish(),
+  assignedAt: zod.string(),
+  agentName: zod.string(),
+  agentAvatarInitials: zod.string(),
+  agentStatus: zod.string(),
+});
+export const ListIntegrationAgentsResponse = zod.array(
+  ListIntegrationAgentsResponseItem,
+);
+
+/**
+ * @summary Assign an agent to an integration
+ */
+export const AssignAgentToIntegrationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AssignAgentToIntegrationBody = zod.object({
+  agentId: zod.number(),
+  role: zod.string().nullish(),
+});
+
+/**
+ * @summary Remove an agent from an integration
+ */
+export const UnassignAgentFromIntegrationParams = zod.object({
+  id: zod.coerce.number(),
+  agentId: zod.coerce.number(),
+});
+
+/**
+ * @summary List integrations assigned to an agent
+ */
+export const ListAgentIntegrationsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListAgentIntegrationsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  url: zod.string(),
+  description: zod.string().nullish(),
+  category: zod.enum([
+    "dashboard",
+    "crm",
+    "analytics",
+    "ecommerce",
+    "social",
+    "productivity",
+    "devtools",
+    "custom",
+  ]),
+  iconInitials: zod.string(),
+  iconColor: zod.string(),
+  status: zod.enum(["connected", "disconnected", "error", "pending"]),
+  isPublic: zod.boolean(),
+  apiKeyHint: zod.string().nullish(),
+  createdAt: zod.string(),
+});
+export const ListAgentIntegrationsResponse = zod.array(
+  ListAgentIntegrationsResponseItem,
+);
+
+/**
  * @summary List all contacts
  */
 export const ListContactsQueryParams = zod.object({

@@ -3,6 +3,7 @@ import {
   useListAgents,
   useCreateAgent,
   useUpdateAgent,
+  useListAgentIntegrations,
   getListAgentsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -15,7 +16,41 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plug, Plus, CheckCircle2, Eye, EyeOff, Trash2, ChevronLeft } from "lucide-react";
+import { Plug, Plus, CheckCircle2, Eye, EyeOff, Trash2, ChevronLeft, ExternalLink } from "lucide-react";
+
+const CATEGORY_COLORS: Record<string, string> = {
+  dashboard: "from-cyan-600 to-cyan-800",
+  crm: "from-purple-600 to-purple-800",
+  analytics: "from-blue-600 to-blue-800",
+  ecommerce: "from-emerald-600 to-emerald-800",
+  social: "from-pink-600 to-pink-800",
+  productivity: "from-amber-600 to-amber-800",
+  devtools: "from-slate-600 to-slate-800",
+  custom: "from-rose-600 to-rose-800",
+};
+
+function AgentAssignedApps({ agentId }: { agentId: number }) {
+  const { data: integrations, isLoading } = useListAgentIntegrations(agentId);
+  if (isLoading) return <div className="h-8 bg-secondary/40 animate-pulse rounded" />;
+  if (!integrations?.length) return (
+    <p className="text-xs text-muted-foreground/60 py-2">No apps assigned. Connect apps in Settings → App Connections.</p>
+  );
+  return (
+    <div className="flex flex-wrap gap-2">
+      {integrations.map(i => (
+        <a key={i.id} href={i.url} target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-secondary/60 hover:bg-secondary rounded-lg border border-border hover:border-primary/30 transition-colors group"
+        >
+          <div className={`w-5 h-5 rounded bg-gradient-to-br ${CATEGORY_COLORS[i.category] ?? "from-slate-600 to-slate-800"} flex items-center justify-center flex-shrink-0`}>
+            <span className="font-mono text-[8px] font-bold text-white leading-none">{i.iconInitials}</span>
+          </div>
+          <span className="text-xs">{i.name}</span>
+          <ExternalLink className="w-2.5 h-2.5 text-muted-foreground/0 group-hover:text-muted-foreground/60 transition-colors" />
+        </a>
+      ))}
+    </div>
+  );
+}
 
 const STATUS_DOT: Record<string, string> = {
   active: "bg-primary shadow-[0_0_8px_rgba(0,212,255,0.8)]",
@@ -596,6 +631,13 @@ export default function Team() {
                   <p className="mt-1 text-muted-foreground leading-relaxed">{selectedAgent.responsibilities}</p>
                 </div>
               )}
+
+              <div>
+                <label className="text-xs text-muted-foreground font-mono uppercase">Assigned Apps</label>
+                <div className="mt-2">
+                  <AgentAssignedApps agentId={selectedAgent.id} />
+                </div>
+              </div>
 
               {selectedAgent.isPluggedIn && (
                 <div className="flex justify-end pt-2 border-t border-border">
