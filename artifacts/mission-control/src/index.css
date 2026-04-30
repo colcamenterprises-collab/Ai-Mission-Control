@@ -59,23 +59,73 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ─── Light Mode (default) ─────────────────────────────────── */
 :root {
   --app-font-sans: 'Inter', sans-serif;
   --app-font-mono: 'JetBrains Mono', monospace;
   --radius: 0.25rem;
 
-  /* Force Dark Mode Only */
+  color-scheme: light;
+
+  --background: 210 20% 97%;
+  --foreground: 224 40% 12%;
+
+  --border: 220 18% 87%;
+  --input: 220 18% 87%;
+  --ring: 190 100% 40%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 224 40% 12%;
+  --card-border: 220 18% 87%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 224 40% 12%;
+  --popover-border: 220 18% 87%;
+
+  /* Primary: Electric cyan — same as dark mode */
+  --primary: 190 100% 35%;
+  --primary-foreground: 0 0% 100%;
+  --primary-border: 190 100% 35%;
+
+  --secondary: 215 25% 93%;
+  --secondary-foreground: 224 40% 20%;
+  --secondary-border: 220 18% 82%;
+
+  --muted: 215 20% 93%;
+  --muted-foreground: 220 15% 46%;
+  --muted-border: 220 18% 85%;
+
+  --accent: 190 80% 38%;
+  --accent-foreground: 0 0% 100%;
+  --accent-border: 190 80% 38%;
+
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --destructive-border: 0 72% 51%;
+
+  --sidebar: 215 30% 94%;
+  --sidebar-foreground: 224 40% 15%;
+  --sidebar-border: 220 18% 85%;
+  --sidebar-primary: 190 100% 35%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary-border: 190 100% 35%;
+  --sidebar-accent: 215 25% 88%;
+  --sidebar-accent-foreground: 224 40% 15%;
+  --sidebar-accent-border: 220 18% 80%;
+  --sidebar-ring: 190 100% 40%;
+}
+
+/* ─── Dark Mode ─────────────────────────────────────────────── */
+.dark {
   color-scheme: dark;
 
-  /* Backgrounds: Deep navy/charcoal */
-  --background: 224 50% 5%; /* #0A0F1E */
+  --background: 224 50% 5%;
   --foreground: 210 40% 98%;
 
   --border: 220 30% 18%;
   --input: 220 30% 18%;
-  --ring: 190 100% 50%; /* Electric cyan #00D4FF */
+  --ring: 190 100% 50%;
 
-  /* Cards: slightly lighter navy */
   --card: 222 40% 8%;
   --card-foreground: 210 40% 98%;
   --card-border: 220 30% 18%;
@@ -84,12 +134,10 @@
   --popover-foreground: 210 40% 98%;
   --popover-border: 220 30% 18%;
 
-  /* Primary: Electric cyan */
   --primary: 190 100% 40%;
   --primary-foreground: 224 50% 5%;
   --primary-border: 190 100% 40%;
 
-  /* Secondary: Darker cyan or muted cyan */
   --secondary: 220 30% 15%;
   --secondary-foreground: 210 40% 98%;
   --secondary-border: 220 30% 25%;
@@ -98,16 +146,14 @@
   --muted-foreground: 215 20% 65%;
   --muted-border: 220 30% 20%;
 
-  --accent: 190 100% 40%; /* cyan accent */
+  --accent: 190 100% 40%;
   --accent-foreground: 210 40% 98%;
   --accent-border: 190 100% 40%;
 
-  /* Destructive: Amber/Red */
-  --destructive: 35 100% 50%; /* Amber warning */
+  --destructive: 35 100% 50%;
   --destructive-foreground: 224 50% 5%;
   --destructive-border: 35 100% 50%;
 
-  /* Sidebar */
   --sidebar: 224 50% 4%;
   --sidebar-foreground: 210 40% 98%;
   --sidebar-border: 220 30% 12%;
@@ -118,10 +164,6 @@
   --sidebar-accent-foreground: 210 40% 98%;
   --sidebar-accent-border: 220 30% 25%;
   --sidebar-ring: 190 100% 50%;
-}
-
-.dark {
-  /* We just reuse the root since we force dark mode */
 }
 
 @layer base {

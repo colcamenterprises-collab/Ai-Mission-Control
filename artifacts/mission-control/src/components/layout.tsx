@@ -8,11 +8,15 @@ import {
   Users, 
   UsersRound, 
   Settings,
-  Activity
+  Activity,
+  Sun,
+  Moon,
 } from "lucide-react";
+import { useTheme } from "@/lib/theme";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const { theme, toggle } = useTheme();
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -28,9 +32,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background flex text-foreground">
       <div className="w-64 border-r border-border bg-sidebar flex-shrink-0 flex flex-col">
-        <div className="h-16 flex items-center px-6 border-b border-border">
-          <Activity className="w-5 h-5 text-primary mr-3" />
-          <span className="font-mono font-bold tracking-tight text-sm uppercase">MISSION CONTROL</span>
+        <div className="h-16 flex items-center px-6 border-b border-border gap-3">
+          <Activity className="w-5 h-5 text-primary flex-shrink-0" />
+          <span className="font-mono font-bold tracking-tight text-sm uppercase flex-1 truncate">MISSION CONTROL</span>
+          <button
+            onClick={toggle}
+            aria-label="Toggle theme"
+            className="w-8 h-8 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors flex-shrink-0"
+          >
+            {theme === "dark" ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
+          </button>
         </div>
         <nav className="flex-1 overflow-y-auto py-4">
           <ul className="space-y-1 px-3">
@@ -43,10 +58,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     className={`flex items-center px-3 py-2 text-sm rounded-md transition-colors ${
                       isActive 
                         ? "bg-primary/10 text-primary font-medium" 
-                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                        : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
                     }`}
                   >
-                    <item.icon className={`w-4 h-4 mr-3 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                    <item.icon className={`w-4 h-4 mr-3 flex-shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
                     {item.label}
                   </Link>
                 </li>
