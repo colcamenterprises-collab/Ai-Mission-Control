@@ -421,58 +421,62 @@ interface ConnectFormState {
   name: string;
   role: string;
   department: typeof DEPARTMENTS[number];
-  model: string;
-  apiKey: string;
   endpoint: string;
+  // AI model (step 2 — all optional)
+  provider: string;
+  model: string;
   customModel: string;
+  apiKey: string;
+  modelEndpoint: string;
 }
+
+const NO_PROVIDER = "__none__";
 
 function ConnectAgentDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
   const [step, setStep] = useState<1 | 2>(1);
-  const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
   const [showKey, setShowKey] = useState(false);
   const [form, setForm] = useState<ConnectFormState>({
-    name: "",
-    role: "",
-    department: "Operators",
-    model: "",
-    apiKey: "",
-    endpoint: "",
-    customModel: "",
+    name: "", role: "", department: "Operators", endpoint: "",
+    provider: NO_PROVIDER, model: "", customModel: "", apiKey: "", modelEndpoint: "",
   });
   const [error, setError] = useState("");
   const createAgent = useCreateAgent();
 
+  const selectedProvider = PROVIDERS.find(p => p.id === form.provider) ?? null;
+
   const reset = () => {
     setStep(1);
-    setSelectedProvider(null);
     setShowKey(false);
-    setForm({ name: "", role: "", department: "Operators", model: "", apiKey: "", endpoint: "", customModel: "" });
+    setForm({ name: "", role: "", department: "Operators", endpoint: "", provider: NO_PROVIDER, model: "", customModel: "", apiKey: "", modelEndpoint: "" });
     setError("");
   };
 
-  const handleClose = () => {
-    reset();
-    onClose();
-  };
+  const handleClose = () => { reset(); onClose(); };
 
-  const handleSelectProvider = (p: Provider) => {
-    setSelectedProvider(p);
-    setForm(f => ({ ...f, model: p.models[0] ?? "", endpoint: p.endpointPlaceholder ?? "" }));
+  const handleStep1Next = () => {
+    if (!form.name.trim()) { setError("Agent name is required."); return; }
+    if (!form.role.trim()) { setError("Role is required."); return; }
+    setError("");
     setStep(2);
   };
 
+  const handleProviderChange = (id: string) => {
+    const p = PROVIDERS.find(pr => pr.id === id);
+    setForm(f => ({ ...f, provider: id, model: p?.models[0] ?? "", modelEndpoint: p?.endpointPlaceholder ?? "", apiKey: "" }));
+  };
+
   const handleSubmit = async () => {
-    if (!selectedProvider) return;
-    if (!form.name.trim()) { setError("Agent name is required."); return; }
-    if (!form.role.trim()) { setError("Role is required."); return; }
-    const model = selectedProvider.id === "custom" ? form.customModel : form.model;
-    if (!model.trim()) { setError("Model is required."); return; }
-    if (selectedProvider.needsKey && !form.apiKey.trim()) { setError("API key is required."); return; }
-    if (selectedProvider.needsEndpoint && !form.endpoint.trim()) { setError("Endpoint URL is required."); return; }
+    // Validate AI model fields if a provider was chosen
+    if (selectedProvider) {
+      if (selectedProvider.needsKey && !form.apiKey.trim()) { setError("API key is required for this provider."); return; }
+      const model = selectedProvider.id === "custom" ? form.customModel : form.model;
+      if (!model.trim()) { setError("Model name is required."); return; }
+      if (selectedProvider.needsEndpoint && !form.modelEndpoint.trim()) { setError("Provider endpoint URL is required."); return; }
+    }
 
     setError("");
-    const initials = form.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "AG";
+    const initials = form.name.trim().split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 2) || "AG";
+    const modelValue = selectedProvider?.id === "custom" ? form.customModel.trim() : form.model.trim();
 
     try {
       await createAgent.mutateAsync({
@@ -483,66 +487,51 @@ function ConnectAgentDialog({ open, onClose, onCreated }: { open: boolean; onClo
           isLead: false,
           avatarInitials: initials,
           isPluggedIn: true,
-          provider: selectedProvider.id,
-          model: model.trim(),
-          apiKey: selectedProvider.needsKey ? form.apiKey.trim() : null,
-          endpoint: selectedProvider.needsEndpoint ? form.endpoint.trim() : null,
+          endpoint: form.endpoint.trim() || null,
+          provider: selectedProvider?.id ?? null,
+          model: modelValue || null,
+          apiKey: (selectedProvider?.needsKey && form.apiKey.trim()) ? form.apiKey.trim() : null,
         },
       });
       onCreated();
       handleClose();
     } catch {
-      setError("Failed to connect agent. Please check your inputs.");
+      setError("Failed to add agent. Please check your inputs.");
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={o => !o && handleClose()}>
-      <DialogContent className="max-w-2xl bg-card border-border">
+      <DialogContent className="max-w-lg bg-card border-border">
         <DialogHeader>
-          <DialogTitle className="font-mono flex items-center gap-2">
+          <DialogTitle className="font-mono flex items-center gap-2 text-sm">
             <Plug className="w-4 h-4 text-primary" />
-            {step === 1 ? "Choose AI Provider" : (
-              <button onClick={() => setStep(1)} className="flex items-center gap-1 hover:text-primary transition-colors">
+            {step === 1 ? "Add Agent" : (
+              <button onClick={() => { setStep(1); setError(""); }} className="flex items-center gap-1 hover:text-primary transition-colors">
                 <ChevronLeft className="w-3.5 h-3.5" />
-                {selectedProvider?.name}
+                AI Model
               </button>
             )}
           </DialogTitle>
         </DialogHeader>
 
+        {/* ── Step 1: Agent identity ── */}
         {step === 1 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
-            {PROVIDERS.map(p => (
-              <button
-                key={p.id}
-                onClick={() => handleSelectProvider(p)}
-                className="text-left bg-secondary hover:bg-primary/10 border border-border hover:border-primary/40 rounded-xl p-4 transition-all group"
-              >
-                <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${p.color} flex items-center justify-center mb-3`}>
-                  <span className="font-mono font-bold text-sm text-white">{p.initials}</span>
-                </div>
-                <p className="font-medium text-sm group-hover:text-primary transition-colors">{p.name}</p>
-                <p className="text-xs text-muted-foreground mt-1 leading-snug">{p.description}</p>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {step === 2 && selectedProvider && (
-          <div className="space-y-5 pt-2">
-            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r ${selectedProvider.color} bg-opacity-20`}>
-              <span className="text-xs font-mono text-white">{selectedProvider.name}</span>
-            </div>
+          <div className="space-y-5 pt-1">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Your agent is a standalone process — give it an identity and optionally its bridge endpoint.
+              You'll configure its AI model on the next step.
+            </p>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-mono uppercase text-muted-foreground">Agent Name *</Label>
+                <Label className="text-xs font-mono uppercase text-muted-foreground">Name *</Label>
                 <Input
                   placeholder="e.g. Nova"
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   className="h-9 text-sm"
+                  autoFocus
                 />
               </div>
               <div className="space-y-1.5">
@@ -556,88 +545,145 @@ function ConnectAgentDialog({ open, onClose, onCreated }: { open: boolean; onClo
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-mono uppercase text-muted-foreground">Department *</Label>
-                <Select value={form.department} onValueChange={v => setForm(f => ({ ...f, department: v as typeof DEPARTMENTS[number] }))}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-mono uppercase text-muted-foreground">Model *</Label>
-                {selectedProvider.id === "custom" ? (
-                  <Input
-                    placeholder="e.g. gpt-4o"
-                    value={form.customModel}
-                    onChange={e => setForm(f => ({ ...f, customModel: e.target.value }))}
-                    className="h-9 text-sm"
-                  />
-                ) : (
-                  <Select value={form.model} onValueChange={v => setForm(f => ({ ...f, model: v }))}>
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectedProvider.models.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-mono uppercase text-muted-foreground">Department *</Label>
+              <Select value={form.department} onValueChange={v => setForm(f => ({ ...f, department: v as typeof DEPARTMENTS[number] }))}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
 
-            {selectedProvider.needsEndpoint && (
-              <div className="space-y-1.5">
-                <Label className="text-xs font-mono uppercase text-muted-foreground">Endpoint URL *</Label>
-                <Input
-                  placeholder={selectedProvider.endpointPlaceholder}
-                  value={form.endpoint}
-                  onChange={e => setForm(f => ({ ...f, endpoint: e.target.value }))}
-                  className="h-9 text-sm font-mono"
-                />
-              </div>
-            )}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-mono uppercase text-muted-foreground">
+                Bridge Endpoint <span className="normal-case text-muted-foreground/60">(optional)</span>
+              </Label>
+              <Input
+                placeholder="https://your-agent.example.com/dispatch"
+                value={form.endpoint}
+                onChange={e => setForm(f => ({ ...f, endpoint: e.target.value }))}
+                className="h-9 text-sm font-mono"
+              />
+              <p className="text-[11px] text-muted-foreground/60">The URL Mission Control will POST to when dispatching instructions.</p>
+            </div>
 
-            {selectedProvider.needsKey && (
-              <div className="space-y-1.5">
-                <Label className="text-xs font-mono uppercase text-muted-foreground">API Key *</Label>
-                <div className="relative">
-                  <Input
-                    type={showKey ? "text" : "password"}
-                    placeholder={selectedProvider.keyPlaceholder}
-                    value={form.apiKey}
-                    onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))}
-                    className="h-9 text-sm font-mono pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowKey(s => !s)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  </button>
+            {error && <p className="text-xs text-red-400 font-mono">{error}</p>}
+
+            <div className="flex justify-end gap-3 pt-1">
+              <Button variant="outline" size="sm" onClick={handleClose}>Cancel</Button>
+              <Button size="sm" onClick={handleStep1Next} className="gap-2">
+                Next: AI Model
+                <ChevronLeft className="w-3 h-3 rotate-180" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 2: AI model (optional) ── */}
+        {step === 2 && (
+          <div className="space-y-5 pt-1">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Which AI model does <span className="text-foreground font-medium">{form.name}</span> use internally?
+              This is optional — you can skip if the agent manages its own model or you'll configure it later.
+            </p>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-mono uppercase text-muted-foreground">AI Provider</Label>
+              <Select value={form.provider} onValueChange={handleProviderChange}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Select a provider…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_PROVIDER}>
+                    <span className="text-muted-foreground">None / configure later</span>
+                  </SelectItem>
+                  {PROVIDERS.map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex w-5 h-5 rounded text-[9px] font-bold items-center justify-center bg-gradient-to-br ${p.color} text-white`}>{p.initials}</span>
+                        {p.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedProvider && (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-mono uppercase text-muted-foreground">Model</Label>
+                  {selectedProvider.models.length > 0 ? (
+                    <Select value={form.model} onValueChange={v => setForm(f => ({ ...f, model: v }))}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedProvider.models.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      placeholder="e.g. gpt-4o, claude-3-5-sonnet…"
+                      value={form.customModel}
+                      onChange={e => setForm(f => ({ ...f, customModel: e.target.value }))}
+                      className="h-9 text-sm font-mono"
+                    />
+                  )}
                 </div>
-                <p className="text-xs text-muted-foreground">Your key is stored securely in this workspace only.</p>
-              </div>
+
+                {selectedProvider.needsEndpoint && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-mono uppercase text-muted-foreground">Provider Endpoint</Label>
+                    <Input
+                      placeholder={selectedProvider.endpointPlaceholder}
+                      value={form.modelEndpoint}
+                      onChange={e => setForm(f => ({ ...f, modelEndpoint: e.target.value }))}
+                      className="h-9 text-sm font-mono"
+                    />
+                  </div>
+                )}
+
+                {selectedProvider.needsKey && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-mono uppercase text-muted-foreground">API Key</Label>
+                    <div className="relative">
+                      <Input
+                        type={showKey ? "text" : "password"}
+                        placeholder={selectedProvider.keyPlaceholder}
+                        value={form.apiKey}
+                        onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))}
+                        className="h-9 text-sm font-mono pr-10"
+                      />
+                      <button type="button" onClick={() => setShowKey(s => !s)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground/60">Stored securely in this workspace only.</p>
+                  </div>
+                )}
+              </>
             )}
 
             {error && <p className="text-xs text-red-400 font-mono">{error}</p>}
 
-            <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" size="sm" onClick={handleClose}>Cancel</Button>
-              <Button
-                size="sm"
-                onClick={handleSubmit}
-                disabled={createAgent.isPending}
-                className="gap-2"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                {createAgent.isPending ? "Connecting..." : "Connect Agent"}
+            <div className="flex justify-between pt-1">
+              <Button variant="ghost" size="sm" onClick={handleSubmit} disabled={createAgent.isPending}
+                className="text-muted-foreground text-xs gap-1">
+                <CheckCircle2 className="w-3 h-3" />
+                {createAgent.isPending ? "Adding…" : "Skip & Add Agent"}
               </Button>
+              <div className="flex gap-3">
+                <Button variant="outline" size="sm" onClick={handleClose}>Cancel</Button>
+                <Button size="sm" onClick={handleSubmit} disabled={createAgent.isPending || form.provider === NO_PROVIDER} className="gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {createAgent.isPending ? "Adding…" : "Add Agent"}
+                </Button>
+              </div>
             </div>
           </div>
         )}
