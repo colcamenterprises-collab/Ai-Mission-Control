@@ -1,3 +1,6 @@
+import { encryptSecret } from "../lib/security.js";
+import { auditLog } from "../lib/audit.js";
+import { createRateLimit } from "../lib/rate-limit.js";
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, agentToolsTable, agentToolAccessTable, agentsTable } from "@workspace/db";
@@ -42,7 +45,7 @@ router.get("/tools", async (_req, res): Promise<void> => {
 });
 
 /* ─── CREATE ────────────────────────────────────────────────────── */
-router.post("/tools", async (req, res): Promise<void> => {
+router.post("/tools", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
   const parsed = CreateToolBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -51,16 +54,16 @@ router.post("/tools", async (req, res): Promise<void> => {
   const { apiKey, username, password, ...rest } = parsed.data;
   const [row] = await db.insert(agentToolsTable).values({
     ...rest,
-    apiKey: apiKey ?? null,
-    username: username ?? null,
-    password: password ?? null,
+    apiKey: encryptSecret(apiKey ?? null),
+    username: encryptSecret(username ?? null),
+    password: encryptSecret(password ?? null),
     isActive: true,
   }).returning();
   res.status(201).json(serializeDates(maskTool(row)));
 });
 
 /* ─── UPDATE ────────────────────────────────────────────────────── */
-router.patch("/tools/:id", async (req, res): Promise<void> => {
+router.patch("/tools/:id", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
   const params = UpdateToolParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = UpdateToolBody.safeParse(req.body);
@@ -68,9 +71,9 @@ router.patch("/tools/:id", async (req, res): Promise<void> => {
 
   const { apiKey, username, password, ...rest } = parsed.data;
   const updateData: Partial<typeof agentToolsTable.$inferInsert> = { ...rest };
-  if (apiKey !== undefined) updateData.apiKey = apiKey;
-  if (username !== undefined) updateData.username = username;
-  if (password !== undefined) updateData.password = password;
+  if (apiKey !== undefined) updateData.apiKey = encryptSecret(apiKey);
+  if (username !== undefined) updateData.username = encryptSecret(username);
+  if (password !== undefined) updateData.password = encryptSecret(password);
 
   const [row] = await db.update(agentToolsTable).set(updateData)
     .where(eq(agentToolsTable.id, params.data.id)).returning();
@@ -79,7 +82,7 @@ router.patch("/tools/:id", async (req, res): Promise<void> => {
 });
 
 /* ─── DELETE ────────────────────────────────────────────────────── */
-router.delete("/tools/:id", async (req, res): Promise<void> => {
+router.delete("/tools/:id", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
   const params = DeleteToolParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   await db.delete(agentToolAccessTable).where(eq(agentToolAccessTable.toolId, params.data.id));
@@ -109,7 +112,7 @@ router.get("/tools/:id/agents", async (req, res): Promise<void> => {
 });
 
 /* ─── GRANT ACCESS ──────────────────────────────────────────────── */
-router.post("/tools/:id/agents", async (req, res): Promise<void> => {
+router.post("/tools/:id/agents", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
   const params = GrantToolAccessParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = GrantToolAccessBody.safeParse(req.body);
@@ -139,7 +142,7 @@ router.post("/tools/:id/agents", async (req, res): Promise<void> => {
 });
 
 /* ─── REVOKE ACCESS ─────────────────────────────────────────────── */
-router.delete("/tools/:id/agents/:agentId", async (req, res): Promise<void> => {
+router.delete("/tools/:id/agents/:agentId", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
   const params = RevokeToolAccessParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   await db.delete(agentToolAccessTable).where(

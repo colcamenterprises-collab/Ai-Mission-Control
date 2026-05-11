@@ -911,6 +911,7 @@ export default function Settings() {
   const [showAddTool, setShowAddTool] = useState(false);
   const [managingTool, setManagingTool] = useState<Tool | null>(null);
   const [, navigate] = useLocation();
+  const [adminToken, setAdminToken] = useState(localStorage.getItem("mission_control_admin_token") ?? "");
 
   const { data: integrations, isLoading: intLoading } = useListIntegrations();
   const { data: tools, isLoading: toolsLoading } = useListTools();
@@ -950,6 +951,19 @@ export default function Settings() {
 
       <div className="flex-1 overflow-y-auto p-6 space-y-10">
 
+
+        <section>
+          <div className="flex items-center gap-2 mb-2">
+            <h2 className="font-mono text-sm uppercase text-muted-foreground">Admin API Token</h2>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+          <div className="max-w-xl flex gap-2">
+            <Input type="password" value={adminToken} onChange={e => setAdminToken(e.target.value)} placeholder="MISSION_CONTROL_ADMIN_TOKEN" />
+            <Button size="sm" onClick={() => localStorage.setItem("mission_control_admin_token", adminToken)}>Save</Button>
+          </div>
+        </section>
+
+        <Separator />
         {/* ─── Agent Tool Vault ─── */}
         <section>
           <div className="flex items-center gap-2 mb-1">

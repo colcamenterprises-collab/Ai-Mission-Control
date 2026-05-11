@@ -10,7 +10,10 @@ import {
   agentToolAccessTable,
   agentToolsTable,
 } from "@workspace/db";
-import { randomUUID } from "crypto";
+import { getAgentFromBearer } from "../lib/auth.js";
+import { createRateLimit } from "../lib/rate-limit.js";
+import { auditLog } from "../lib/audit.js";
+import { decryptSecret, generateAgentToken, hashToken } from "../lib/security.js";
 import {
   AgentPingBody,
   AgentReportBody,
@@ -22,26 +25,13 @@ import {
 
 const router: IRouter = Router();
 
-async function agentFromBearer(
-  authHeader: string | undefined,
-): Promise<typeof agentsTable.$inferSelect | null> {
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const token = authHeader.slice(7).trim();
-  if (!token) return null;
-  const [agent] = await db
-    .select()
-    .from(agentsTable)
-    .where(eq(agentsTable.inboundToken, token));
-  return agent ?? null;
-}
-
 /* ─── POST /agent/ping ────────────────────────────────────────
    Heartbeat from any agent (local, Docker, hosted).
    Returns pending tasks AND any queued commands waiting to
    be picked up (the pull-based dispatch mechanism).
 ──────────────────────────────────────────────────────────────── */
-router.post("/agent/ping", async (req, res): Promise<void> => {
-  const agent = await agentFromBearer(req.headers.authorization);
+router.post("/agent/ping", createRateLimit("agent-ping", 60, 60_000), async (req, res): Promise<void> => {
+  const agent = await getAgentFromBearer(req.headers.authorization);
   if (!agent) {
     res.status(401).json({ error: "Invalid or missing bearer token" });
     return;
@@ -113,8 +103,8 @@ router.post("/agent/ping", async (req, res): Promise<void> => {
    Agent acknowledges it has received and started processing a
    queued command. Mission Control marks it delivered.
 ──────────────────────────────────────────────────────────────── */
-router.post("/agent/command/:id/ack", async (req, res): Promise<void> => {
-  const agent = await agentFromBearer(req.headers.authorization);
+router.post("/agent/command/:id/ack", createRateLimit("agent-ack", 60, 60_000), async (req, res): Promise<void> => {
+  const agent = await getAgentFromBearer(req.headers.authorization);
   if (!agent) {
     res.status(401).json({ error: "Invalid or missing bearer token" });
     return;
@@ -143,8 +133,8 @@ router.post("/agent/command/:id/ack", async (req, res): Promise<void> => {
 /* ─── POST /agent/report ──────────────────────────────────────
    Agent pushes back an activity, task completion, or memory.
 ──────────────────────────────────────────────────────────────── */
-router.post("/agent/report", async (req, res): Promise<void> => {
-  const agent = await agentFromBearer(req.headers.authorization);
+router.post("/agent/report", createRateLimit("agent-report", 60, 60_000), async (req, res): Promise<void> => {
+  const agent = await getAgentFromBearer(req.headers.authorization);
   if (!agent) {
     res.status(401).json({ error: "Invalid or missing bearer token" });
     return;
@@ -226,7 +216,7 @@ router.post("/agent/report", async (req, res): Promise<void> => {
    3. Local/firewalled agents simply pick the command up on their
       next ping — zero extra configuration needed.
 ──────────────────────────────────────────────────────────────── */
-router.post("/agents/:id/dispatch", async (req, res): Promise<void> => {
+router.post("/agents/:id/dispatch", createRateLimit("admin-dispatch", 20, 60_000), async (req, res): Promise<void> => {
   const params = DispatchAgentParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -330,17 +320,18 @@ router.post("/agents/:id/dispatch", async (req, res): Promise<void> => {
 /* ─── POST /agents/:id/token ─────────────────────────────────
    Mint or regenerate the inbound Bearer token.
 ──────────────────────────────────────────────────────────────── */
-router.post("/agents/:id/token", async (req, res): Promise<void> => {
+router.post("/agents/:id/token", createRateLimit("admin-token", 10, 60_000), async (req, res): Promise<void> => {
   const params = RegenerateAgentTokenParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
-  const token = randomUUID();
+  const token = generateAgentToken();
+  const tokenHash = hashToken(token);
   const [agent] = await db
     .update(agentsTable)
-    .set({ inboundToken: token })
+    .set({ inboundToken: tokenHash })
     .where(eq(agentsTable.id, params.data.id))
     .returning();
 
@@ -349,6 +340,7 @@ router.post("/agents/:id/token", async (req, res): Promise<void> => {
     return;
   }
 
+  await auditLog({ action: "regenerated", entityType: "agent_token", entityId: agent.id, actorType: "admin" });
   res.json({ agentId: agent.id, inboundToken: token });
 });
 
@@ -356,8 +348,8 @@ router.post("/agents/:id/token", async (req, res): Promise<void> => {
    Authenticated agent fetches its assigned tools with FULL credentials.
    Only accessible via Bearer token — credentials are never exposed to the UI.
 ──────────────────────────────────────────────────────────────────── */
-router.get("/agent/tools", async (req, res): Promise<void> => {
-  const agent = await agentFromBearer(req.headers.authorization);
+router.get("/agent/tools", createRateLimit("agent-tools", 20, 60_000), async (req, res): Promise<void> => {
+  const agent = await getAgentFromBearer(req.headers.authorization);
   if (!agent) {
     res.status(401).json({ error: "Invalid or missing bearer token" });
     return;
@@ -378,13 +370,14 @@ router.get("/agent/tools", async (req, res): Promise<void> => {
       url: r.tool.url,
       category: r.tool.category,
       credentialType: r.tool.credentialType,
-      apiKey: r.tool.apiKey,
-      username: r.tool.username,
-      password: r.tool.password,
+      apiKey: decryptSecret(r.tool.apiKey),
+      username: decryptSecret(r.tool.username),
+      password: decryptSecret(r.tool.password),
       notes: r.tool.notes,
       isActive: r.tool.isActive,
     }));
 
+  await auditLog({ action: "requested", entityType: "agent_tool_credentials", entityId: agent.id, actorType: "agent", actorName: agent.name });
   res.json(tools);
 });
 

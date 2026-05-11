@@ -1,3 +1,6 @@
+import { encryptSecret } from "../lib/security.js";
+import { auditLog } from "../lib/audit.js";
+import { createRateLimit } from "../lib/rate-limit.js";
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, agentsTable } from "@workspace/db";
@@ -31,7 +34,7 @@ router.get("/agents", async (_req, res): Promise<void> => {
   res.json(ListAgentsResponse.parse(serializeDates(masked)));
 });
 
-router.post("/agents", async (req, res): Promise<void> => {
+router.post("/agents", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
   const parsed = CreateAgentBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -40,7 +43,7 @@ router.post("/agents", async (req, res): Promise<void> => {
   const { apiKey, ...rest } = parsed.data;
   const insertData = {
     ...rest,
-    apiKey: apiKey ?? null,
+    apiKey: encryptSecret(apiKey ?? null),
     lastActive: "just now",
     status: "idle" as const,
     isPluggedIn: rest.isPluggedIn ?? false,
@@ -63,7 +66,7 @@ router.get("/agents/:id", async (req, res): Promise<void> => {
   res.json(GetAgentResponse.parse(serializeDates(maskAgentForResponse(agent))));
 });
 
-router.patch("/agents/:id", async (req, res): Promise<void> => {
+router.patch("/agents/:id", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
   const params = UpdateAgentParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -77,7 +80,7 @@ router.patch("/agents/:id", async (req, res): Promise<void> => {
   const { apiKey, ...rest } = parsed.data;
   const updateData: Partial<typeof agentsTable.$inferInsert> = { ...rest };
   if (apiKey !== undefined) {
-    updateData.apiKey = apiKey;
+    updateData.apiKey = encryptSecret(apiKey);
   }
   const [agent] = await db.update(agentsTable).set(updateData).where(eq(agentsTable.id, params.data.id)).returning();
   if (!agent) {
@@ -87,8 +90,8 @@ router.patch("/agents/:id", async (req, res): Promise<void> => {
   res.json(UpdateAgentResponse.parse(serializeDates(maskAgentForResponse(agent))));
 });
 
-router.delete("/agents/:id", async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
+router.delete("/agents/:id", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid id" });
     return;
