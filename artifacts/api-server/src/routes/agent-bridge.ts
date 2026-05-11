@@ -7,6 +7,8 @@ import {
   tasksTable,
   memoriesTable,
   agentCommandsTable,
+  agentToolAccessTable,
+  agentToolsTable,
 } from "@workspace/db";
 import { randomUUID } from "crypto";
 import {
@@ -348,6 +350,42 @@ router.post("/agents/:id/token", async (req, res): Promise<void> => {
   }
 
   res.json({ agentId: agent.id, inboundToken: token });
+});
+
+/* ─── GET /agent/tools ───────────────────────────────────────────
+   Authenticated agent fetches its assigned tools with FULL credentials.
+   Only accessible via Bearer token — credentials are never exposed to the UI.
+──────────────────────────────────────────────────────────────────── */
+router.get("/agent/tools", async (req, res): Promise<void> => {
+  const agent = await agentFromBearer(req.headers.authorization);
+  if (!agent) {
+    res.status(401).json({ error: "Invalid or missing bearer token" });
+    return;
+  }
+
+  const rows = await db
+    .select({ tool: agentToolsTable })
+    .from(agentToolAccessTable)
+    .innerJoin(agentToolsTable, eq(agentToolAccessTable.toolId, agentToolsTable.id))
+    .where(eq(agentToolAccessTable.agentId, agent.id));
+
+  const tools = rows
+    .filter(r => r.tool.isActive)
+    .map(r => ({
+      id: r.tool.id,
+      name: r.tool.name,
+      description: r.tool.description,
+      url: r.tool.url,
+      category: r.tool.category,
+      credentialType: r.tool.credentialType,
+      apiKey: r.tool.apiKey,
+      username: r.tool.username,
+      password: r.tool.password,
+      notes: r.tool.notes,
+      isActive: r.tool.isActive,
+    }));
+
+  res.json(tools);
 });
 
 export default router;

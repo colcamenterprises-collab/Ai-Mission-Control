@@ -7,3 +7,4 @@ export * from "./contacts";
 export * from "./activity";
 export * from "./integrations";
 export * from "./agent-commands";
+export * from "./agent-tools";

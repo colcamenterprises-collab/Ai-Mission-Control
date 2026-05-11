@@ -17,6 +17,8 @@ tags:
   - name: activity
   - name: dashboard
   - name: integrations
+  - name: tools
+  - name: agent-bridge
 
 paths:
   /healthz:
@@ -730,6 +732,179 @@ paths:
               schema:
                 $ref: "#/components/schemas/AgentTokenResponse"
 
+  # ─── AGENT TOOLS (CREDENTIAL VAULT) ───────────────────────────
+  /tools:
+    get:
+      operationId: listTools
+      tags: [tools]
+      summary: List all agent tools (credentials masked)
+      responses:
+        "200":
+          description: Tools
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tool"
+    post:
+      operationId: createTool
+      tags: [tools]
+      summary: Add a tool to the credential vault
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateToolBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tool"
+
+  /tools/{id}:
+    patch:
+      operationId: updateTool
+      tags: [tools]
+      summary: Update a tool
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateToolBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tool"
+    delete:
+      operationId: deleteTool
+      tags: [tools]
+      summary: Remove a tool
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /tools/{id}/agents:
+    get:
+      operationId: listToolAgents
+      tags: [tools]
+      summary: List agents that have access to a tool
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Agents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ToolAgentItem"
+    post:
+      operationId: grantToolAccess
+      tags: [tools]
+      summary: Grant an agent access to a tool
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GrantToolAccessBody"
+      responses:
+        "201":
+          description: Granted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolAgentItem"
+
+  /tools/{id}/agents/{agentId}:
+    delete:
+      operationId: revokeToolAccess
+      tags: [tools]
+      summary: Revoke an agent's access to a tool
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Revoked
+
+  /agents/{id}/tools:
+    get:
+      operationId: listAgentTools
+      tags: [tools]
+      summary: Get tools an agent has access to (masked, for UI)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Tools
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tool"
+
+  /agent/tools:
+    get:
+      operationId: getAgentTools
+      tags: [agent-bridge]
+      summary: Agent fetches its own tools with full credentials (bridge auth)
+      responses:
+        "200":
+          description: Tools with credentials
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentToolWithCredentials"
+        "401":
+          description: Invalid or missing token
+
   # ─── INTEGRATIONS ─────────────────────────────────────────────
   /integrations:
     get:
@@ -1403,6 +1578,185 @@ components:
         agentId:
           type: integer
       required: [agentId]
+
+    Tool:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        url:
+          type: ["string", "null"]
+        category:
+          type: string
+          enum: [api, cms, social, email, crm, database, ecommerce, devtools, custom]
+        credentialType:
+          type: string
+          enum: [api_key, basic_auth, bearer_token, custom]
+        apiKeyHint:
+          type: ["string", "null"]
+        usernameHint:
+          type: ["string", "null"]
+        passwordHint:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+      required: [id, name, category, credentialType, isActive, createdAt]
+
+    AgentToolWithCredentials:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        url:
+          type: ["string", "null"]
+        category:
+          type: string
+        credentialType:
+          type: string
+        apiKey:
+          type: ["string", "null"]
+        username:
+          type: ["string", "null"]
+        password:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+      required: [id, name, category, credentialType, isActive]
+
+    CreateToolBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        url:
+          type: ["string", "null"]
+        category:
+          type: string
+          enum: [api, cms, social, email, crm, database, ecommerce, devtools, custom]
+        credentialType:
+          type: string
+          enum: [api_key, basic_auth, bearer_token, custom]
+        apiKey:
+          type: ["string", "null"]
+        username:
+          type: ["string", "null"]
+        password:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+      required: [name, category, credentialType]
+
+    UpdateToolBody:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        url:
+          type: ["string", "null"]
+        category:
+          type: string
+          enum: [api, cms, social, email, crm, database, ecommerce, devtools, custom]
+        credentialType:
+          type: string
+          enum: [api_key, basic_auth, bearer_token, custom]
+        apiKey:
+          type: ["string", "null"]
+        username:
+          type: ["string", "null"]
+        password:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+
+    ToolAgentItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        agentId:
+          type: integer
+        toolId:
+          type: integer
+        agentName:
+          type: string
+        agentAvatarInitials:
+          type: string
+        agentStatus:
+          type: string
+        grantedAt:
+          type: string
+      required: [id, agentId, toolId, agentName, agentAvatarInitials, agentStatus, grantedAt]
+
+    GrantToolAccessBody:
+      type: object
+      properties:
+        agentId:
+          type: integer
+      required: [agentId]
+
+    ListToolAgentsParams:
+      type: object
+      properties:
+        id:
+          type: integer
+      required: [id]
+
+    GrantToolAccessParams:
+      type: object
+      properties:
+        id:
+          type: integer
+      required: [id]
+
+    RevokeToolAccessParams:
+      type: object
+      properties:
+        id:
+          type: integer
+        agentId:
+          type: integer
+      required: [id, agentId]
+
+    UpdateToolParams:
+      type: object
+      properties:
+        id:
+          type: integer
+      required: [id]
+
+    DeleteToolParams:
+      type: object
+      properties:
+        id:
+          type: integer
+      required: [id]
+
+    ListAgentToolsParams:
+      type: object
+      properties:
+        id:
+          type: integer
+      required: [id]
 
     AgentCommandItem:
       type: object

@@ -808,6 +808,214 @@ export const RegenerateAgentTokenResponse = zod.object({
 });
 
 /**
+ * @summary List all agent tools (credentials masked)
+ */
+export const ListToolsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  url: zod.string().nullish(),
+  category: zod.enum([
+    "api",
+    "cms",
+    "social",
+    "email",
+    "crm",
+    "database",
+    "ecommerce",
+    "devtools",
+    "custom",
+  ]),
+  credentialType: zod.enum(["api_key", "basic_auth", "bearer_token", "custom"]),
+  apiKeyHint: zod.string().nullish(),
+  usernameHint: zod.string().nullish(),
+  passwordHint: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  isActive: zod.boolean(),
+  createdAt: zod.string(),
+});
+export const ListToolsResponse = zod.array(ListToolsResponseItem);
+
+/**
+ * @summary Add a tool to the credential vault
+ */
+export const CreateToolBody = zod.object({
+  name: zod.string(),
+  description: zod.string().nullish(),
+  url: zod.string().nullish(),
+  category: zod.enum([
+    "api",
+    "cms",
+    "social",
+    "email",
+    "crm",
+    "database",
+    "ecommerce",
+    "devtools",
+    "custom",
+  ]),
+  credentialType: zod.enum(["api_key", "basic_auth", "bearer_token", "custom"]),
+  apiKey: zod.string().nullish(),
+  username: zod.string().nullish(),
+  password: zod.string().nullish(),
+  notes: zod.string().nullish(),
+});
+
+/**
+ * @summary Update a tool
+ */
+export const UpdateToolParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateToolBody = zod.object({
+  name: zod.string().optional(),
+  description: zod.string().nullish(),
+  url: zod.string().nullish(),
+  category: zod
+    .enum([
+      "api",
+      "cms",
+      "social",
+      "email",
+      "crm",
+      "database",
+      "ecommerce",
+      "devtools",
+      "custom",
+    ])
+    .optional(),
+  credentialType: zod
+    .enum(["api_key", "basic_auth", "bearer_token", "custom"])
+    .optional(),
+  apiKey: zod.string().nullish(),
+  username: zod.string().nullish(),
+  password: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  isActive: zod.boolean().optional(),
+});
+
+export const UpdateToolResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  url: zod.string().nullish(),
+  category: zod.enum([
+    "api",
+    "cms",
+    "social",
+    "email",
+    "crm",
+    "database",
+    "ecommerce",
+    "devtools",
+    "custom",
+  ]),
+  credentialType: zod.enum(["api_key", "basic_auth", "bearer_token", "custom"]),
+  apiKeyHint: zod.string().nullish(),
+  usernameHint: zod.string().nullish(),
+  passwordHint: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  isActive: zod.boolean(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Remove a tool
+ */
+export const DeleteToolParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary List agents that have access to a tool
+ */
+export const ListToolAgentsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListToolAgentsResponseItem = zod.object({
+  id: zod.number(),
+  agentId: zod.number(),
+  toolId: zod.number(),
+  agentName: zod.string(),
+  agentAvatarInitials: zod.string(),
+  agentStatus: zod.string(),
+  grantedAt: zod.string(),
+});
+export const ListToolAgentsResponse = zod.array(ListToolAgentsResponseItem);
+
+/**
+ * @summary Grant an agent access to a tool
+ */
+export const GrantToolAccessParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GrantToolAccessBody = zod.object({
+  agentId: zod.number(),
+});
+
+/**
+ * @summary Revoke an agent's access to a tool
+ */
+export const RevokeToolAccessParams = zod.object({
+  id: zod.coerce.number(),
+  agentId: zod.coerce.number(),
+});
+
+/**
+ * @summary Get tools an agent has access to (masked, for UI)
+ */
+export const ListAgentToolsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListAgentToolsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  url: zod.string().nullish(),
+  category: zod.enum([
+    "api",
+    "cms",
+    "social",
+    "email",
+    "crm",
+    "database",
+    "ecommerce",
+    "devtools",
+    "custom",
+  ]),
+  credentialType: zod.enum(["api_key", "basic_auth", "bearer_token", "custom"]),
+  apiKeyHint: zod.string().nullish(),
+  usernameHint: zod.string().nullish(),
+  passwordHint: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  isActive: zod.boolean(),
+  createdAt: zod.string(),
+});
+export const ListAgentToolsResponse = zod.array(ListAgentToolsResponseItem);
+
+/**
+ * @summary Agent fetches its own tools with full credentials (bridge auth)
+ */
+export const GetAgentToolsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  url: zod.string().nullish(),
+  category: zod.string(),
+  credentialType: zod.string(),
+  apiKey: zod.string().nullish(),
+  username: zod.string().nullish(),
+  password: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  isActive: zod.boolean(),
+});
+export const GetAgentToolsResponse = zod.array(GetAgentToolsResponseItem);
+
+/**
  * @summary List all app integrations
  */
 export const ListIntegrationsResponseItem = zod.object({

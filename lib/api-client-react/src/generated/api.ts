@@ -25,6 +25,7 @@ import type {
   AgentReportBody,
   AgentReportResponse,
   AgentTokenResponse,
+  AgentToolWithCredentials,
   AssignAgentBody,
   CalendarEvent,
   Contact,
@@ -36,9 +37,11 @@ import type {
   CreateIntegrationBody,
   CreateMemoryBody,
   CreateTaskBody,
+  CreateToolBody,
   DashboardSummary,
   DispatchAgentBody,
   DispatchAgentResponse,
+  GrantToolAccessBody,
   HealthStatus,
   Integration,
   IntegrationAgent,
@@ -54,10 +57,13 @@ import type {
   MoveTaskBody,
   PipelineStageCount,
   Task,
+  Tool,
+  ToolAgentItem,
   UpdateAgentBody,
   UpdateContentBody,
   UpdateIntegrationBody,
   UpdateTaskBody,
+  UpdateToolBody,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -3133,6 +3139,749 @@ export const useRegenerateAgentToken = <
 > => {
   return useMutation(getRegenerateAgentTokenMutationOptions(options));
 };
+
+/**
+ * @summary List all agent tools (credentials masked)
+ */
+export const getListToolsUrl = () => {
+  return `/api/tools`;
+};
+
+export const listTools = async (options?: RequestInit): Promise<Tool[]> => {
+  return customFetch<Tool[]>(getListToolsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListToolsQueryKey = () => {
+  return [`/api/tools`] as const;
+};
+
+export const getListToolsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTools>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listTools>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListToolsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listTools>>> = ({
+    signal,
+  }) => listTools({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listTools>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListToolsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTools>>
+>;
+export type ListToolsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all agent tools (credentials masked)
+ */
+
+export function useListTools<
+  TData = Awaited<ReturnType<typeof listTools>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listTools>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListToolsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add a tool to the credential vault
+ */
+export const getCreateToolUrl = () => {
+  return `/api/tools`;
+};
+
+export const createTool = async (
+  createToolBody: CreateToolBody,
+  options?: RequestInit,
+): Promise<Tool> => {
+  return customFetch<Tool>(getCreateToolUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createToolBody),
+  });
+};
+
+export const getCreateToolMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTool>>,
+    TError,
+    { data: BodyType<CreateToolBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createTool>>,
+  TError,
+  { data: BodyType<CreateToolBody> },
+  TContext
+> => {
+  const mutationKey = ["createTool"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createTool>>,
+    { data: BodyType<CreateToolBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createTool(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateToolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createTool>>
+>;
+export type CreateToolMutationBody = BodyType<CreateToolBody>;
+export type CreateToolMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add a tool to the credential vault
+ */
+export const useCreateTool = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTool>>,
+    TError,
+    { data: BodyType<CreateToolBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createTool>>,
+  TError,
+  { data: BodyType<CreateToolBody> },
+  TContext
+> => {
+  return useMutation(getCreateToolMutationOptions(options));
+};
+
+/**
+ * @summary Update a tool
+ */
+export const getUpdateToolUrl = (id: number) => {
+  return `/api/tools/${id}`;
+};
+
+export const updateTool = async (
+  id: number,
+  updateToolBody: UpdateToolBody,
+  options?: RequestInit,
+): Promise<Tool> => {
+  return customFetch<Tool>(getUpdateToolUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateToolBody),
+  });
+};
+
+export const getUpdateToolMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTool>>,
+    TError,
+    { id: number; data: BodyType<UpdateToolBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateTool>>,
+  TError,
+  { id: number; data: BodyType<UpdateToolBody> },
+  TContext
+> => {
+  const mutationKey = ["updateTool"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateTool>>,
+    { id: number; data: BodyType<UpdateToolBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateTool(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateToolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateTool>>
+>;
+export type UpdateToolMutationBody = BodyType<UpdateToolBody>;
+export type UpdateToolMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a tool
+ */
+export const useUpdateTool = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTool>>,
+    TError,
+    { id: number; data: BodyType<UpdateToolBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateTool>>,
+  TError,
+  { id: number; data: BodyType<UpdateToolBody> },
+  TContext
+> => {
+  return useMutation(getUpdateToolMutationOptions(options));
+};
+
+/**
+ * @summary Remove a tool
+ */
+export const getDeleteToolUrl = (id: number) => {
+  return `/api/tools/${id}`;
+};
+
+export const deleteTool = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteToolUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteToolMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTool>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteTool>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteTool"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteTool>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteTool(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteToolMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteTool>>
+>;
+
+export type DeleteToolMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove a tool
+ */
+export const useDeleteTool = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTool>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteTool>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteToolMutationOptions(options));
+};
+
+/**
+ * @summary List agents that have access to a tool
+ */
+export const getListToolAgentsUrl = (id: number) => {
+  return `/api/tools/${id}/agents`;
+};
+
+export const listToolAgents = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ToolAgentItem[]> => {
+  return customFetch<ToolAgentItem[]>(getListToolAgentsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListToolAgentsQueryKey = (id: number) => {
+  return [`/api/tools/${id}/agents`] as const;
+};
+
+export const getListToolAgentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listToolAgents>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listToolAgents>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListToolAgentsQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listToolAgents>>> = ({
+    signal,
+  }) => listToolAgents(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listToolAgents>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListToolAgentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listToolAgents>>
+>;
+export type ListToolAgentsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List agents that have access to a tool
+ */
+
+export function useListToolAgents<
+  TData = Awaited<ReturnType<typeof listToolAgents>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listToolAgents>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListToolAgentsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Grant an agent access to a tool
+ */
+export const getGrantToolAccessUrl = (id: number) => {
+  return `/api/tools/${id}/agents`;
+};
+
+export const grantToolAccess = async (
+  id: number,
+  grantToolAccessBody: GrantToolAccessBody,
+  options?: RequestInit,
+): Promise<ToolAgentItem> => {
+  return customFetch<ToolAgentItem>(getGrantToolAccessUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(grantToolAccessBody),
+  });
+};
+
+export const getGrantToolAccessMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof grantToolAccess>>,
+    TError,
+    { id: number; data: BodyType<GrantToolAccessBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof grantToolAccess>>,
+  TError,
+  { id: number; data: BodyType<GrantToolAccessBody> },
+  TContext
+> => {
+  const mutationKey = ["grantToolAccess"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof grantToolAccess>>,
+    { id: number; data: BodyType<GrantToolAccessBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return grantToolAccess(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GrantToolAccessMutationResult = NonNullable<
+  Awaited<ReturnType<typeof grantToolAccess>>
+>;
+export type GrantToolAccessMutationBody = BodyType<GrantToolAccessBody>;
+export type GrantToolAccessMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Grant an agent access to a tool
+ */
+export const useGrantToolAccess = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof grantToolAccess>>,
+    TError,
+    { id: number; data: BodyType<GrantToolAccessBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof grantToolAccess>>,
+  TError,
+  { id: number; data: BodyType<GrantToolAccessBody> },
+  TContext
+> => {
+  return useMutation(getGrantToolAccessMutationOptions(options));
+};
+
+/**
+ * @summary Revoke an agent's access to a tool
+ */
+export const getRevokeToolAccessUrl = (id: number, agentId: number) => {
+  return `/api/tools/${id}/agents/${agentId}`;
+};
+
+export const revokeToolAccess = async (
+  id: number,
+  agentId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getRevokeToolAccessUrl(id, agentId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getRevokeToolAccessMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeToolAccess>>,
+    TError,
+    { id: number; agentId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeToolAccess>>,
+  TError,
+  { id: number; agentId: number },
+  TContext
+> => {
+  const mutationKey = ["revokeToolAccess"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeToolAccess>>,
+    { id: number; agentId: number }
+  > = (props) => {
+    const { id, agentId } = props ?? {};
+
+    return revokeToolAccess(id, agentId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevokeToolAccessMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeToolAccess>>
+>;
+
+export type RevokeToolAccessMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Revoke an agent's access to a tool
+ */
+export const useRevokeToolAccess = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeToolAccess>>,
+    TError,
+    { id: number; agentId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof revokeToolAccess>>,
+  TError,
+  { id: number; agentId: number },
+  TContext
+> => {
+  return useMutation(getRevokeToolAccessMutationOptions(options));
+};
+
+/**
+ * @summary Get tools an agent has access to (masked, for UI)
+ */
+export const getListAgentToolsUrl = (id: number) => {
+  return `/api/agents/${id}/tools`;
+};
+
+export const listAgentTools = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Tool[]> => {
+  return customFetch<Tool[]>(getListAgentToolsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListAgentToolsQueryKey = (id: number) => {
+  return [`/api/agents/${id}/tools`] as const;
+};
+
+export const getListAgentToolsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAgentTools>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAgentTools>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListAgentToolsQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAgentTools>>> = ({
+    signal,
+  }) => listAgentTools(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAgentTools>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAgentToolsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAgentTools>>
+>;
+export type ListAgentToolsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get tools an agent has access to (masked, for UI)
+ */
+
+export function useListAgentTools<
+  TData = Awaited<ReturnType<typeof listAgentTools>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAgentTools>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAgentToolsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Agent fetches its own tools with full credentials (bridge auth)
+ */
+export const getGetAgentToolsUrl = () => {
+  return `/api/agent/tools`;
+};
+
+export const getAgentTools = async (
+  options?: RequestInit,
+): Promise<AgentToolWithCredentials[]> => {
+  return customFetch<AgentToolWithCredentials[]>(getGetAgentToolsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAgentToolsQueryKey = () => {
+  return [`/api/agent/tools`] as const;
+};
+
+export const getGetAgentToolsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAgentTools>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAgentTools>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAgentToolsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAgentTools>>> = ({
+    signal,
+  }) => getAgentTools({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAgentTools>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAgentToolsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAgentTools>>
+>;
+export type GetAgentToolsQueryError = ErrorType<void>;
+
+/**
+ * @summary Agent fetches its own tools with full credentials (bridge auth)
+ */
+
+export function useGetAgentTools<
+  TData = Awaited<ReturnType<typeof getAgentTools>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAgentTools>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAgentToolsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List all app integrations

@@ -495,6 +495,197 @@ export interface AgentPingBody {
   agentId: number;
 }
 
+export type ToolCategory = (typeof ToolCategory)[keyof typeof ToolCategory];
+
+export const ToolCategory = {
+  api: "api",
+  cms: "cms",
+  social: "social",
+  email: "email",
+  crm: "crm",
+  database: "database",
+  ecommerce: "ecommerce",
+  devtools: "devtools",
+  custom: "custom",
+} as const;
+
+export type ToolCredentialType =
+  (typeof ToolCredentialType)[keyof typeof ToolCredentialType];
+
+export const ToolCredentialType = {
+  api_key: "api_key",
+  basic_auth: "basic_auth",
+  bearer_token: "bearer_token",
+  custom: "custom",
+} as const;
+
+export interface Tool {
+  id: number;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  url?: string | null;
+  category: ToolCategory;
+  credentialType: ToolCredentialType;
+  /** @nullable */
+  apiKeyHint?: string | null;
+  /** @nullable */
+  usernameHint?: string | null;
+  /** @nullable */
+  passwordHint?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface AgentToolWithCredentials {
+  id: number;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  url?: string | null;
+  category: string;
+  credentialType: string;
+  /** @nullable */
+  apiKey?: string | null;
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  password?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  isActive: boolean;
+}
+
+export type CreateToolBodyCategory =
+  (typeof CreateToolBodyCategory)[keyof typeof CreateToolBodyCategory];
+
+export const CreateToolBodyCategory = {
+  api: "api",
+  cms: "cms",
+  social: "social",
+  email: "email",
+  crm: "crm",
+  database: "database",
+  ecommerce: "ecommerce",
+  devtools: "devtools",
+  custom: "custom",
+} as const;
+
+export type CreateToolBodyCredentialType =
+  (typeof CreateToolBodyCredentialType)[keyof typeof CreateToolBodyCredentialType];
+
+export const CreateToolBodyCredentialType = {
+  api_key: "api_key",
+  basic_auth: "basic_auth",
+  bearer_token: "bearer_token",
+  custom: "custom",
+} as const;
+
+export interface CreateToolBody {
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  url?: string | null;
+  category: CreateToolBodyCategory;
+  credentialType: CreateToolBodyCredentialType;
+  /** @nullable */
+  apiKey?: string | null;
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  password?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export type UpdateToolBodyCategory =
+  (typeof UpdateToolBodyCategory)[keyof typeof UpdateToolBodyCategory];
+
+export const UpdateToolBodyCategory = {
+  api: "api",
+  cms: "cms",
+  social: "social",
+  email: "email",
+  crm: "crm",
+  database: "database",
+  ecommerce: "ecommerce",
+  devtools: "devtools",
+  custom: "custom",
+} as const;
+
+export type UpdateToolBodyCredentialType =
+  (typeof UpdateToolBodyCredentialType)[keyof typeof UpdateToolBodyCredentialType];
+
+export const UpdateToolBodyCredentialType = {
+  api_key: "api_key",
+  basic_auth: "basic_auth",
+  bearer_token: "bearer_token",
+  custom: "custom",
+} as const;
+
+export interface UpdateToolBody {
+  name?: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  url?: string | null;
+  category?: UpdateToolBodyCategory;
+  credentialType?: UpdateToolBodyCredentialType;
+  /** @nullable */
+  apiKey?: string | null;
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  password?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  isActive?: boolean;
+}
+
+export interface ToolAgentItem {
+  id: number;
+  agentId: number;
+  toolId: number;
+  agentName: string;
+  agentAvatarInitials: string;
+  agentStatus: string;
+  grantedAt: string;
+}
+
+export interface GrantToolAccessBody {
+  agentId: number;
+}
+
+export interface ListToolAgentsParams {
+  id: number;
+}
+
+export interface GrantToolAccessParams {
+  id: number;
+}
+
+export interface RevokeToolAccessParams {
+  id: number;
+  agentId: number;
+}
+
+export interface UpdateToolParams {
+  id: number;
+}
+
+export interface DeleteToolParams {
+  id: number;
+}
+
+export interface ListAgentToolsParams {
+  id: number;
+}
+
 export interface AgentCommandItem {
   id: number;
   instructions: string;
