@@ -690,6 +690,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/DispatchAgentResponse"
 
+  /agent/command/{id}/ack:
+    post:
+      operationId: ackAgentCommand
+      tags: [agent-bridge]
+      summary: Agent acknowledges it has received and started processing a command
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AckCommandResponse"
+        "401":
+          description: Invalid or missing token
+
   /agents/{id}/token:
     post:
       operationId: regenerateAgentToken
@@ -1383,6 +1404,21 @@ components:
           type: integer
       required: [agentId]
 
+    AgentCommandItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        instructions:
+          type: string
+        context:
+          type: ["string", "null"]
+        taskId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+      required: [id, instructions, createdAt]
+
     AgentPingResponse:
       type: object
       properties:
@@ -1406,7 +1442,11 @@ components:
               status:
                 type: string
             required: [id, title, priority, status]
-      required: [agentId, name, acknowledged, pendingTasks]
+        pendingCommands:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentCommandItem"
+      required: [agentId, name, acknowledged, pendingTasks, pendingCommands]
 
     AgentReportBody:
       type: object
@@ -1449,17 +1489,40 @@ components:
     DispatchAgentResponse:
       type: object
       properties:
+        queued:
+          type: boolean
+        commandId:
+          type: integer
         dispatched:
           type: boolean
+        delivery:
+          type: string
+          enum: [http, queued]
         agentId:
           type: integer
         endpoint:
-          type: string
+          type: ["string", "null"]
         statusCode:
           type: ["integer", "null"]
         error:
           type: ["string", "null"]
-      required: [dispatched, agentId, endpoint]
+      required: [queued, commandId, dispatched, delivery, agentId]
+
+    AckCommandParams:
+      type: object
+      properties:
+        id:
+          type: integer
+      required: [id]
+
+    AckCommandResponse:
+      type: object
+      properties:
+        acknowledged:
+          type: boolean
+        commandId:
+          type: integer
+      required: [acknowledged, commandId]
 
     AgentTokenResponse:
       type: object

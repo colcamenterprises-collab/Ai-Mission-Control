@@ -55,15 +55,26 @@ function DispatchDialog({ agent, onClose }: { agent: Agent; onClose: () => void 
   const dispatch = useDispatchAgent();
   const [instructions, setInstructions] = useState("");
   const [context, setContext] = useState("");
-  const [result, setResult] = useState<{ dispatched: boolean; error?: string | null; statusCode?: number | null } | null>(null);
+  const [result, setResult] = useState<{
+    queued: boolean;
+    dispatched: boolean;
+    delivery: "http" | "queued";
+    commandId: number;
+    error?: string | null;
+    statusCode?: number | null;
+  } | null>(null);
 
   const handleSend = async () => {
     const res = await dispatch.mutateAsync({
       id: agent.id,
       data: { instructions, context: context || null, taskId: null },
     });
-    setResult(res);
+    setResult(res as typeof result);
   };
+
+  const deliveryLabel = result?.delivery === "http"
+    ? { icon: "✓", color: "text-green-400", bg: "bg-green-500/10 border-green-500/30", title: "Delivered via HTTP", body: "The agent's endpoint received your instructions directly." }
+    : { icon: "⏳", color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/30", title: "Queued — picks up on next ping", body: agent.endpoint ? "HTTP push failed. The command is stored and the agent will pick it up on its next heartbeat." : "No public endpoint — the agent will pick this up on its next heartbeat (every 30s)." };
 
   return (
     <Dialog open onOpenChange={o => !o && onClose()}>
@@ -76,40 +87,44 @@ function DispatchDialog({ agent, onClose }: { agent: Agent; onClose: () => void 
         </DialogHeader>
         {result ? (
           <div className="space-y-4">
-            <div className={`p-4 rounded-lg border ${result.dispatched ? "bg-green-500/10 border-green-500/30" : "bg-red-500/10 border-red-500/30"}`}>
-              <p className={`text-sm font-mono font-medium ${result.dispatched ? "text-green-400" : "text-red-400"}`}>
-                {result.dispatched ? "✓ Dispatched successfully" : "✗ Dispatch failed"}
+            <div className={`p-4 rounded-lg border ${deliveryLabel.bg}`}>
+              <p className={`text-sm font-mono font-medium ${deliveryLabel.color}`}>
+                {deliveryLabel.icon} {deliveryLabel.title}
               </p>
-              {result.statusCode && (
-                <p className="text-xs text-muted-foreground mt-1">HTTP {result.statusCode}</p>
+              <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{deliveryLabel.body}</p>
+              {result.statusCode && result.delivery === "http" && (
+                <p className="text-xs text-muted-foreground mt-1 font-mono">HTTP {result.statusCode}</p>
               )}
               {result.error && (
-                <p className="text-xs text-red-400 mt-1 font-mono">{result.error}</p>
-              )}
-              {result.dispatched && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  The agent received your instructions and an activity entry was logged.
-                </p>
+                <p className="text-xs text-muted-foreground/70 mt-1 font-mono text-[10px]">{result.error}</p>
               )}
             </div>
-            <p className="text-xs font-mono text-muted-foreground truncate">→ {agent.endpoint}</p>
+            <p className="text-xs font-mono text-muted-foreground">Command ID: #{result.commandId}</p>
             <div className="flex justify-end gap-2">
-              <Button size="sm" variant="outline" onClick={() => setResult(null)}>Send Another</Button>
+              <Button size="sm" variant="outline" onClick={() => { setResult(null); setInstructions(""); setContext(""); }}>Send Another</Button>
               <Button size="sm" onClick={onClose}>Done</Button>
             </div>
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="p-3 bg-secondary/40 rounded-lg text-xs font-mono text-muted-foreground truncate">
-              → {agent.endpoint}
-            </div>
+            {agent.endpoint ? (
+              <div className="p-3 bg-secondary/40 rounded-lg text-xs font-mono text-muted-foreground truncate">
+                → {agent.endpoint}
+              </div>
+            ) : (
+              <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-xs text-yellow-400 font-mono flex items-center gap-2">
+                <Radio className="w-3 h-3 flex-shrink-0" />
+                No endpoint — command will be queued and picked up on next ping
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-xs font-mono uppercase text-muted-foreground">Instructions *</Label>
               <Textarea
-                placeholder={`Tell ${agent.name} what to do. Be specific — this is sent directly to its endpoint.`}
+                placeholder={`Tell ${agent.name} what to do. Be specific — this is sent directly to its process.`}
                 value={instructions}
                 onChange={e => setInstructions(e.target.value)}
                 className="text-sm resize-none h-28"
+                autoFocus
               />
             </div>
             <div className="space-y-1.5">
@@ -156,13 +171,22 @@ function BridgeSection({ agent, onTokenRefreshed }: { agent: Agent; onTokenRefre
   };
 
   const mcUrl = window.location.origin;
-  const curlPing = `curl -X POST ${mcUrl}/api/agent/ping \\
-  -H "Authorization: Bearer ${localToken ?? "<YOUR_TOKEN>"}" \\
+  const tok = localToken ?? "<YOUR_TOKEN>";
+  const curlPing = `# 1. Heartbeat — call every 30s; response includes queued commands
+curl -X POST ${mcUrl}/api/agent/ping \\
+  -H "Authorization: Bearer ${tok}" \\
   -H "Content-Type: application/json" \\
   -d '{"agentId": ${agent.id}}'`;
 
-  const curlReport = `curl -X POST ${mcUrl}/api/agent/report \\
-  -H "Authorization: Bearer ${localToken ?? "<YOUR_TOKEN>"}" \\
+  const curlAck = `# 2. Acknowledge a queued command so it won't repeat
+#    Replace <commandId> with the id from pendingCommands[]
+curl -X POST ${mcUrl}/api/agent/command/<commandId>/ack \\
+  -H "Authorization: Bearer ${tok}" \\
+  -H "Content-Type: application/json"`;
+
+  const curlReport = `# 3. Report back — activity, task completion, or memory
+curl -X POST ${mcUrl}/api/agent/report \\
+  -H "Authorization: Bearer ${tok}" \\
   -H "Content-Type: application/json" \\
   -d '{"type":"activity","content":"Task complete"}'`;
 
@@ -181,10 +205,20 @@ function BridgeSection({ agent, onTokenRefreshed }: { agent: Agent; onTokenRefre
         </div>
 
         {/* Endpoint */}
-        <div className="p-2.5 bg-secondary/40 rounded-lg font-mono text-xs text-muted-foreground flex items-center justify-between gap-2">
-          <span className="truncate">{agent.endpoint}</span>
-          <CopyButton text={agent.endpoint!} />
-        </div>
+        {agent.endpoint ? (
+          <div className="p-2.5 bg-secondary/40 rounded-lg font-mono text-xs text-muted-foreground flex items-center justify-between gap-2">
+            <span className="truncate">{agent.endpoint}</span>
+            <CopyButton text={agent.endpoint} />
+          </div>
+        ) : (
+          <div className="p-2.5 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-xs flex items-center gap-2">
+            <Radio className="w-3 h-3 text-yellow-500 flex-shrink-0" />
+            <span className="text-muted-foreground">
+              No public endpoint — using <span className="text-yellow-400 font-mono">queue-based</span> delivery.
+              Commands are picked up on the agent's next ping.
+            </span>
+          </div>
+        )}
 
         {/* Token */}
         <div>
@@ -223,16 +257,14 @@ function BridgeSection({ agent, onTokenRefreshed }: { agent: Agent; onTokenRefre
           <div className="space-y-2">
             <div className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
               <Terminal className="w-3 h-3" />
-              Quick-start for your Docker agent:
+              Quick-start — works for local, Docker, or hosted agents:
             </div>
-            <div className="relative">
-              <pre className="text-[10px] font-mono text-muted-foreground bg-secondary/60 rounded-lg p-3 overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">{curlPing}</pre>
-              <div className="absolute top-2 right-2"><CopyButton text={curlPing} /></div>
-            </div>
-            <div className="relative">
-              <pre className="text-[10px] font-mono text-muted-foreground bg-secondary/60 rounded-lg p-3 overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">{curlReport}</pre>
-              <div className="absolute top-2 right-2"><CopyButton text={curlReport} /></div>
-            </div>
+            {[curlPing, curlAck, curlReport].map((snippet, i) => (
+              <div key={i} className="relative">
+                <pre className="text-[10px] font-mono text-muted-foreground bg-secondary/60 rounded-lg p-3 overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">{snippet}</pre>
+                <div className="absolute top-2 right-2"><CopyButton text={snippet} /></div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -895,7 +927,7 @@ export default function Team() {
                 </div>
               )}
 
-              {selectedAgent.isPluggedIn && selectedAgent.endpoint && (
+              {selectedAgent.isPluggedIn && (
                 <BridgeSection agent={selectedAgent} onTokenRefreshed={invalidate} />
               )}
 

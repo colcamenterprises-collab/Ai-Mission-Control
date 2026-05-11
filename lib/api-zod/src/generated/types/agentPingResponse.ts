@@ -5,6 +5,7 @@
  * Mission Control API
  * OpenAPI spec version: 0.1.0
  */
+import type { AgentCommandItem } from "./agentCommandItem";
 import type { AgentPingResponsePendingTasksItem } from "./agentPingResponsePendingTasksItem";
 
 export interface AgentPingResponse {
@@ -12,4 +13,5 @@ export interface AgentPingResponse {
   name: string;
   acknowledged: boolean;
   pendingTasks: AgentPingResponsePendingTasksItem[];
+  pendingCommands: AgentCommandItem[];
 }

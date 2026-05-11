@@ -6,9 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./ackCommandParams";
+export * from "./ackCommandResponse";
 export * from "./activityEntry";
 export * from "./activityEntryStatus";
 export * from "./agent";
+export * from "./agentCommandItem";
 export * from "./agentDepartment";
 export * from "./agentPingBody";
 export * from "./agentPingResponse";
@@ -45,6 +48,7 @@ export * from "./createTaskBodyStatus";
 export * from "./dashboardSummary";
 export * from "./dispatchAgentBody";
 export * from "./dispatchAgentResponse";
+export * from "./dispatchAgentResponseDelivery";
 export * from "./healthStatus";
 export * from "./integration";
 export * from "./integrationAgent";

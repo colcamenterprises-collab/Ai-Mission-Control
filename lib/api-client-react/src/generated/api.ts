@@ -17,6 +17,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AckCommandResponse,
   ActivityEntry,
   Agent,
   AgentPingBody,
@@ -2963,6 +2964,90 @@ export const useDispatchAgent = <
   TContext
 > => {
   return useMutation(getDispatchAgentMutationOptions(options));
+};
+
+/**
+ * @summary Agent acknowledges it has received and started processing a command
+ */
+export const getAckAgentCommandUrl = (id: number) => {
+  return `/api/agent/command/${id}/ack`;
+};
+
+export const ackAgentCommand = async (
+  id: number,
+  options?: RequestInit,
+): Promise<AckCommandResponse> => {
+  return customFetch<AckCommandResponse>(getAckAgentCommandUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAckAgentCommandMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ackAgentCommand>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ackAgentCommand>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["ackAgentCommand"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ackAgentCommand>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return ackAgentCommand(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AckAgentCommandMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ackAgentCommand>>
+>;
+
+export type AckAgentCommandMutationError = ErrorType<void>;
+
+/**
+ * @summary Agent acknowledges it has received and started processing a command
+ */
+export const useAckAgentCommand = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ackAgentCommand>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof ackAgentCommand>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAckAgentCommandMutationOptions(options));
 };
 
 /**

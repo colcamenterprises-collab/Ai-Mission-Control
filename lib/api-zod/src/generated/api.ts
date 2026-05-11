@@ -731,6 +731,15 @@ export const AgentPingResponse = zod.object({
       status: zod.string(),
     }),
   ),
+  pendingCommands: zod.array(
+    zod.object({
+      id: zod.number(),
+      instructions: zod.string(),
+      context: zod.string().nullish(),
+      taskId: zod.number().nullish(),
+      createdAt: zod.string(),
+    }),
+  ),
 });
 
 /**
@@ -764,11 +773,26 @@ export const DispatchAgentBody = zod.object({
 });
 
 export const DispatchAgentResponse = zod.object({
+  queued: zod.boolean(),
+  commandId: zod.number(),
   dispatched: zod.boolean(),
+  delivery: zod.enum(["http", "queued"]),
   agentId: zod.number(),
-  endpoint: zod.string(),
+  endpoint: zod.string().nullish(),
   statusCode: zod.number().nullish(),
   error: zod.string().nullish(),
+});
+
+/**
+ * @summary Agent acknowledges it has received and started processing a command
+ */
+export const AckAgentCommandParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AckAgentCommandResponse = zod.object({
+  acknowledged: zod.boolean(),
+  commandId: zod.number(),
 });
 
 /**

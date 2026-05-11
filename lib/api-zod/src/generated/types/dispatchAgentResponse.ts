@@ -5,11 +5,16 @@
  * Mission Control API
  * OpenAPI spec version: 0.1.0
  */
+import type { DispatchAgentResponseDelivery } from "./dispatchAgentResponseDelivery";
 
 export interface DispatchAgentResponse {
+  queued: boolean;
+  commandId: number;
   dispatched: boolean;
+  delivery: DispatchAgentResponseDelivery;
   agentId: number;
-  endpoint: string;
+  /** @nullable */
+  endpoint?: string | null;
   /** @nullable */
   statusCode?: number | null;
   /** @nullable */

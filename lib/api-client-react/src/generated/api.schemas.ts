@@ -495,6 +495,16 @@ export interface AgentPingBody {
   agentId: number;
 }
 
+export interface AgentCommandItem {
+  id: number;
+  instructions: string;
+  /** @nullable */
+  context?: string | null;
+  /** @nullable */
+  taskId?: number | null;
+  createdAt: string;
+}
+
 export type AgentPingResponsePendingTasksItem = {
   id: number;
   title: string;
@@ -507,6 +517,7 @@ export interface AgentPingResponse {
   name: string;
   acknowledged: boolean;
   pendingTasks: AgentPingResponsePendingTasksItem[];
+  pendingCommands: AgentCommandItem[];
 }
 
 export type AgentReportBodyType =
@@ -545,14 +556,35 @@ export interface DispatchAgentBody {
   context?: string | null;
 }
 
+export type DispatchAgentResponseDelivery =
+  (typeof DispatchAgentResponseDelivery)[keyof typeof DispatchAgentResponseDelivery];
+
+export const DispatchAgentResponseDelivery = {
+  http: "http",
+  queued: "queued",
+} as const;
+
 export interface DispatchAgentResponse {
+  queued: boolean;
+  commandId: number;
   dispatched: boolean;
+  delivery: DispatchAgentResponseDelivery;
   agentId: number;
-  endpoint: string;
+  /** @nullable */
+  endpoint?: string | null;
   /** @nullable */
   statusCode?: number | null;
   /** @nullable */
   error?: string | null;
+}
+
+export interface AckCommandParams {
+  id: number;
+}
+
+export interface AckCommandResponse {
+  acknowledged: boolean;
+  commandId: number;
 }
 
 export interface AgentTokenResponse {
