@@ -9,6 +9,7 @@ import agentsRouter from "./agents";
 import contactsRouter from "./contacts";
 import activityRouter from "./activity";
 import integrationsRouter from "./integrations";
+import agentBridgeRouter from "./agent-bridge";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(agentsRouter);
 router.use(contactsRouter);
 router.use(activityRouter);
 router.use(integrationsRouter);
+router.use(agentBridgeRouter);
 
 export default router;

@@ -616,6 +616,8 @@ export const ListAgentsResponseItem = zod.object({
   model: zod.string().nullish(),
   apiKeyHint: zod.string().nullish(),
   endpoint: zod.string().nullish(),
+  inboundToken: zod.string().nullish(),
+  lastPing: zod.string().nullish(),
 });
 export const ListAgentsResponse = zod.array(ListAgentsResponseItem);
 
@@ -661,6 +663,8 @@ export const GetAgentResponse = zod.object({
   model: zod.string().nullish(),
   apiKeyHint: zod.string().nullish(),
   endpoint: zod.string().nullish(),
+  inboundToken: zod.string().nullish(),
+  lastPing: zod.string().nullish(),
 });
 
 /**
@@ -704,6 +708,79 @@ export const UpdateAgentResponse = zod.object({
   model: zod.string().nullish(),
   apiKeyHint: zod.string().nullish(),
   endpoint: zod.string().nullish(),
+  inboundToken: zod.string().nullish(),
+  lastPing: zod.string().nullish(),
+});
+
+/**
+ * @summary Heartbeat from a Docker/external agent
+ */
+export const AgentPingBody = zod.object({
+  agentId: zod.number(),
+});
+
+export const AgentPingResponse = zod.object({
+  agentId: zod.number(),
+  name: zod.string(),
+  acknowledged: zod.boolean(),
+  pendingTasks: zod.array(
+    zod.object({
+      id: zod.number(),
+      title: zod.string(),
+      priority: zod.string(),
+      status: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Agent pushes an activity, task completion, or memory entry
+ */
+export const AgentReportBody = zod.object({
+  type: zod.enum(["activity", "task_complete", "memory"]),
+  content: zod.string(),
+  taskId: zod.number().nullish(),
+  taskStatus: zod.string().nullish(),
+  memoryTitle: zod.string().nullish(),
+  memoryCategory: zod.string().nullish(),
+});
+
+export const AgentReportResponse = zod.object({
+  accepted: zod.boolean(),
+  activityId: zod.number().nullish(),
+});
+
+/**
+ * @summary Send instructions from Mission Control to the agent endpoint
+ */
+export const DispatchAgentParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DispatchAgentBody = zod.object({
+  instructions: zod.string(),
+  taskId: zod.number().nullish(),
+  context: zod.string().nullish(),
+});
+
+export const DispatchAgentResponse = zod.object({
+  dispatched: zod.boolean(),
+  agentId: zod.number(),
+  endpoint: zod.string(),
+  statusCode: zod.number().nullish(),
+  error: zod.string().nullish(),
+});
+
+/**
+ * @summary Regenerate the inbound token for an agent
+ */
+export const RegenerateAgentTokenParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const RegenerateAgentTokenResponse = zod.object({
+  agentId: zod.number(),
+  inboundToken: zod.string(),
 });
 
 /**

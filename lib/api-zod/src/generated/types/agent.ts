@@ -32,4 +32,8 @@ export interface Agent {
   apiKeyHint?: string | null;
   /** @nullable */
   endpoint?: string | null;
+  /** @nullable */
+  inboundToken?: string | null;
+  /** @nullable */
+  lastPing?: string | null;
 }

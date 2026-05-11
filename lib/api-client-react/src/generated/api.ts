@@ -19,6 +19,11 @@ import type {
 import type {
   ActivityEntry,
   Agent,
+  AgentPingBody,
+  AgentPingResponse,
+  AgentReportBody,
+  AgentReportResponse,
+  AgentTokenResponse,
   AssignAgentBody,
   CalendarEvent,
   Contact,
@@ -31,6 +36,8 @@ import type {
   CreateMemoryBody,
   CreateTaskBody,
   DashboardSummary,
+  DispatchAgentBody,
+  DispatchAgentResponse,
   HealthStatus,
   Integration,
   IntegrationAgent,
@@ -2697,6 +2704,349 @@ export const useUpdateAgent = <
   TContext
 > => {
   return useMutation(getUpdateAgentMutationOptions(options));
+};
+
+/**
+ * @summary Heartbeat from a Docker/external agent
+ */
+export const getAgentPingUrl = () => {
+  return `/api/agent/ping`;
+};
+
+export const agentPing = async (
+  agentPingBody: AgentPingBody,
+  options?: RequestInit,
+): Promise<AgentPingResponse> => {
+  return customFetch<AgentPingResponse>(getAgentPingUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(agentPingBody),
+  });
+};
+
+export const getAgentPingMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof agentPing>>,
+    TError,
+    { data: BodyType<AgentPingBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof agentPing>>,
+  TError,
+  { data: BodyType<AgentPingBody> },
+  TContext
+> => {
+  const mutationKey = ["agentPing"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof agentPing>>,
+    { data: BodyType<AgentPingBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return agentPing(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AgentPingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof agentPing>>
+>;
+export type AgentPingMutationBody = BodyType<AgentPingBody>;
+export type AgentPingMutationError = ErrorType<void>;
+
+/**
+ * @summary Heartbeat from a Docker/external agent
+ */
+export const useAgentPing = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof agentPing>>,
+    TError,
+    { data: BodyType<AgentPingBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof agentPing>>,
+  TError,
+  { data: BodyType<AgentPingBody> },
+  TContext
+> => {
+  return useMutation(getAgentPingMutationOptions(options));
+};
+
+/**
+ * @summary Agent pushes an activity, task completion, or memory entry
+ */
+export const getAgentReportUrl = () => {
+  return `/api/agent/report`;
+};
+
+export const agentReport = async (
+  agentReportBody: AgentReportBody,
+  options?: RequestInit,
+): Promise<AgentReportResponse> => {
+  return customFetch<AgentReportResponse>(getAgentReportUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(agentReportBody),
+  });
+};
+
+export const getAgentReportMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof agentReport>>,
+    TError,
+    { data: BodyType<AgentReportBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof agentReport>>,
+  TError,
+  { data: BodyType<AgentReportBody> },
+  TContext
+> => {
+  const mutationKey = ["agentReport"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof agentReport>>,
+    { data: BodyType<AgentReportBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return agentReport(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AgentReportMutationResult = NonNullable<
+  Awaited<ReturnType<typeof agentReport>>
+>;
+export type AgentReportMutationBody = BodyType<AgentReportBody>;
+export type AgentReportMutationError = ErrorType<void>;
+
+/**
+ * @summary Agent pushes an activity, task completion, or memory entry
+ */
+export const useAgentReport = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof agentReport>>,
+    TError,
+    { data: BodyType<AgentReportBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof agentReport>>,
+  TError,
+  { data: BodyType<AgentReportBody> },
+  TContext
+> => {
+  return useMutation(getAgentReportMutationOptions(options));
+};
+
+/**
+ * @summary Send instructions from Mission Control to the agent endpoint
+ */
+export const getDispatchAgentUrl = (id: number) => {
+  return `/api/agents/${id}/dispatch`;
+};
+
+export const dispatchAgent = async (
+  id: number,
+  dispatchAgentBody: DispatchAgentBody,
+  options?: RequestInit,
+): Promise<DispatchAgentResponse> => {
+  return customFetch<DispatchAgentResponse>(getDispatchAgentUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(dispatchAgentBody),
+  });
+};
+
+export const getDispatchAgentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dispatchAgent>>,
+    TError,
+    { id: number; data: BodyType<DispatchAgentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof dispatchAgent>>,
+  TError,
+  { id: number; data: BodyType<DispatchAgentBody> },
+  TContext
+> => {
+  const mutationKey = ["dispatchAgent"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof dispatchAgent>>,
+    { id: number; data: BodyType<DispatchAgentBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return dispatchAgent(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DispatchAgentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof dispatchAgent>>
+>;
+export type DispatchAgentMutationBody = BodyType<DispatchAgentBody>;
+export type DispatchAgentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send instructions from Mission Control to the agent endpoint
+ */
+export const useDispatchAgent = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof dispatchAgent>>,
+    TError,
+    { id: number; data: BodyType<DispatchAgentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof dispatchAgent>>,
+  TError,
+  { id: number; data: BodyType<DispatchAgentBody> },
+  TContext
+> => {
+  return useMutation(getDispatchAgentMutationOptions(options));
+};
+
+/**
+ * @summary Regenerate the inbound token for an agent
+ */
+export const getRegenerateAgentTokenUrl = (id: number) => {
+  return `/api/agents/${id}/token`;
+};
+
+export const regenerateAgentToken = async (
+  id: number,
+  options?: RequestInit,
+): Promise<AgentTokenResponse> => {
+  return customFetch<AgentTokenResponse>(getRegenerateAgentTokenUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRegenerateAgentTokenMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateAgentToken>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof regenerateAgentToken>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["regenerateAgentToken"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof regenerateAgentToken>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return regenerateAgentToken(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegenerateAgentTokenMutationResult = NonNullable<
+  Awaited<ReturnType<typeof regenerateAgentToken>>
+>;
+
+export type RegenerateAgentTokenMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Regenerate the inbound token for an agent
+ */
+export const useRegenerateAgentToken = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateAgentToken>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof regenerateAgentToken>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRegenerateAgentTokenMutationOptions(options));
 };
 
 /**

@@ -622,6 +622,93 @@ paths:
               schema:
                 $ref: "#/components/schemas/Agent"
 
+  # ─── AGENT BRIDGE ─────────────────────────────────────────────
+  /agent/ping:
+    post:
+      operationId: agentPing
+      tags: [agent-bridge]
+      summary: Heartbeat from a Docker/external agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentPingBody"
+      responses:
+        "200":
+          description: Ping acknowledged with pending tasks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentPingResponse"
+        "401":
+          description: Invalid or missing token
+
+  /agent/report:
+    post:
+      operationId: agentReport
+      tags: [agent-bridge]
+      summary: Agent pushes an activity, task completion, or memory entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentReportBody"
+      responses:
+        "200":
+          description: Report accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentReportResponse"
+        "401":
+          description: Invalid or missing token
+
+  /agents/{id}/dispatch:
+    post:
+      operationId: dispatchAgent
+      tags: [agent-bridge]
+      summary: Send instructions from Mission Control to the agent endpoint
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DispatchAgentBody"
+      responses:
+        "200":
+          description: Dispatched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DispatchAgentResponse"
+
+  /agents/{id}/token:
+    post:
+      operationId: regenerateAgentToken
+      tags: [agent-bridge]
+      summary: Regenerate the inbound token for an agent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: New token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentTokenResponse"
+
   # ─── INTEGRATIONS ─────────────────────────────────────────────
   /integrations:
     get:
@@ -1216,6 +1303,10 @@ components:
           type: ["string", "null"]
         endpoint:
           type: ["string", "null"]
+        inboundToken:
+          type: ["string", "null"]
+        lastPing:
+          type: ["string", "null"]
       required:
         - id
         - name
@@ -1284,6 +1375,100 @@ components:
           type: ["string", "null"]
         endpoint:
           type: ["string", "null"]
+
+    AgentPingBody:
+      type: object
+      properties:
+        agentId:
+          type: integer
+      required: [agentId]
+
+    AgentPingResponse:
+      type: object
+      properties:
+        agentId:
+          type: integer
+        name:
+          type: string
+        acknowledged:
+          type: boolean
+        pendingTasks:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              title:
+                type: string
+              priority:
+                type: string
+              status:
+                type: string
+            required: [id, title, priority, status]
+      required: [agentId, name, acknowledged, pendingTasks]
+
+    AgentReportBody:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [activity, task_complete, memory]
+        content:
+          type: string
+        taskId:
+          type: ["integer", "null"]
+        taskStatus:
+          type: ["string", "null"]
+        memoryTitle:
+          type: ["string", "null"]
+        memoryCategory:
+          type: ["string", "null"]
+      required: [type, content]
+
+    AgentReportResponse:
+      type: object
+      properties:
+        accepted:
+          type: boolean
+        activityId:
+          type: ["integer", "null"]
+      required: [accepted]
+
+    DispatchAgentBody:
+      type: object
+      properties:
+        instructions:
+          type: string
+        taskId:
+          type: ["integer", "null"]
+        context:
+          type: ["string", "null"]
+      required: [instructions]
+
+    DispatchAgentResponse:
+      type: object
+      properties:
+        dispatched:
+          type: boolean
+        agentId:
+          type: integer
+        endpoint:
+          type: string
+        statusCode:
+          type: ["integer", "null"]
+        error:
+          type: ["string", "null"]
+      required: [dispatched, agentId, endpoint]
+
+    AgentTokenResponse:
+      type: object
+      properties:
+        agentId:
+          type: integer
+        inboundToken:
+          type: string
+      required: [agentId, inboundToken]
 
     Integration:
       type: object

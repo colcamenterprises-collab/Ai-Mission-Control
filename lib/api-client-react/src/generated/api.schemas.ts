@@ -416,6 +416,10 @@ export interface Agent {
   apiKeyHint?: string | null;
   /** @nullable */
   endpoint?: string | null;
+  /** @nullable */
+  inboundToken?: string | null;
+  /** @nullable */
+  lastPing?: string | null;
 }
 
 export type CreateAgentBodyDepartment =
@@ -485,6 +489,75 @@ export interface UpdateAgentBody {
   apiKey?: string | null;
   /** @nullable */
   endpoint?: string | null;
+}
+
+export interface AgentPingBody {
+  agentId: number;
+}
+
+export type AgentPingResponsePendingTasksItem = {
+  id: number;
+  title: string;
+  priority: string;
+  status: string;
+};
+
+export interface AgentPingResponse {
+  agentId: number;
+  name: string;
+  acknowledged: boolean;
+  pendingTasks: AgentPingResponsePendingTasksItem[];
+}
+
+export type AgentReportBodyType =
+  (typeof AgentReportBodyType)[keyof typeof AgentReportBodyType];
+
+export const AgentReportBodyType = {
+  activity: "activity",
+  task_complete: "task_complete",
+  memory: "memory",
+} as const;
+
+export interface AgentReportBody {
+  type: AgentReportBodyType;
+  content: string;
+  /** @nullable */
+  taskId?: number | null;
+  /** @nullable */
+  taskStatus?: string | null;
+  /** @nullable */
+  memoryTitle?: string | null;
+  /** @nullable */
+  memoryCategory?: string | null;
+}
+
+export interface AgentReportResponse {
+  accepted: boolean;
+  /** @nullable */
+  activityId?: number | null;
+}
+
+export interface DispatchAgentBody {
+  instructions: string;
+  /** @nullable */
+  taskId?: number | null;
+  /** @nullable */
+  context?: string | null;
+}
+
+export interface DispatchAgentResponse {
+  dispatched: boolean;
+  agentId: number;
+  endpoint: string;
+  /** @nullable */
+  statusCode?: number | null;
+  /** @nullable */
+  error?: string | null;
+}
+
+export interface AgentTokenResponse {
+  agentId: number;
+  inboundToken: string;
 }
 
 export type IntegrationCategory =

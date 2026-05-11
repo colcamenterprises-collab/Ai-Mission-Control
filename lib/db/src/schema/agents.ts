@@ -21,6 +21,8 @@ export const agentsTable = pgTable("agents", {
   model: text("model"),
   apiKey: text("api_key"),
   endpoint: text("endpoint"),
+  inboundToken: text("inbound_token"),
+  lastPing: timestamp("last_ping", { withTimezone: true }),
 });
 
 export const insertAgentSchema = createInsertSchema(agentsTable).omit({ id: true, createdAt: true });

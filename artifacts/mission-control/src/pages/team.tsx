@@ -4,6 +4,8 @@ import {
   useCreateAgent,
   useUpdateAgent,
   useListAgentIntegrations,
+  useDispatchAgent,
+  useRegenerateAgentToken,
   getListAgentsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -14,9 +16,242 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plug, Plus, CheckCircle2, Eye, EyeOff, Trash2, ChevronLeft, ExternalLink } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Plug, Plus, CheckCircle2, Eye, EyeOff, Trash2, ChevronLeft, ExternalLink, Copy, Check, Radio, Send, RefreshCw, Terminal } from "lucide-react";
+
+function isOnline(lastPing: string | null | undefined): boolean {
+  if (!lastPing) return false;
+  return Date.now() - new Date(lastPing).getTime() < 120_000; // 2 minutes
+}
+
+function timeSince(lastPing: string | null | undefined): string {
+  if (!lastPing) return "never";
+  const secs = Math.floor((Date.now() - new Date(lastPing).getTime()) / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  return `${Math.floor(secs / 3600)}h ago`;
+}
+
+function CopyButton({ text, label }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button onClick={handleCopy} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+      {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+      {label ?? (copied ? "Copied!" : "Copy")}
+    </button>
+  );
+}
+
+/* ─── Dispatch Dialog ────────────────────────────────────────── */
+function DispatchDialog({ agent, onClose }: { agent: Agent; onClose: () => void }) {
+  const dispatch = useDispatchAgent();
+  const [instructions, setInstructions] = useState("");
+  const [context, setContext] = useState("");
+  const [result, setResult] = useState<{ dispatched: boolean; error?: string | null; statusCode?: number | null } | null>(null);
+
+  const handleSend = async () => {
+    const res = await dispatch.mutateAsync({
+      id: agent.id,
+      data: { instructions, context: context || null, taskId: null },
+    });
+    setResult(res);
+  };
+
+  return (
+    <Dialog open onOpenChange={o => !o && onClose()}>
+      <DialogContent className="max-w-md bg-card border-border">
+        <DialogHeader>
+          <DialogTitle className="font-mono flex items-center gap-2 text-sm">
+            <Send className="w-4 h-4 text-primary" />
+            Dispatch to {agent.name}
+          </DialogTitle>
+        </DialogHeader>
+        {result ? (
+          <div className="space-y-4">
+            <div className={`p-4 rounded-lg border ${result.dispatched ? "bg-green-500/10 border-green-500/30" : "bg-red-500/10 border-red-500/30"}`}>
+              <p className={`text-sm font-mono font-medium ${result.dispatched ? "text-green-400" : "text-red-400"}`}>
+                {result.dispatched ? "✓ Dispatched successfully" : "✗ Dispatch failed"}
+              </p>
+              {result.statusCode && (
+                <p className="text-xs text-muted-foreground mt-1">HTTP {result.statusCode}</p>
+              )}
+              {result.error && (
+                <p className="text-xs text-red-400 mt-1 font-mono">{result.error}</p>
+              )}
+              {result.dispatched && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  The agent received your instructions and an activity entry was logged.
+                </p>
+              )}
+            </div>
+            <p className="text-xs font-mono text-muted-foreground truncate">→ {agent.endpoint}</p>
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="outline" onClick={() => setResult(null)}>Send Another</Button>
+              <Button size="sm" onClick={onClose}>Done</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="p-3 bg-secondary/40 rounded-lg text-xs font-mono text-muted-foreground truncate">
+              → {agent.endpoint}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-mono uppercase text-muted-foreground">Instructions *</Label>
+              <Textarea
+                placeholder={`Tell ${agent.name} what to do. Be specific — this is sent directly to its endpoint.`}
+                value={instructions}
+                onChange={e => setInstructions(e.target.value)}
+                className="text-sm resize-none h-28"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-mono uppercase text-muted-foreground">Context (optional)</Label>
+              <Textarea
+                placeholder="Additional context, data snippets, or constraints…"
+                value={context}
+                onChange={e => setContext(e.target.value)}
+                className="text-sm resize-none h-16"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button
+                size="sm"
+                onClick={handleSend}
+                disabled={!instructions.trim() || dispatch.isPending}
+                className="gap-2"
+              >
+                <Send className="w-3 h-3" />
+                {dispatch.isPending ? "Sending…" : "Send"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ─── Bridge Connection section (inside agent detail) ─────────── */
+function BridgeSection({ agent, onTokenRefreshed }: { agent: Agent; onTokenRefreshed: () => void }) {
+  const regen = useRegenerateAgentToken();
+  const [showDispatch, setShowDispatch] = useState(false);
+  const [showToken, setShowToken] = useState(false);
+  const [localToken, setLocalToken] = useState<string | null>(agent.inboundToken ?? null);
+  const online = isOnline(agent.lastPing);
+
+  const handleRegen = async () => {
+    const res = await regen.mutateAsync({ id: agent.id });
+    setLocalToken(res.inboundToken);
+    setShowToken(true);
+    onTokenRefreshed();
+  };
+
+  const mcUrl = window.location.origin;
+  const curlPing = `curl -X POST ${mcUrl}/api/agent/ping \\
+  -H "Authorization: Bearer ${localToken ?? "<YOUR_TOKEN>"}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"agentId": ${agent.id}}'`;
+
+  const curlReport = `curl -X POST ${mcUrl}/api/agent/report \\
+  -H "Authorization: Bearer ${localToken ?? "<YOUR_TOKEN>"}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"type":"activity","content":"Task complete"}'`;
+
+  return (
+    <>
+      <Separator />
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-mono uppercase text-muted-foreground">Bridge Connection</p>
+          <div className="flex items-center gap-1.5">
+            <div className={`w-2 h-2 rounded-full ${online ? "bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.8)]" : "bg-muted-foreground/30"}`} />
+            <span className="text-xs font-mono text-muted-foreground">
+              {online ? "online" : `offline · ${timeSince(agent.lastPing)}`}
+            </span>
+          </div>
+        </div>
+
+        {/* Endpoint */}
+        <div className="p-2.5 bg-secondary/40 rounded-lg font-mono text-xs text-muted-foreground flex items-center justify-between gap-2">
+          <span className="truncate">{agent.endpoint}</span>
+          <CopyButton text={agent.endpoint!} />
+        </div>
+
+        {/* Token */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-muted-foreground">Inbound Token</span>
+            <div className="flex items-center gap-3">
+              {localToken && <CopyButton text={localToken} />}
+              <button
+                onClick={handleRegen}
+                disabled={regen.isPending}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+              >
+                <RefreshCw className={`w-3 h-3 ${regen.isPending ? "animate-spin" : ""}`} />
+                {localToken ? "Regenerate" : "Generate Token"}
+              </button>
+            </div>
+          </div>
+
+          {localToken ? (
+            <div
+              className="p-2.5 bg-secondary/40 rounded-lg font-mono text-xs flex items-center justify-between gap-2 cursor-pointer"
+              onClick={() => setShowToken(v => !v)}
+            >
+              <span className="truncate text-primary/80">
+                {showToken ? localToken : "••••••••••••••••••••" + localToken.slice(-8)}
+              </span>
+              <span className="text-muted-foreground flex-shrink-0">{showToken ? "hide" : "reveal"}</span>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground/60 italic">No token yet — click Generate to create one.</p>
+          )}
+        </div>
+
+        {/* Setup instructions */}
+        {localToken && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground">
+              <Terminal className="w-3 h-3" />
+              Quick-start for your Docker agent:
+            </div>
+            <div className="relative">
+              <pre className="text-[10px] font-mono text-muted-foreground bg-secondary/60 rounded-lg p-3 overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">{curlPing}</pre>
+              <div className="absolute top-2 right-2"><CopyButton text={curlPing} /></div>
+            </div>
+            <div className="relative">
+              <pre className="text-[10px] font-mono text-muted-foreground bg-secondary/60 rounded-lg p-3 overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">{curlReport}</pre>
+              <div className="absolute top-2 right-2"><CopyButton text={curlReport} /></div>
+            </div>
+          </div>
+        )}
+
+        {/* Dispatch button */}
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full gap-2 text-xs"
+          onClick={() => setShowDispatch(true)}
+        >
+          <Send className="w-3 h-3" />
+          Dispatch Instructions to Agent
+        </Button>
+      </div>
+
+      {showDispatch && <DispatchDialog agent={agent} onClose={() => setShowDispatch(false)} />}
+    </>
+  );
+}
 
 const CATEGORY_COLORS: Record<string, string> = {
   dashboard: "from-cyan-600 to-cyan-800",
@@ -517,7 +752,15 @@ export default function Team() {
                         ) : (
                           <p className="text-xs text-muted-foreground/50 font-mono">Idle</p>
                         )}
-                        <p className="text-xs text-muted-foreground/50 font-mono mt-2">{agent.lastActive}</p>
+                        <div className="flex items-center justify-between mt-2">
+                          <p className="text-xs text-muted-foreground/50 font-mono">{agent.lastActive}</p>
+                          {agent.isPluggedIn && agent.endpoint && (
+                            <div className="flex items-center gap-1">
+                              <div className={`w-1.5 h-1.5 rounded-full ${isOnline(agent.lastPing) ? "bg-green-400" : "bg-muted-foreground/30"}`} />
+                              <span className="text-[10px] font-mono text-muted-foreground">{isOnline(agent.lastPing) ? "live" : "off"}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))}
 
@@ -602,14 +845,12 @@ export default function Team() {
                         <p className="font-mono mt-0.5">{selectedAgent.apiKeyHint}</p>
                       </div>
                     )}
-                    {selectedAgent.endpoint && (
-                      <div className="col-span-2">
-                        <span className="text-muted-foreground">Endpoint</span>
-                        <p className="font-mono mt-0.5 truncate">{selectedAgent.endpoint}</p>
-                      </div>
-                    )}
                   </div>
                 </div>
+              )}
+
+              {selectedAgent.isPluggedIn && selectedAgent.endpoint && (
+                <BridgeSection agent={selectedAgent} onTokenRefreshed={invalidate} />
               )}
 
               <div>
