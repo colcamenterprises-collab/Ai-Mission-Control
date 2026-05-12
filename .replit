@@ -33,3 +33,9 @@ externalPort = 3000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+MISSION_CONTROL_ADMIN_TOKEN = "2fSqTiQ1Kj7KTVbLI9y4KHksYP3WztEwHtiJbKAWRV8"
+MISSION_CONTROL_ENCRYPTION_KEY = "82jA8vnipDucdAQGePiL6Wk3/vY5halEG6Mt615urdo="

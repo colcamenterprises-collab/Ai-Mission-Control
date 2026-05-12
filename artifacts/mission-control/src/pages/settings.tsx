@@ -959,7 +959,10 @@ export default function Settings() {
           </div>
           <div className="max-w-xl flex gap-2">
             <Input type="password" value={adminToken} onChange={e => setAdminToken(e.target.value)} placeholder="MISSION_CONTROL_ADMIN_TOKEN" />
-            <Button size="sm" onClick={() => localStorage.setItem("mission_control_admin_token", adminToken)}>Save</Button>
+            <Button size="sm" onClick={() => {
+              localStorage.setItem("mission_control_admin_token", adminToken);
+              queryClient.invalidateQueries();
+            }}>Save</Button>
           </div>
         </section>
 
