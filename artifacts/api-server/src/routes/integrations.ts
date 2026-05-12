@@ -1,3 +1,6 @@
+import { encryptSecret } from "../lib/security.js";
+import { auditLog } from "../lib/audit.js";
+import { createRateLimit } from "../lib/rate-limit.js";
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
 import { db, integrationsTable, agentIntegrationsTable, agentsTable } from "@workspace/db";
@@ -37,7 +40,7 @@ router.get("/integrations", async (_req, res): Promise<void> => {
   res.json(ListIntegrationsResponse.parse(serializeDates(rows.map(maskIntegration))));
 });
 
-router.post("/integrations", async (req, res): Promise<void> => {
+router.post("/integrations", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
   const parsed = CreateIntegrationBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -46,7 +49,7 @@ router.post("/integrations", async (req, res): Promise<void> => {
   const { apiKey, ...rest } = parsed.data;
   const [row] = await db.insert(integrationsTable).values({
     ...rest,
-    apiKey: apiKey ?? null,
+    apiKey: encryptSecret(apiKey ?? null),
     iconColor: rest.iconColor ?? "from-slate-600 to-slate-800",
     isPublic: rest.isPublic ?? false,
   }).returning();
@@ -82,7 +85,7 @@ router.get("/integrations/:id", async (req, res): Promise<void> => {
   res.json(GetIntegrationResponse.parse(serializeDates({ ...maskIntegration(row), agents: assignments })));
 });
 
-router.patch("/integrations/:id", async (req, res): Promise<void> => {
+router.patch("/integrations/:id", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
   const params = UpdateIntegrationParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -95,7 +98,7 @@ router.patch("/integrations/:id", async (req, res): Promise<void> => {
   }
   const { apiKey, ...rest } = parsed.data;
   const updateData: Partial<typeof integrationsTable.$inferInsert> = { ...rest };
-  if (apiKey !== undefined) updateData.apiKey = apiKey;
+  if (apiKey !== undefined) updateData.apiKey = encryptSecret(apiKey);
 
   const [row] = await db.update(integrationsTable).set(updateData).where(eq(integrationsTable.id, params.data.id)).returning();
   if (!row) {
@@ -105,7 +108,7 @@ router.patch("/integrations/:id", async (req, res): Promise<void> => {
   res.json(UpdateIntegrationResponse.parse(serializeDates(maskIntegration(row))));
 });
 
-router.delete("/integrations/:id", async (req, res): Promise<void> => {
+router.delete("/integrations/:id", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
   const params = DeleteIntegrationParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -144,7 +147,7 @@ router.get("/integrations/:id/agents", async (req, res): Promise<void> => {
   res.json(ListIntegrationAgentsResponse.parse(serializeDates(assignments)));
 });
 
-router.post("/integrations/:id/agents", async (req, res): Promise<void> => {
+router.post("/integrations/:id/agents", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
   const params = AssignAgentToIntegrationParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -179,7 +182,7 @@ router.post("/integrations/:id/agents", async (req, res): Promise<void> => {
   }));
 });
 
-router.delete("/integrations/:id/agents/:agentId", async (req, res): Promise<void> => {
+router.delete("/integrations/:id/agents/:agentId", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
   const params = UnassignAgentFromIntegrationParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
