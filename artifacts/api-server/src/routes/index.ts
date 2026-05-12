@@ -16,6 +16,10 @@ import { requireAdminAuth } from "../lib/auth.js";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+// Bridge runtime routes remain bearer-token gated inside agent-bridge router.
+// Explicitly protect admin bridge routes before mounting bridge router.
+router.use("/agents/:id/dispatch", requireAdminAuth);
+router.use("/agents/:id/token", requireAdminAuth);
 router.use(agentBridgeRouter);
 router.use(requireAdminAuth);
 router.use(dashboardRouter);
