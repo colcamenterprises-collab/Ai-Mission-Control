@@ -16,12 +16,15 @@ type JamesStatus = {
 };
 
 type JamesResponse = {
-  stdout: string;
-  stderr: string;
-  exitCode: number | null;
-  durationMs: number;
+  success: boolean;
+  response?: string;
+  stdout?: string;
+  stderr?: string;
+  exitCode?: number | null;
+  durationMs?: number;
   timedOut?: boolean;
   error?: string;
+  details?: string;
 };
 
 type AdminTokenSource = "localStorage" | "env" | "fallback";
@@ -56,8 +59,9 @@ function authHeaders(): HeadersInit {
 async function readJson<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = typeof data?.error === "string" ? data.error : `Request failed with ${response.status}`;
-    throw new Error(message);
+    const error = typeof data?.error === "string" ? data.error : `Request failed with ${response.status}`;
+    const details = typeof data?.details === "string" ? data.details : "";
+    throw new Error(details ? `${error}: ${details}` : error);
   }
   return data as T;
 }
@@ -203,16 +207,16 @@ export default function James() {
               <div className="space-y-4">
                 <div className="grid gap-2 text-sm md:grid-cols-3">
                   <div><span className="text-muted-foreground">Exit code:</span> {response.exitCode ?? "None"}</div>
-                  <div><span className="text-muted-foreground">Duration:</span> {response.durationMs}ms</div>
+                  <div><span className="text-muted-foreground">Duration:</span> {response.durationMs ?? "Unknown"}ms</div>
                   <div><span className="text-muted-foreground">Timed out:</span> {response.timedOut ? "Yes" : "No"}</div>
                 </div>
                 <div>
                   <h2 className="font-mono text-xs uppercase text-muted-foreground mb-2">Stdout</h2>
-                  <pre className="rounded-md border border-border bg-muted/30 p-4 whitespace-pre-wrap text-sm overflow-x-auto">{response.stdout || "No stdout"}</pre>
+                  <pre className="rounded-md border border-border bg-muted/30 p-4 whitespace-pre-wrap text-sm overflow-x-auto">{response.stdout || response.response || "No stdout"}</pre>
                 </div>
                 <div>
                   <h2 className="font-mono text-xs uppercase text-muted-foreground mb-2">Stderr</h2>
-                  <pre className="rounded-md border border-border bg-muted/30 p-4 whitespace-pre-wrap text-sm overflow-x-auto">{response.stderr || "No stderr"}</pre>
+                  <pre className="rounded-md border border-border bg-muted/30 p-4 whitespace-pre-wrap text-sm overflow-x-auto">{response.stderr || response.details || "No stderr"}</pre>
                 </div>
               </div>
             ) : !isSending ? <p className="text-sm text-muted-foreground">No response yet.</p> : null}
