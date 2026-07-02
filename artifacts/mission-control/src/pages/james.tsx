@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Bot, Check, ChevronDown, Copy, RefreshCw, Send, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -67,6 +67,7 @@ const MVP_FALLBACK_ADMIN_TOKEN = "change-this-later";
 const JAMES_PROJECTS: JamesProject[] = ["Mission Control", "SBB App Staging", "Hermes"];
 const JAMES_ENVIRONMENTS: JamesEnvironment[] = ["Read Only", "Staging", "Production Locked"];
 const DEFAULT_PROJECT_CONTEXT: JamesProjectContext = { project: "Mission Control", environment: "Read Only" };
+const WORKSPACE_PATH = "/opt/apps/ai-mission-control";
 const JAMES_SAFETY_RULES = [
   "SBB production requires explicit approval",
   "inspect before changing",
@@ -103,6 +104,7 @@ function createContextMessage(message: string, context: JamesProjectContext): st
     "Mission Control workspace context:",
     `Selected project: ${context.project}`,
     `Selected environment: ${context.environment}`,
+    `Workspace path: ${WORKSPACE_PATH}`,
     "Current safety rules:",
     ...JAMES_SAFETY_RULES.map((rule) => `- ${rule}`),
     "",
@@ -401,8 +403,8 @@ export default function James() {
   };
 
   const isOnline = status?.status === "online";
-  const jamesState = isSending ? "James Thinking" : didLastRequestFail || statusError ? "Request Failed" : isOnline ? "James Online" : "James Offline";
-  const isUsingFallbackToken = readAdminToken().source === "fallback";
+  const jamesStatusLabel = isSending ? "Thinking" : didLastRequestFail || statusError || status?.error ? "Failed" : isOnline ? "Online" : "Offline";
+  const jamesStatusVariant = jamesStatusLabel === "Online" || jamesStatusLabel === "Thinking" ? "default" : "destructive";
 
   const updateProject = (project: JamesProject) => {
     setProjectContext((currentContext) => ({ ...currentContext, project }));
@@ -413,99 +415,59 @@ export default function James() {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="border-b border-border p-4 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-mono font-semibold uppercase tracking-tight">James Chat</h1>
-          <p className="text-sm text-muted-foreground mt-1">Message James from Mission Control without opening Hermes UI.</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={loadStatus} disabled={isLoadingStatus}>
-          <RefreshCw className={`w-4 h-4 mr-2 ${isLoadingStatus ? "animate-spin" : ""}`} />
-          Refresh Status
-        </Button>
-      </div>
-
-      <div className="flex-1 overflow-hidden p-4 space-y-4">
-        {isUsingFallbackToken ? (
-          <Card>
-            <CardContent className="p-4 text-sm text-muted-foreground">
-              James Console is using the temporary MVP fallback admin token. Set MISSION_CONTROL_ADMIN_TOKEN in localStorage or
-              VITE_MISSION_CONTROL_ADMIN_TOKEN in the frontend environment to override it.
-            </CardContent>
-          </Card>
-        ) : null}
-
-        <Card>
-          <CardContent className="space-y-3 p-3">
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(16rem,2fr)] md:items-end">
-              <div className="space-y-1.5">
-                <label htmlFor="james-project-context" className="text-xs font-mono uppercase text-muted-foreground">Project</label>
-                <Select value={projectContext.project} onValueChange={(value) => updateProject(value as JamesProject)}>
-                  <SelectTrigger id="james-project-context">
-                    <SelectValue placeholder="Select project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {JAMES_PROJECTS.map((project) => (
-                      <SelectItem key={project} value={project}>{project}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <label htmlFor="james-environment-context" className="text-xs font-mono uppercase text-muted-foreground">Environment</label>
-                <Select value={projectContext.environment} onValueChange={(value) => updateEnvironment(value as JamesEnvironment)}>
-                  <SelectTrigger id="james-environment-context">
-                    <SelectValue placeholder="Select environment" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {JAMES_ENVIRONMENTS.map((environment) => (
-                      <SelectItem key={environment} value={environment}>{environment}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="rounded-md border border-border bg-muted/20 p-3 text-sm">
-                <div className="font-mono text-xs uppercase text-muted-foreground">Selected context</div>
-                <div className="mt-1 font-medium">{projectContext.project} · {projectContext.environment}</div>
-                <div className="mt-1 text-xs text-muted-foreground">Safety rules are prepended automatically when you send.</div>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <Bot className="h-4 w-4 text-muted-foreground" />
-                <Badge variant={isOnline && !statusError && !didLastRequestFail ? "default" : "destructive"}>{jamesState}</Badge>
-                {isLoadingStatus ? <span className="text-sm text-muted-foreground">Checking status...</span> : null}
-                {status?.version ? <span className="font-mono text-xs text-muted-foreground">{status.version}</span> : null}
-              </div>
-              {status ? (
-                <details className="text-sm">
-                  <summary className="cursor-pointer text-muted-foreground">Status details</summary>
-                  <dl className="mt-2 grid gap-2 md:grid-cols-2">
-                    <div><dt className="text-muted-foreground">Binary</dt><dd className="font-mono">{status.binaryPath}</dd></div>
-                    <div><dt className="text-muted-foreground">Version</dt><dd className="font-mono">{status.version ?? "Unavailable"}</dd></div>
-                    <div><dt className="text-muted-foreground">Exists</dt><dd>{status.exists ? "Yes" : "No"}</dd></div>
-                    <div><dt className="text-muted-foreground">Version check</dt><dd>{status.versionWorks ? "Passed" : "Failed"}</dd></div>
-                  </dl>
-                </details>
-              ) : null}
-              {(statusError || status?.error) ? <p className="text-sm text-destructive">{statusError ?? status?.error}</p> : null}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="flex h-[calc(100vh-13rem)] min-h-[34rem] flex-col">
-          <CardHeader className="shrink-0 gap-3 py-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <CardTitle>Chat with James</CardTitle>
-              <CardDescription>Mission Control prepends the required workspace and production-safety context before execution.</CardDescription>
-            </div>
-            <Button variant="outline" size="sm" onClick={clearChat} disabled={isSending || chatHistory.length === 0}>
-              <Trash2 className="w-4 h-4 mr-2" />
-              Clear chat
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+      <header className="sticky top-0 z-20 shrink-0 border-b border-border bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-4">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-2 text-sm">
+            <span className="sr-only">Chat with James</span>
+            <Bot className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <Badge variant={jamesStatusVariant} className="shrink-0">James {jamesStatusLabel}</Badge>
+            <span className="hidden text-muted-foreground sm:inline">|</span>
+            <Select value={projectContext.project} onValueChange={(value) => updateProject(value as JamesProject)}>
+              <SelectTrigger id="james-project-context" aria-label="Selected project" className="h-8 w-[10.5rem] min-w-0">
+                <SelectValue placeholder="Select project" />
+              </SelectTrigger>
+              <SelectContent>
+                {JAMES_PROJECTS.map((project) => (
+                  <SelectItem key={project} value={project}>{project}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="hidden text-muted-foreground sm:inline">|</span>
+            <Select value={projectContext.environment} onValueChange={(value) => updateEnvironment(value as JamesEnvironment)}>
+              <SelectTrigger id="james-environment-context" aria-label="Selected environment" className="h-8 w-[11rem] min-w-0">
+                <SelectValue placeholder="Select environment" />
+              </SelectTrigger>
+              <SelectContent>
+                {JAMES_ENVIRONMENTS.map((environment) => (
+                  <SelectItem key={environment} value={environment}>{environment}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="hidden text-muted-foreground sm:inline">|</span>
+            <span className="min-w-0 max-w-full truncate font-mono text-xs text-muted-foreground sm:max-w-[22rem]" title={WORKSPACE_PATH}>
+              {WORKSPACE_PATH}
+            </span>
+            {isLoadingStatus ? <span className="text-xs text-muted-foreground">Checking status...</span> : null}
+            {(statusError || status?.error) ? <span className="min-w-0 truncate text-xs text-destructive" title={statusError ?? status?.error ?? undefined}>{statusError ?? status?.error}</span> : null}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="outline" size="sm" onClick={loadStatus} disabled={isLoadingStatus} className="h-8">
+              <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingStatus ? "animate-spin" : ""}`} />
+              Refresh
             </Button>
-          </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 pb-4">
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto rounded-md border border-border bg-muted/20 p-4">
+            <Button variant="outline" size="sm" onClick={clearChat} disabled={isSending || chatHistory.length === 0} className="h-8">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Clear Chat
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <section className="flex min-h-0 flex-1 flex-col overflow-hidden p-2 sm:p-3" aria-label="Chat with James">
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain bg-muted/20 p-3 [-webkit-overflow-scrolling:touch] sm:p-4">
               {chatHistory.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No messages yet. Send a message to start a chat with James.</p>
               ) : null}
@@ -516,7 +478,7 @@ export default function James() {
                 return (
                   <div key={`${chatMessage.timestamp}-${index}`} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                     <div
-                      className={`max-w-[85%] rounded-lg border px-4 py-3 text-sm ${
+                      className={`max-w-[92%] rounded-lg border px-4 py-3 text-sm sm:max-w-[85%] ${
                         isUser
                           ? "border-primary bg-primary text-primary-foreground"
                           : isError
@@ -537,14 +499,14 @@ export default function James() {
               {isSending ? (
                 <div className="flex justify-start">
                   <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
-                    James Thinking
+                    James is thinking<span className="animate-pulse">...</span>
                   </div>
                 </div>
               ) : null}
               <div ref={chatEndRef} />
             </div>
 
-            <div className="space-y-3">
+            <div className="shrink-0 space-y-2 border-t border-border bg-background p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               <Textarea
                 id="james-message"
                 ref={messageInputRef}
@@ -552,20 +514,20 @@ export default function James() {
                 onChange={(event) => setMessage(event.target.value)}
                 onKeyDown={handleMessageKeyDown}
                 placeholder="Ask James what you need done..."
-                className="min-h-20 resize-none"
+                className="max-h-36 min-h-16 resize-none"
                 disabled={isSending}
               />
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs text-muted-foreground">Enter sends. Shift+Enter adds a new line.</p>
                 <Button onClick={sendMessage} disabled={isSending || !message.trim()}>
-                  <Send className="w-4 h-4 mr-2" />
+                  <Send className="mr-2 h-4 w-4" />
                   {isSending ? "Sending..." : "Send"}
                 </Button>
               </div>
             </div>
           </CardContent>
         </Card>
-      </div>
+      </section>
     </div>
   );
 }
