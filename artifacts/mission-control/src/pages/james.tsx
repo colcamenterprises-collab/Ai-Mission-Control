@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, RefreshCw, Send, Trash2 } from "lucide-react";
+import { Bot, Check, ChevronDown, Copy, RefreshCw, Send, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,10 +26,22 @@ type JamesResponse = {
   details?: string;
 };
 
+type ExecutionDetails = {
+  success: boolean;
+  exitCode?: number | null;
+  durationMs?: number;
+  timedOut?: boolean;
+  stdout?: string;
+  stderr?: string;
+  error?: string;
+  details?: string;
+};
+
 type ChatMessage = {
   role: "user" | "james" | "error";
   content: string;
   timestamp: string;
+  execution?: ExecutionDetails;
 };
 
 type AdminTokenSource = "localStorage" | "env" | "fallback";
@@ -102,11 +114,25 @@ function extractJamesResponse(response: JamesResponse): string {
   return JSON.stringify(response, null, 2);
 }
 
-function createChatMessage(role: ChatMessage["role"], content: string): ChatMessage {
+function createExecutionDetails(response: JamesResponse): ExecutionDetails {
+  return {
+    success: response.success,
+    exitCode: response.exitCode,
+    durationMs: response.durationMs,
+    timedOut: response.timedOut,
+    stdout: response.stdout,
+    stderr: response.stderr,
+    error: response.error,
+    details: response.details,
+  };
+}
+
+function createChatMessage(role: ChatMessage["role"], content: string, execution?: ExecutionDetails): ChatMessage {
   return {
     role,
     content,
     timestamp: new Date().toISOString(),
+    execution,
   };
 }
 
@@ -117,6 +143,112 @@ function formatMessageTime(timestamp: string): string {
   return date.toLocaleString();
 }
 
+function formatDuration(durationMs?: number): string {
+  if (typeof durationMs !== "number") return "unknown time";
+  return `${(durationMs / 1000).toFixed(durationMs < 1000 ? 2 : 1)}s`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function renderInlineMarkdown(value: string): string {
+  const escaped = escapeHtml(value);
+  return escaped
+    .replace(/`([^`]+)`/g, '<code class="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a class="underline underline-offset-2" href="$2" target="_blank" rel="noreferrer">$1</a>');
+}
+
+type MarkdownSegment =
+  | { type: "code"; content: string; language: string }
+  | { type: "text"; content: string };
+
+function splitMarkdownSegments(content: string): MarkdownSegment[] {
+  const segments: MarkdownSegment[] = [];
+  const fencePattern = /```([^\n`]*)\n?([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = fencePattern.exec(content)) !== null) {
+    if (match.index > lastIndex) segments.push({ type: "text", content: content.slice(lastIndex, match.index) });
+    segments.push({ type: "code", language: match[1]?.trim() ?? "", content: match[2] ?? "" });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < content.length) segments.push({ type: "text", content: content.slice(lastIndex) });
+  return segments.length ? segments : [{ type: "text", content }];
+}
+
+function MarkdownMessage({ content }: { content: string }) {
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const copyCode = async (code: string, index: number) => {
+    await navigator.clipboard.writeText(code);
+    setCopiedIndex(index);
+    window.setTimeout(() => setCopiedIndex(null), 1500);
+  };
+
+  return (
+    <div className="space-y-3 break-words leading-relaxed">
+      {splitMarkdownSegments(content).map((segment, index) => {
+        if (segment.type === "code") {
+          return (
+            <div key={index} className="overflow-hidden rounded-md border border-border bg-muted/50">
+              <div className="flex items-center justify-between border-b border-border px-3 py-2 text-xs text-muted-foreground">
+                <span className="font-mono uppercase">{segment.language || "code"}</span>
+                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => void copyCode(segment.content, index)}>
+                  {copiedIndex === index ? <Check className="mr-1 h-3 w-3" /> : <Copy className="mr-1 h-3 w-3" />}
+                  {copiedIndex === index ? "Copied" : "Copy"}
+                </Button>
+              </div>
+              <pre className="overflow-x-auto p-3 text-xs leading-relaxed"><code>{segment.content}</code></pre>
+            </div>
+          );
+        }
+
+        return (
+          <div
+            key={index}
+            className="whitespace-pre-wrap"
+            dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(segment.content) }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function ExecutionDetailsBlock({ details }: { details: ExecutionDetails }) {
+  const summary = details.success ? `Completed in ${formatDuration(details.durationMs)}` : "Failed";
+
+  return (
+    <details className="mt-3 rounded-md border border-border bg-muted/20 text-xs">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-muted-foreground">
+        <span>{summary}</span>
+        <ChevronDown className="h-3 w-3" />
+      </summary>
+      <div className="space-y-3 border-t border-border p-3">
+        <dl className="grid gap-2 sm:grid-cols-2">
+          <div><dt className="text-muted-foreground">Exit code</dt><dd className="font-mono">{details.exitCode ?? "Unavailable"}</dd></div>
+          <div><dt className="text-muted-foreground">Duration</dt><dd className="font-mono">{formatDuration(details.durationMs)}</dd></div>
+          <div><dt className="text-muted-foreground">Timed out</dt><dd>{details.timedOut ? "Yes" : "No"}</dd></div>
+          <div><dt className="text-muted-foreground">Status</dt><dd>{details.success ? "Success" : "Failed"}</dd></div>
+        </dl>
+        {details.error ? <div><div className="text-muted-foreground">Error</div><pre className="whitespace-pre-wrap font-mono">{details.error}</pre></div> : null}
+        {details.details ? <div><div className="text-muted-foreground">Details</div><pre className="whitespace-pre-wrap font-mono">{details.details}</pre></div> : null}
+        {details.stdout ? <div><div className="text-muted-foreground">stdout</div><pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded bg-background p-2 font-mono">{details.stdout}</pre></div> : null}
+        {details.stderr ? <div><div className="text-muted-foreground">stderr</div><pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded bg-background p-2 font-mono">{details.stderr}</pre></div> : null}
+      </div>
+    </details>
+  );
+}
+
 export default function James() {
   const [status, setStatus] = useState<JamesStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
@@ -124,7 +256,9 @@ export default function James() {
   const [message, setMessage] = useState("");
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>(() => readChatHistory());
   const [isSending, setIsSending] = useState(false);
+  const [didLastRequestFail, setDidLastRequestFail] = useState(false);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const loadStatus = async () => {
     setIsLoadingStatus(true);
@@ -162,6 +296,7 @@ export default function James() {
     setChatHistory((currentHistory) => [...currentHistory, userMessage]);
     setMessage("");
     setIsSending(true);
+    setDidLastRequestFail(false);
 
     try {
       const result = await readJson<JamesResponse>(
@@ -174,14 +309,20 @@ export default function James() {
           body: JSON.stringify({ message: trimmedMessage }),
         }),
       );
-      setChatHistory((currentHistory) => [...currentHistory, createChatMessage("james", extractJamesResponse(result))]);
+      setDidLastRequestFail(!result.success);
+      setChatHistory((currentHistory) => [
+        ...currentHistory,
+        createChatMessage(result.success ? "james" : "error", extractJamesResponse(result), createExecutionDetails(result)),
+      ]);
     } catch (error) {
+      setDidLastRequestFail(true);
       setChatHistory((currentHistory) => [
         ...currentHistory,
         createChatMessage("error", error instanceof Error ? error.message : "Unable to send message to James"),
       ]);
     } finally {
       setIsSending(false);
+      window.setTimeout(() => messageInputRef.current?.focus(), 0);
     }
   };
 
@@ -198,13 +339,14 @@ export default function James() {
   };
 
   const isOnline = status?.status === "online";
+  const jamesState = isSending ? "James Thinking" : didLastRequestFail || statusError ? "Request Failed" : isOnline ? "James Online" : "James Offline";
   const isUsingFallbackToken = readAdminToken().source === "fallback";
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-6 border-b border-border flex items-center justify-between">
+      <div className="border-b border-border p-4 flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-mono font-semibold uppercase tracking-tight">James Console</h1>
+          <h1 className="text-xl font-mono font-semibold uppercase tracking-tight">James Chat</h1>
           <p className="text-sm text-muted-foreground mt-1">Message James from Mission Control without opening Hermes UI.</p>
         </div>
         <Button variant="outline" size="sm" onClick={loadStatus} disabled={isLoadingStatus}>
@@ -213,7 +355,7 @@ export default function James() {
         </Button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 overflow-hidden p-4 space-y-4">
         {isUsingFallbackToken ? (
           <Card>
             <CardContent className="p-4 text-sm text-muted-foreground">
@@ -224,31 +366,30 @@ export default function James() {
         ) : null}
 
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bot className="w-5 h-5" /> James Status
-            </CardTitle>
-            <CardDescription>Checks /usr/local/bin/james-hermes and its --version command.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-3">
             <div className="flex items-center gap-3">
-              <Badge variant={isOnline ? "default" : "destructive"}>{isOnline ? "Online" : "Offline"}</Badge>
+              <Bot className="h-4 w-4 text-muted-foreground" />
+              <Badge variant={isOnline && !statusError && !didLastRequestFail ? "default" : "destructive"}>{jamesState}</Badge>
               {isLoadingStatus ? <span className="text-sm text-muted-foreground">Checking status...</span> : null}
+              {status?.version ? <span className="font-mono text-xs text-muted-foreground">{status.version}</span> : null}
             </div>
             {status ? (
-              <dl className="grid gap-2 text-sm md:grid-cols-2">
+              <details className="text-sm">
+                <summary className="cursor-pointer text-muted-foreground">Status details</summary>
+              <dl className="mt-2 grid gap-2 md:grid-cols-2">
                 <div><dt className="text-muted-foreground">Binary</dt><dd className="font-mono">{status.binaryPath}</dd></div>
                 <div><dt className="text-muted-foreground">Version</dt><dd className="font-mono">{status.version ?? "Unavailable"}</dd></div>
                 <div><dt className="text-muted-foreground">Exists</dt><dd>{status.exists ? "Yes" : "No"}</dd></div>
                 <div><dt className="text-muted-foreground">Version check</dt><dd>{status.versionWorks ? "Passed" : "Failed"}</dd></div>
               </dl>
+              </details>
             ) : null}
             {(statusError || status?.error) ? <p className="text-sm text-destructive">{statusError ?? status?.error}</p> : null}
           </CardContent>
         </Card>
 
-        <Card className="min-h-[32rem]">
-          <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
+        <Card className="flex h-[calc(100vh-13rem)] min-h-[34rem] flex-col">
+          <CardHeader className="shrink-0 gap-3 py-3 md:flex-row md:items-start md:justify-between">
             <div>
               <CardTitle>Chat with James</CardTitle>
               <CardDescription>Mission Control prepends the required workspace and production-safety context before execution.</CardDescription>
@@ -258,8 +399,8 @@ export default function James() {
               Clear chat
             </Button>
           </CardHeader>
-          <CardContent className="flex min-h-[28rem] flex-col gap-4">
-            <div className="flex-1 space-y-4 overflow-y-auto rounded-md border border-border bg-muted/20 p-4">
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 pb-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto rounded-md border border-border bg-muted/20 p-4">
               {chatHistory.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No messages yet. Send a message to start a chat with James.</p>
               ) : null}
@@ -281,7 +422,8 @@ export default function James() {
                       <div className="mb-1 font-mono text-[0.7rem] uppercase opacity-75">
                         {isUser ? "You" : isError ? "Error" : "James"} · {formatMessageTime(chatMessage.timestamp)}
                       </div>
-                      <div className="whitespace-pre-wrap break-words">{chatMessage.content}</div>
+                      {isUser ? <div className="whitespace-pre-wrap break-words">{chatMessage.content}</div> : <MarkdownMessage content={chatMessage.content} />}
+                      {chatMessage.execution ? <ExecutionDetailsBlock details={chatMessage.execution} /> : null}
                     </div>
                   </div>
                 );
@@ -290,7 +432,7 @@ export default function James() {
               {isSending ? (
                 <div className="flex justify-start">
                   <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
-                    James is thinking...
+                    James Thinking
                   </div>
                 </div>
               ) : null}
@@ -300,11 +442,12 @@ export default function James() {
             <div className="space-y-3">
               <Textarea
                 id="james-message"
+                ref={messageInputRef}
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 onKeyDown={handleMessageKeyDown}
                 placeholder="Ask James what you need done..."
-                className="min-h-24 font-mono"
+                className="min-h-20 resize-none"
                 disabled={isSending}
               />
               <div className="flex items-center justify-between gap-3">
