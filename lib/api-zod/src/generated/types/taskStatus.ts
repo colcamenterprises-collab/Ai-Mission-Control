@@ -10,6 +10,9 @@ export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
 
 export const TaskStatus = {
   backlog: "backlog",
+  ready: "ready",
+  running: "running",
+  blocked: "blocked",
   in_progress: "in_progress",
   review: "review",
   done: "done",

@@ -1249,10 +1249,10 @@ components:
           type: string
         priority:
           type: string
-          enum: [low, medium, high, urgent]
+          enum: [low, medium, high, critical, urgent]
         status:
           type: string
-          enum: [backlog, in_progress, review, done]
+          enum: [backlog, ready, running, blocked, review, done, in_progress]
         project:
           type: string
         dueDate:
@@ -1274,10 +1274,10 @@ components:
           type: string
         priority:
           type: string
-          enum: [low, medium, high, urgent]
+          enum: [low, medium, high, critical, urgent]
         status:
           type: string
-          enum: [backlog, in_progress, review, done]
+          enum: [backlog, ready, running, blocked, review, done, in_progress]
         project:
           type: string
         dueDate:
@@ -1295,10 +1295,10 @@ components:
           type: string
         priority:
           type: string
-          enum: [low, medium, high, urgent]
+          enum: [low, medium, high, critical, urgent]
         status:
           type: string
-          enum: [backlog, in_progress, review, done]
+          enum: [backlog, ready, running, blocked, review, done, in_progress]
         project:
           type: string
         dueDate:
@@ -1309,7 +1309,7 @@ components:
       properties:
         status:
           type: string
-          enum: [backlog, in_progress, review, done]
+          enum: [backlog, ready, running, blocked, review, done, in_progress]
       required: [status]
 
     ContentItem:

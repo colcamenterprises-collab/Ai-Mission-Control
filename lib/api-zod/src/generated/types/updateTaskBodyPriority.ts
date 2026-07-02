@@ -13,5 +13,6 @@ export const UpdateTaskBodyPriority = {
   low: "low",
   medium: "medium",
   high: "high",
+  critical: "critical",
   urgent: "urgent",
 } as const;

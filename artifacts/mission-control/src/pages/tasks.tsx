@@ -24,28 +24,82 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
-const COLUMNS: { id: Task["status"]; label: string }[] = [
+type MissionTask = Task & {
+  business?: string | null;
+  subAgentType?: string | null;
+  environmentMode?: string | null;
+};
+
+type WorkspaceOption = {
+  name: string;
+  path?: string;
+  repo?: string;
+  business: string;
+  environmentMode: string;
+  type?: string;
+};
+
+const COLUMNS = [
   { id: "backlog", label: "Backlog" },
-  { id: "in_progress", label: "In Progress" },
+  { id: "ready", label: "Ready" },
+  { id: "running", label: "Running" },
+  { id: "blocked", label: "Blocked" },
   { id: "review", label: "Review" },
   { id: "done", label: "Done" },
-];
+] as const;
 
 const PRIORITY_COLORS: Record<string, string> = {
   low: "bg-muted text-muted-foreground",
   medium: "bg-blue-500/20 text-blue-400",
   high: "bg-yellow-500/20 text-yellow-400",
+  critical: "bg-destructive/20 text-destructive",
   urgent: "bg-destructive/20 text-destructive",
 };
 
-const COLUMN_INDEX: Record<string, number> = {
-  backlog: 0,
-  in_progress: 1,
-  review: 2,
-  done: 3,
-};
+const COLUMN_INDEX: Record<string, number> = Object.fromEntries(
+  COLUMNS.map((col, index) => [col.id, index]),
+);
 
-const PROJECTS = ["Strategy", "Content", "Infrastructure", "Education", "Marketing"];
+const WORKSPACES: WorkspaceOption[] = [
+  { name: "Mission Control", path: "/opt/apps/ai-mission-control", repo: "github.com/colcamenterprises-collab/Ai-Mission-Control", business: "Internal", environmentMode: "Read Only" },
+  { name: "SBB App Staging", path: "/opt/apps/sbb-app-staging", business: "Smash Brothers Burgers", environmentMode: "Staging" },
+  { name: "SBB App Production", path: "/opt/apps/sbb-app-production", business: "Smash Brothers Burgers", environmentMode: "Production Locked" },
+  { name: "Hermes", path: "/opt/hermes", business: "Internal", environmentMode: "Read Only" },
+  { name: "Customli Website", business: "Customli", type: "website", environmentMode: "Read Only" },
+  { name: "HHA Website", business: "HHA", type: "website", environmentMode: "Read Only" },
+  { name: "SBB Website", business: "Smash Brothers Burgers", type: "website", environmentMode: "Read Only" },
+];
+
+const BUSINESSES = ["Customli", "Smash Brothers Burgers", "HHA", "Internal"];
+const ASSIGNEES = ["James", "James + Subagent", "Codex", "Human"];
+const SUB_AGENT_TYPES = ["Research", "Frontend", "Backend", "QA / Testing", "DevOps", "Content", "Marketing", "Finance", "Operations"];
+const PRIORITIES = ["Critical", "High", "Medium", "Low"];
+const ENVIRONMENT_MODES = ["Read Only", "Staging", "Production Locked"];
+
+const getWorkspace = (name: string) => WORKSPACES.find(workspace => workspace.name === name) ?? WORKSPACES[0];
+
+function taskContext(task: Task): MissionTask {
+  const description = task.description ?? "";
+  const contextMatch = description.match(/\n\nTask Context:\n([\s\S]+)$/);
+  const context = contextMatch ? Object.fromEntries(
+    contextMatch[1].split("\n").map(line => {
+      const [key, ...value] = line.replace(/^- /, "").split(": ");
+      return [key, value.join(": ")];
+    }).filter(([key, value]) => key && value),
+  ) : {};
+
+  return {
+    ...task,
+    status: task.status === "in_progress" ? "running" as Task["status"] : task.status,
+    business: context.Business ?? getWorkspace(task.project).business,
+    subAgentType: context["Sub-Agent Type"] === "None" ? null : context["Sub-Agent Type"] ?? null,
+    environmentMode: context["Environment / Permission Mode"] ?? getWorkspace(task.project).environmentMode,
+  };
+}
+
+function displayPriority(priority: string) {
+  return priority === "urgent" ? "Critical" : priority.charAt(0).toUpperCase() + priority.slice(1);
+}
 
 /* ─── Droppable column wrapper ──────────────────────────────── */
 function DroppableColumn({
@@ -96,7 +150,7 @@ function DraggableCard({
   canMoveRight,
   isDragging,
 }: {
-  task: Task;
+  task: MissionTask;
   onOpen: () => void;
   onMoveLeft: () => void;
   onMoveRight: () => void;
@@ -139,7 +193,7 @@ function TaskCard({
   dragHandleProps,
   isOverlay,
 }: {
-  task: Task;
+  task: MissionTask;
   onOpen?: () => void;
   onMoveLeft?: () => void;
   onMoveRight?: () => void;
@@ -168,13 +222,22 @@ function TaskCard({
         </div>
         <p className="text-sm font-medium leading-snug flex-1">{task.title}</p>
         <Badge className={`text-xs px-1.5 py-0 flex-shrink-0 ${PRIORITY_COLORS[task.priority]}`}>
-          {task.priority}
+          {displayPriority(task.priority)}
         </Badge>
       </div>
 
-      <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-        <span className="font-mono">{task.assignee}</span>
-        <span className="bg-secondary px-1.5 py-0.5 rounded">{task.project}</span>
+      <div className="space-y-1 text-xs text-muted-foreground mb-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-mono">{task.assignee}</span>
+          <span className="bg-secondary px-1.5 py-0.5 rounded">{task.project}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+          <span>{task.business}</span>
+          <span>{task.environmentMode}</span>
+          <span>{displayPriority(task.priority)}</span>
+          <span className="capitalize">{String(task.status).replace("_", " ")}</span>
+          {task.subAgentType && <span className="col-span-2">Sub-Agent: {task.subAgentType}</span>}
+        </div>
       </div>
 
       {task.dueDate && (
@@ -223,9 +286,9 @@ function TaskCard({
 export default function Tasks() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState({ priority: "all", assignee: "all", project: "all" });
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTask, setSelectedTask] = useState<MissionTask | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [activeTask, setActiveTask] = useState<MissionTask | null>(null);
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
 
   const { data: tasks, isLoading } = useListTasks();
@@ -240,20 +303,23 @@ export default function Tasks() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
-  const filteredTasks = (tasks ?? []).filter(t => {
+  const hydratedTasks = (tasks ?? []).map(taskContext);
+
+  const filteredTasks = hydratedTasks.filter(t => {
     if (filter.priority !== "all" && t.priority !== filter.priority) return false;
     if (filter.project !== "all" && t.project !== filter.project) return false;
+    if (filter.assignee !== "all" && t.assignee !== filter.assignee) return false;
     return true;
   });
 
   const tasksByColumn = (col: string) => filteredTasks.filter(t => t.status === col);
 
-  const moveTo = (task: Task, status: Task["status"]) => {
-    moveTask.mutate({ id: task.id, data: { status } }, { onSuccess: invalidate });
+  const moveTo = (task: Task, status: string) => {
+    moveTask.mutate({ id: task.id, data: { status: status as Task["status"] } }, { onSuccess: invalidate });
   };
 
   const handleDragStart = (event: DragStartEvent) => {
-    const task = (tasks ?? []).find(t => t.id === event.active.id);
+    const task = hydratedTasks.find(t => t.id === event.active.id);
     if (task) setActiveTask(task);
   };
 
@@ -266,7 +332,7 @@ export default function Tasks() {
     const targetColId = COLUMNS.find(c => c.id === over.id)?.id;
     if (!targetColId) return;
 
-    const task = (tasks ?? []).find(t => t.id === active.id);
+    const task = hydratedTasks.find(t => t.id === active.id);
     if (!task || task.status === targetColId) return;
 
     moveTo(task, targetColId);
@@ -289,14 +355,14 @@ export default function Tasks() {
               <SelectItem value="low">Low</SelectItem>
               <SelectItem value="medium">Medium</SelectItem>
               <SelectItem value="high">High</SelectItem>
-              <SelectItem value="urgent">Urgent</SelectItem>
+              <SelectItem value="critical">Critical</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filter.project} onValueChange={v => setFilter(f => ({ ...f, project: v }))}>
-            <SelectTrigger className="w-36 h-8 text-xs"><SelectValue placeholder="Project" /></SelectTrigger>
+            <SelectTrigger className="w-56 h-8 text-xs"><SelectValue placeholder="Workspace / Repo / Website" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Projects</SelectItem>
-              {PROJECTS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+              <SelectItem value="all">All Workspaces</SelectItem>
+              {WORKSPACES.map(workspace => <SelectItem key={workspace.name} value={workspace.name}>{workspace.name}</SelectItem>)}
             </SelectContent>
           </Select>
           <Button size="sm" className="h-8 text-xs" onClick={() => setShowCreate(true)}>
@@ -367,7 +433,7 @@ export default function Tasks() {
           onDelete={() => deleteTask.mutate({ id: selectedTask.id }, { onSuccess: () => { invalidate(); setSelectedTask(null); } })}
           onMove={(status) => {
             moveTo(selectedTask, status);
-            setSelectedTask(t => t ? { ...t, status } : null);
+            setSelectedTask(t => t ? { ...t, status: status as Task["status"] } : null);
           }}
           onUpdate={(data) => {
             updateTask.mutate({ id: selectedTask.id, data }, { onSuccess: () => { invalidate(); setSelectedTask(null); } });
@@ -395,10 +461,10 @@ function TaskDetailDialog({
   onMove,
   onUpdate,
 }: {
-  task: Task;
+  task: MissionTask;
   onClose: () => void;
   onDelete: () => void;
-  onMove: (status: Task["status"]) => void;
+  onMove: (status: string) => void;
   onUpdate: (data: Partial<Task>) => void;
 }) {
   const curIdx = COLUMN_INDEX[task.status] ?? 0;
@@ -437,17 +503,31 @@ function TaskDetailDialog({
             <div>
               <label className="text-xs text-muted-foreground font-mono uppercase">Priority</label>
               <p className="mt-1">
-                <Badge className={`text-xs ${PRIORITY_COLORS[task.priority]}`}>{task.priority}</Badge>
+                <Badge className={`text-xs ${PRIORITY_COLORS[task.priority]}`}>{displayPriority(task.priority)}</Badge>
               </p>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground font-mono uppercase">Project</label>
+              <label className="text-xs text-muted-foreground font-mono uppercase">Workspace / Repo / Website</label>
               <p className="mt-1">{task.project}</p>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground font-mono uppercase">Status</label>
-              <p className="mt-1 capitalize">{task.status.replace("_", " ")}</p>
+              <label className="text-xs text-muted-foreground font-mono uppercase">Status / Lane</label>
+              <p className="mt-1 capitalize">{String(task.status).replace("_", " ")}</p>
             </div>
+            <div>
+              <label className="text-xs text-muted-foreground font-mono uppercase">Business / Brand</label>
+              <p className="mt-1">{task.business}</p>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground font-mono uppercase">Environment / Permission Mode</label>
+              <p className="mt-1">{task.environmentMode}</p>
+            </div>
+            {task.subAgentType && (
+              <div>
+                <label className="text-xs text-muted-foreground font-mono uppercase">Sub-Agent Type</label>
+                <p className="mt-1">{task.subAgentType}</p>
+              </div>
+            )}
           </div>
 
           {task.description && (
@@ -494,19 +574,70 @@ function CreateTaskDialog({
   onClose: () => void;
   onCreate: (data: any) => void;
 }) {
+  const defaultWorkspace = WORKSPACES[0];
   const [form, setForm] = useState({
     title: "",
     description: "",
-    assignee: "Me",
-    priority: "medium",
+    assignee: "James",
+    subAgentType: "Research",
+    priority: "Medium",
     status: "backlog",
-    project: "Strategy",
+    project: defaultWorkspace.name,
+    business: defaultWorkspace.business,
+    environmentMode: defaultWorkspace.environmentMode,
     dueDate: "",
   });
 
+  const productionLocked = form.project === "SBB App Production" || form.environmentMode === "Production Locked";
+
+  const updateWorkspace = (project: string) => {
+    const workspace = getWorkspace(project);
+    setForm(f => ({
+      ...f,
+      project,
+      business: workspace.business,
+      environmentMode: workspace.environmentMode,
+    }));
+  };
+
+  const updateAssignee = (assignee: string) => {
+    setForm(f => ({
+      ...f,
+      assignee,
+      subAgentType: assignee === "James + Subagent" ? f.subAgentType || "Research" : "",
+    }));
+  };
+
+  const createPayload = () => {
+    const workspace = getWorkspace(form.project);
+    const taskContext = [
+      "Task Context:",
+      `- Workspace / Repo / Website: ${form.project}`,
+      workspace.path ? `- Path: ${workspace.path}` : null,
+      workspace.repo ? `- Repo: ${workspace.repo}` : null,
+      workspace.type ? `- Type: ${workspace.type}` : null,
+      `- Business: ${form.business}`,
+      `- Assignee: ${form.assignee}`,
+      `- Sub-Agent Type: ${form.assignee === "James + Subagent" ? form.subAgentType : "None"}`,
+      `- Priority: ${form.priority}`,
+      `- Status / Lane: ${COLUMNS.find(col => col.id === form.status)?.label ?? form.status}`,
+      `- Environment / Permission Mode: ${form.environmentMode}`,
+    ].filter(Boolean).join("\n");
+
+    return {
+      title: form.title,
+      description: [form.description.trim(), taskContext].filter(Boolean).join("\n\n"),
+      assignee: form.assignee,
+      priority: form.priority.toLowerCase() === "critical" ? "critical" : form.priority.toLowerCase(),
+      status: form.status,
+      project: form.project,
+      dueDate: form.dueDate || null,
+    };
+  };
+
   return (
     <Dialog open={open} onOpenChange={o => !o && onClose()}>
-      <DialogContent className="max-w-md bg-card border-border">
+      <DialogContent className="max-w-2xl bg-card border-border">
         <DialogHeader>
           <DialogTitle className="font-mono">New Task</DialogTitle>
         </DialogHeader>
@@ -517,23 +648,32 @@ function CreateTaskDialog({
             onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
           />
           <Textarea
-            placeholder="Description (optional)"
+            placeholder="Describe the work James should complete, expected deliverables, constraints, safety rules, and whether a subagent should be used."
             value={form.description}
             onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-            rows={3}
+            rows={4}
           />
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground font-mono uppercase">Priority</Label>
-              <Select value={form.priority} onValueChange={v => setForm(f => ({ ...f, priority: v }))}>
+              <Label className="text-xs text-muted-foreground font-mono uppercase">Workspace / Repo / Website</Label>
+              <Select value={form.project} onValueChange={updateWorkspace}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {["low", "medium", "high", "urgent"].map(p => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}
+                  {WORKSPACES.map(workspace => <SelectItem key={workspace.name} value={workspace.name}>{workspace.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground font-mono uppercase">Start in</Label>
+              <Label className="text-xs text-muted-foreground font-mono uppercase">Business / Brand</Label>
+              <Select value={form.business} onValueChange={v => setForm(f => ({ ...f, business: v }))}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {BUSINESSES.map(business => <SelectItem key={business} value={business}>{business}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground font-mono uppercase">Status / Lane</Label>
               <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -542,35 +682,59 @@ function CreateTaskDialog({
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground font-mono uppercase">Project</Label>
-              <Select value={form.project} onValueChange={v => setForm(f => ({ ...f, project: v }))}>
+              <Label className="text-xs text-muted-foreground font-mono uppercase">Priority</Label>
+              <Select value={form.priority} onValueChange={v => setForm(f => ({ ...f, priority: v }))}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {PROJECTS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  {PRIORITIES.map(priority => <SelectItem key={priority} value={priority}>{priority}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground font-mono uppercase">Assignee</Label>
-              <Select value={form.assignee} onValueChange={v => setForm(f => ({ ...f, assignee: v }))}>
+              <Select value={form.assignee} onValueChange={updateAssignee}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Me">Me</SelectItem>
-                  <SelectItem value="ATLAS">ATLAS</SelectItem>
+                  {ASSIGNEES.map(assignee => <SelectItem key={assignee} value={assignee}>{assignee}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
+            {form.assignee === "James + Subagent" && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground font-mono uppercase">Sub-Agent Type</Label>
+                <Select value={form.subAgentType} onValueChange={v => setForm(f => ({ ...f, subAgentType: v }))}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SUB_AGENT_TYPES.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground font-mono uppercase">Environment / Permission Mode</Label>
+              <Select value={form.environmentMode} onValueChange={v => setForm(f => ({ ...f, environmentMode: v }))}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ENVIRONMENT_MODES.map(mode => <SelectItem key={mode} value={mode}>{mode}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground font-mono uppercase">Due Date</Label>
+              <Input
+                type="date"
+                value={form.dueDate}
+                onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+              />
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground font-mono uppercase">Due Date</Label>
-            <Input
-              type="date"
-              value={form.dueDate}
-              onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
-            />
-          </div>
+          {productionLocked && (
+            <div className="rounded border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              Production Locked — explicit approval required before any changes.
+            </div>
+          )}
           <div className="flex gap-2 pt-1">
-            <Button size="sm" onClick={() => onCreate({ ...form, dueDate: form.dueDate || null })} disabled={!form.title}>
+            <Button size="sm" onClick={() => onCreate(createPayload())} disabled={!form.title}>
               Create Task
             </Button>
             <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
