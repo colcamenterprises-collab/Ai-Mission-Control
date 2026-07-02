@@ -8,12 +8,13 @@ import {
   Users, 
   UsersRound, 
   Settings,
-  Bot,
   Activity,
   Sun,
   Moon,
 } from "lucide-react";
 import { useTheme } from "@/lib/theme";
+import { jamesIdentity } from "@/lib/agent-identities";
+import { JamesAvatar } from "@/components/james-avatar";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -27,7 +28,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/memory", label: "Memory", icon: BrainCircuit },
     { href: "/team", label: "Team", icon: Users },
     { href: "/contacts", label: "Contacts", icon: UsersRound },
-    { href: "/james", label: "James", icon: Bot },
+    { href: "/james", label: "James", avatar: jamesIdentity.avatar },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 
@@ -63,7 +64,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
                     }`}
                   >
-                    <item.icon className={`w-4 h-4 mr-3 flex-shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                    {"avatar" in item ? (
+                      <JamesAvatar
+                        className={`mr-3 h-5 w-5 flex-shrink-0 rounded-full object-cover ring-1 ${isActive ? "ring-primary/40" : "ring-sidebar-border"}`}
+                        fallbackClassName={isActive ? "text-primary" : "text-muted-foreground"}
+                      />
+                    ) : (
+                      <item.icon className={`w-4 h-4 mr-3 flex-shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                    )}
                     {item.label}
                   </Link>
                 </li>
