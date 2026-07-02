@@ -8,6 +8,7 @@ import {
   Users, 
   UsersRound, 
   Settings,
+  Bot,
   Activity,
   Sun,
   Moon,
@@ -26,6 +27,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/memory", label: "Memory", icon: BrainCircuit },
     { href: "/team", label: "Team", icon: Users },
     { href: "/contacts", label: "Contacts", icon: UsersRound },
+    { href: "/james", label: "James", icon: Bot },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 

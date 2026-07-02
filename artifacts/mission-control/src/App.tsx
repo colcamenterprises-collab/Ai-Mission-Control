@@ -12,6 +12,7 @@ import Memory from "@/pages/memory";
 import Team from "@/pages/team";
 import Contacts from "@/pages/contacts";
 import Settings from "@/pages/settings";
+import James from "@/pages/james";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -35,6 +36,7 @@ function Router() {
         <Route path="/team" component={Team} />
         <Route path="/contacts" component={Contacts} />
         <Route path="/settings" component={Settings} />
+        <Route path="/james" component={James} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
