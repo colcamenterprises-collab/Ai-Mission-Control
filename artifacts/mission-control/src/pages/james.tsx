@@ -24,9 +24,33 @@ type JamesResponse = {
   error?: string;
 };
 
+type AdminTokenSource = "localStorage" | "env" | "fallback";
+
+type AdminToken = {
+  source: AdminTokenSource;
+  value: string;
+};
+
+const ADMIN_TOKEN_STORAGE_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
+const MVP_FALLBACK_ADMIN_TOKEN = "change-this-later";
+
+function readAdminToken(): AdminToken {
+  const storedToken = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)?.trim();
+  if (storedToken) {
+    return { source: "localStorage", value: storedToken };
+  }
+
+  const envToken = import.meta.env.VITE_MISSION_CONTROL_ADMIN_TOKEN?.trim();
+  if (envToken) {
+    return { source: "env", value: envToken };
+  }
+
+  return { source: "fallback", value: MVP_FALLBACK_ADMIN_TOKEN };
+}
+
 function authHeaders(): HeadersInit {
-  const token = localStorage.getItem("mission_control_admin_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  const token = readAdminToken();
+  return { Authorization: `Bearer ${token.value}` };
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -94,6 +118,7 @@ export default function James() {
   };
 
   const isOnline = status?.status === "online";
+  const isUsingFallbackToken = readAdminToken().source === "fallback";
 
   return (
     <div className="flex flex-col h-full">
@@ -109,6 +134,15 @@ export default function James() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {isUsingFallbackToken ? (
+          <Card>
+            <CardContent className="p-4 text-sm text-muted-foreground">
+              James Console is using the temporary MVP fallback admin token. Set MISSION_CONTROL_ADMIN_TOKEN in localStorage or
+              VITE_MISSION_CONTROL_ADMIN_TOKEN in the frontend environment to override it.
+            </CardContent>
+          </Card>
+        ) : null}
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
