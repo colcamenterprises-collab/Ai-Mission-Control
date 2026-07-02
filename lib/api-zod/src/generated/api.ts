@@ -63,8 +63,8 @@ export const ListTasksResponseItem = zod.object({
   title: zod.string(),
   description: zod.string().nullish(),
   assignee: zod.string(),
-  priority: zod.enum(["low", "medium", "high", "urgent"]),
-  status: zod.enum(["backlog", "in_progress", "review", "done"]),
+  priority: zod.enum(["low", "medium", "high", "critical", "urgent"]),
+  status: zod.enum(["backlog", "ready", "running", "blocked", "review", "done", "in_progress"]),
   project: zod.string(),
   dueDate: zod.string().nullish(),
   createdAt: zod.string(),
@@ -79,8 +79,8 @@ export const CreateTaskBody = zod.object({
   title: zod.string(),
   description: zod.string().nullish(),
   assignee: zod.string(),
-  priority: zod.enum(["low", "medium", "high", "urgent"]),
-  status: zod.enum(["backlog", "in_progress", "review", "done"]),
+  priority: zod.enum(["low", "medium", "high", "critical", "urgent"]),
+  status: zod.enum(["backlog", "ready", "running", "blocked", "review", "done", "in_progress"]),
   project: zod.string(),
   dueDate: zod.string().nullish(),
 });
@@ -97,8 +97,8 @@ export const GetTaskResponse = zod.object({
   title: zod.string(),
   description: zod.string().nullish(),
   assignee: zod.string(),
-  priority: zod.enum(["low", "medium", "high", "urgent"]),
-  status: zod.enum(["backlog", "in_progress", "review", "done"]),
+  priority: zod.enum(["low", "medium", "high", "critical", "urgent"]),
+  status: zod.enum(["backlog", "ready", "running", "blocked", "review", "done", "in_progress"]),
   project: zod.string(),
   dueDate: zod.string().nullish(),
   createdAt: zod.string(),
@@ -116,8 +116,8 @@ export const UpdateTaskBody = zod.object({
   title: zod.string().optional(),
   description: zod.string().nullish(),
   assignee: zod.string().optional(),
-  priority: zod.enum(["low", "medium", "high", "urgent"]).optional(),
-  status: zod.enum(["backlog", "in_progress", "review", "done"]).optional(),
+  priority: zod.enum(["low", "medium", "high", "critical", "urgent"]).optional(),
+  status: zod.enum(["backlog", "ready", "running", "blocked", "review", "done", "in_progress"]).optional(),
   project: zod.string().optional(),
   dueDate: zod.string().nullish(),
 });
@@ -127,8 +127,8 @@ export const UpdateTaskResponse = zod.object({
   title: zod.string(),
   description: zod.string().nullish(),
   assignee: zod.string(),
-  priority: zod.enum(["low", "medium", "high", "urgent"]),
-  status: zod.enum(["backlog", "in_progress", "review", "done"]),
+  priority: zod.enum(["low", "medium", "high", "critical", "urgent"]),
+  status: zod.enum(["backlog", "ready", "running", "blocked", "review", "done", "in_progress"]),
   project: zod.string(),
   dueDate: zod.string().nullish(),
   createdAt: zod.string(),
@@ -150,7 +150,7 @@ export const MoveTaskParams = zod.object({
 });
 
 export const MoveTaskBody = zod.object({
-  status: zod.enum(["backlog", "in_progress", "review", "done"]),
+  status: zod.enum(["backlog", "ready", "running", "blocked", "review", "done", "in_progress"]),
 });
 
 export const MoveTaskResponse = zod.object({
@@ -158,8 +158,8 @@ export const MoveTaskResponse = zod.object({
   title: zod.string(),
   description: zod.string().nullish(),
   assignee: zod.string(),
-  priority: zod.enum(["low", "medium", "high", "urgent"]),
-  status: zod.enum(["backlog", "in_progress", "review", "done"]),
+  priority: zod.enum(["low", "medium", "high", "critical", "urgent"]),
+  status: zod.enum(["backlog", "ready", "running", "blocked", "review", "done", "in_progress"]),
   project: zod.string(),
   dueDate: zod.string().nullish(),
   createdAt: zod.string(),

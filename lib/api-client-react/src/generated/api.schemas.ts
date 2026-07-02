@@ -49,6 +49,7 @@ export const TaskPriority = {
   low: "low",
   medium: "medium",
   high: "high",
+  critical: "critical",
   urgent: "urgent",
 } as const;
 
@@ -56,6 +57,9 @@ export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
 
 export const TaskStatus = {
   backlog: "backlog",
+  ready: "ready",
+  running: "running",
+  blocked: "blocked",
   in_progress: "in_progress",
   review: "review",
   done: "done",
@@ -83,6 +87,7 @@ export const CreateTaskBodyPriority = {
   low: "low",
   medium: "medium",
   high: "high",
+  critical: "critical",
   urgent: "urgent",
 } as const;
 
@@ -91,6 +96,9 @@ export type CreateTaskBodyStatus =
 
 export const CreateTaskBodyStatus = {
   backlog: "backlog",
+  ready: "ready",
+  running: "running",
+  blocked: "blocked",
   in_progress: "in_progress",
   review: "review",
   done: "done",
@@ -115,6 +123,7 @@ export const UpdateTaskBodyPriority = {
   low: "low",
   medium: "medium",
   high: "high",
+  critical: "critical",
   urgent: "urgent",
 } as const;
 
@@ -123,6 +132,9 @@ export type UpdateTaskBodyStatus =
 
 export const UpdateTaskBodyStatus = {
   backlog: "backlog",
+  ready: "ready",
+  running: "running",
+  blocked: "blocked",
   in_progress: "in_progress",
   review: "review",
   done: "done",
@@ -145,6 +157,9 @@ export type MoveTaskBodyStatus =
 
 export const MoveTaskBodyStatus = {
   backlog: "backlog",
+  ready: "ready",
+  running: "running",
+  blocked: "blocked",
   in_progress: "in_progress",
   review: "review",
   done: "done",
