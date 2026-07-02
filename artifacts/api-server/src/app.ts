@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type ErrorRequestHandler } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
@@ -27,21 +27,55 @@ app.use(
 );
 const allowedOriginsRaw = process.env.MISSION_CONTROL_ALLOWED_ORIGINS;
 const isProd = process.env.NODE_ENV === "production";
-const allowedOrigins = allowedOriginsRaw
+const defaultAllowedOrigins = [
+  "https://mission.customli.io",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+];
+const envAllowedOrigins = allowedOriginsRaw
   ? allowedOriginsRaw.split(",").map(o => o.trim()).filter(Boolean)
-  : (isProd ? [] : ["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:5173"]);
+  : [];
+const allowedOrigins = Array.from(
+  new Set([...defaultAllowedOrigins, ...envAllowedOrigins].filter(origin => !(isProd && origin === "*"))),
+);
+
+class CorsForbiddenError extends Error {
+  readonly status = 403;
+  readonly code = "CORS_FORBIDDEN";
+
+  constructor(readonly origin: string) {
+    super("CORS blocked");
+  }
+}
 
 app.use(cors({
   origin(origin, cb) {
     if (!origin) return cb(null, true);
     const isAllowed = allowedOrigins.includes(origin) || (!isProd && origin.includes("replit.dev"));
     if (isAllowed) return cb(null, true);
-    return cb(new Error("CORS blocked"));
+    return cb(new CorsForbiddenError(origin));
   },
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+const corsErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
+  if (err instanceof CorsForbiddenError) {
+    logger.warn({ origin: err.origin, method: req.method, path: req.path }, "CORS request blocked");
+    res.status(err.status).json({
+      error: "Forbidden",
+      code: err.code,
+      message: "Origin is not allowed by CORS policy",
+    });
+    return;
+  }
+
+  next(err);
+};
+
+app.use(corsErrorHandler);
 
 export default app;
