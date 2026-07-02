@@ -11,6 +11,7 @@ import activityRouter from "./activity";
 import integrationsRouter from "./integrations";
 import toolsRouter from "./tools";
 import agentBridgeRouter from "./agent-bridge";
+import jamesRouter from "./james";
 import { requireAdminAuth } from "../lib/auth.js";
 
 const router: IRouter = Router();
@@ -23,6 +24,7 @@ router.use("/agents/:id/token", requireAdminAuth);
 router.use(agentBridgeRouter);
 router.use(requireAdminAuth);
 router.use(dashboardRouter);
+router.use(jamesRouter);
 router.use(tasksRouter);
 router.use(contentRouter);
 router.use(eventsRouter);
