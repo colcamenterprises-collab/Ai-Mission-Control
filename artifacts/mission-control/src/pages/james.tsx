@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
-import { Bot, RefreshCw, Send } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Bot, RefreshCw, Send, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 type JamesStatus = {
@@ -27,6 +26,12 @@ type JamesResponse = {
   details?: string;
 };
 
+type ChatMessage = {
+  role: "user" | "james" | "error";
+  content: string;
+  timestamp: string;
+};
+
 type AdminTokenSource = "localStorage" | "env" | "fallback";
 
 type AdminToken = {
@@ -35,6 +40,7 @@ type AdminToken = {
 };
 
 const ADMIN_TOKEN_STORAGE_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
+const CHAT_HISTORY_STORAGE_KEY = "mission-control:james-chat-history";
 const MVP_FALLBACK_ADMIN_TOKEN = "change-this-later";
 
 function readAdminToken(): AdminToken {
@@ -66,14 +72,59 @@ async function readJson<T>(response: Response): Promise<T> {
   return data as T;
 }
 
+function readChatHistory(): ChatMessage[] {
+  const storedHistory = localStorage.getItem(CHAT_HISTORY_STORAGE_KEY);
+  if (!storedHistory) return [];
+
+  try {
+    const parsedHistory = JSON.parse(storedHistory);
+    if (!Array.isArray(parsedHistory)) return [];
+
+    return parsedHistory.filter((message): message is ChatMessage => {
+      return (
+        message !== null &&
+        typeof message === "object" &&
+        ["user", "james", "error"].includes(message.role) &&
+        typeof message.content === "string" &&
+        typeof message.timestamp === "string"
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
+function extractJamesResponse(response: JamesResponse): string {
+  if (response.response?.trim()) return response.response;
+  if (response.stdout?.trim()) return response.stdout;
+  if (response.stderr?.trim()) return response.stderr;
+
+  return JSON.stringify(response, null, 2);
+}
+
+function createChatMessage(role: ChatMessage["role"], content: string): ChatMessage {
+  return {
+    role,
+    content,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function formatMessageTime(timestamp: string): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "Unknown time";
+
+  return date.toLocaleString();
+}
+
 export default function James() {
   const [status, setStatus] = useState<JamesStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
   const [message, setMessage] = useState("");
-  const [response, setResponse] = useState<JamesResponse | null>(null);
-  const [sendError, setSendError] = useState<string | null>(null);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>(() => readChatHistory());
   const [isSending, setIsSending] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   const loadStatus = async () => {
     setIsLoadingStatus(true);
@@ -95,13 +146,23 @@ export default function James() {
     void loadStatus();
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(chatHistory));
+  }, [chatHistory]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatHistory, isSending]);
+
   const sendMessage = async () => {
     const trimmedMessage = message.trim();
-    if (!trimmedMessage) return;
+    if (!trimmedMessage || isSending) return;
 
+    const userMessage = createChatMessage("user", trimmedMessage);
+    setChatHistory((currentHistory) => [...currentHistory, userMessage]);
+    setMessage("");
     setIsSending(true);
-    setSendError(null);
-    setResponse(null);
+
     try {
       const result = await readJson<JamesResponse>(
         await fetch("/api/james/message", {
@@ -113,12 +174,27 @@ export default function James() {
           body: JSON.stringify({ message: trimmedMessage }),
         }),
       );
-      setResponse(result);
+      setChatHistory((currentHistory) => [...currentHistory, createChatMessage("james", extractJamesResponse(result))]);
     } catch (error) {
-      setSendError(error instanceof Error ? error.message : "Unable to send message to James");
+      setChatHistory((currentHistory) => [
+        ...currentHistory,
+        createChatMessage("error", error instanceof Error ? error.message : "Unable to send message to James"),
+      ]);
     } finally {
       setIsSending(false);
     }
+  };
+
+  const clearChat = () => {
+    setChatHistory([]);
+    localStorage.removeItem(CHAT_HISTORY_STORAGE_KEY);
+  };
+
+  const handleMessageKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey) return;
+
+    event.preventDefault();
+    void sendMessage();
   };
 
   const isOnline = status?.status === "online";
@@ -171,55 +247,74 @@ export default function James() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Message James</CardTitle>
-            <CardDescription>Mission Control prepends the required workspace and production-safety context before execution.</CardDescription>
+        <Card className="min-h-[32rem]">
+          <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <CardTitle>Chat with James</CardTitle>
+              <CardDescription>Mission Control prepends the required workspace and production-safety context before execution.</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={clearChat} disabled={isSending || chatHistory.length === 0}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Clear chat
+            </Button>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="james-message">Message</Label>
+          <CardContent className="flex min-h-[28rem] flex-col gap-4">
+            <div className="flex-1 space-y-4 overflow-y-auto rounded-md border border-border bg-muted/20 p-4">
+              {chatHistory.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No messages yet. Send a message to start a chat with James.</p>
+              ) : null}
+
+              {chatHistory.map((chatMessage, index) => {
+                const isUser = chatMessage.role === "user";
+                const isError = chatMessage.role === "error";
+                return (
+                  <div key={`${chatMessage.timestamp}-${index}`} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                    <div
+                      className={`max-w-[85%] rounded-lg border px-4 py-3 text-sm ${
+                        isUser
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : isError
+                            ? "border-destructive/40 bg-destructive/10 text-destructive"
+                            : "border-border bg-background"
+                      }`}
+                    >
+                      <div className="mb-1 font-mono text-[0.7rem] uppercase opacity-75">
+                        {isUser ? "You" : isError ? "Error" : "James"} · {formatMessageTime(chatMessage.timestamp)}
+                      </div>
+                      <div className="whitespace-pre-wrap break-words">{chatMessage.content}</div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {isSending ? (
+                <div className="flex justify-start">
+                  <div className="rounded-lg border border-border bg-background px-4 py-3 text-sm text-muted-foreground">
+                    James is thinking...
+                  </div>
+                </div>
+              ) : null}
+              <div ref={chatEndRef} />
+            </div>
+
+            <div className="space-y-3">
               <Textarea
                 id="james-message"
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
+                onKeyDown={handleMessageKeyDown}
                 placeholder="Ask James what you need done..."
-                className="min-h-32 font-mono"
+                className="min-h-24 font-mono"
                 disabled={isSending}
               />
-            </div>
-            <Button onClick={sendMessage} disabled={isSending || !message.trim()}>
-              <Send className="w-4 h-4 mr-2" />
-              {isSending ? "Sending..." : "Send to James"}
-            </Button>
-            {sendError ? <p className="text-sm text-destructive">{sendError}</p> : null}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Response</CardTitle>
-            <CardDescription>Returns stdout, stderr, exit code, and duration from james-hermes.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {isSending ? <p className="text-sm text-muted-foreground">Waiting for James. This can take up to 180 seconds.</p> : null}
-            {response ? (
-              <div className="space-y-4">
-                <div className="grid gap-2 text-sm md:grid-cols-3">
-                  <div><span className="text-muted-foreground">Exit code:</span> {response.exitCode ?? "None"}</div>
-                  <div><span className="text-muted-foreground">Duration:</span> {response.durationMs ?? "Unknown"}ms</div>
-                  <div><span className="text-muted-foreground">Timed out:</span> {response.timedOut ? "Yes" : "No"}</div>
-                </div>
-                <div>
-                  <h2 className="font-mono text-xs uppercase text-muted-foreground mb-2">Stdout</h2>
-                  <pre className="rounded-md border border-border bg-muted/30 p-4 whitespace-pre-wrap text-sm overflow-x-auto">{response.stdout || response.response || "No stdout"}</pre>
-                </div>
-                <div>
-                  <h2 className="font-mono text-xs uppercase text-muted-foreground mb-2">Stderr</h2>
-                  <pre className="rounded-md border border-border bg-muted/30 p-4 whitespace-pre-wrap text-sm overflow-x-auto">{response.stderr || response.details || "No stderr"}</pre>
-                </div>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-muted-foreground">Enter sends. Shift+Enter adds a new line.</p>
+                <Button onClick={sendMessage} disabled={isSending || !message.trim()}>
+                  <Send className="w-4 h-4 mr-2" />
+                  {isSending ? "Sending..." : "Send"}
+                </Button>
               </div>
-            ) : !isSending ? <p className="text-sm text-muted-foreground">No response yet.</p> : null}
+            </div>
           </CardContent>
         </Card>
       </div>
