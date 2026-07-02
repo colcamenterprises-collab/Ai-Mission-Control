@@ -3,6 +3,7 @@ import { Bot, Check, ChevronDown, Copy, RefreshCw, Send, Trash2 } from "lucide-r
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 type JamesStatus = {
@@ -44,6 +45,14 @@ type ChatMessage = {
   execution?: ExecutionDetails;
 };
 
+type JamesProject = "Mission Control" | "SBB App Staging" | "Hermes";
+type JamesEnvironment = "Read Only" | "Staging" | "Production Locked";
+
+type JamesProjectContext = {
+  project: JamesProject;
+  environment: JamesEnvironment;
+};
+
 type AdminTokenSource = "localStorage" | "env" | "fallback";
 
 type AdminToken = {
@@ -53,7 +62,54 @@ type AdminToken = {
 
 const ADMIN_TOKEN_STORAGE_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
 const CHAT_HISTORY_STORAGE_KEY = "mission-control:james-chat-history";
+const PROJECT_CONTEXT_STORAGE_KEY = "mission-control:james-project-context";
 const MVP_FALLBACK_ADMIN_TOKEN = "change-this-later";
+const JAMES_PROJECTS: JamesProject[] = ["Mission Control", "SBB App Staging", "Hermes"];
+const JAMES_ENVIRONMENTS: JamesEnvironment[] = ["Read Only", "Staging", "Production Locked"];
+const DEFAULT_PROJECT_CONTEXT: JamesProjectContext = { project: "Mission Control", environment: "Read Only" };
+const JAMES_SAFETY_RULES = [
+  "SBB production requires explicit approval",
+  "inspect before changing",
+  "report files changed and commands run",
+];
+
+function isJamesProject(value: unknown): value is JamesProject {
+  return typeof value === "string" && JAMES_PROJECTS.includes(value as JamesProject);
+}
+
+function isJamesEnvironment(value: unknown): value is JamesEnvironment {
+  return typeof value === "string" && JAMES_ENVIRONMENTS.includes(value as JamesEnvironment);
+}
+
+function readProjectContext(): JamesProjectContext {
+  const storedContext = localStorage.getItem(PROJECT_CONTEXT_STORAGE_KEY);
+  if (!storedContext) return DEFAULT_PROJECT_CONTEXT;
+
+  try {
+    const parsedContext = JSON.parse(storedContext);
+    if (parsedContext === null || typeof parsedContext !== "object") return DEFAULT_PROJECT_CONTEXT;
+
+    return {
+      project: isJamesProject(parsedContext.project) ? parsedContext.project : DEFAULT_PROJECT_CONTEXT.project,
+      environment: isJamesEnvironment(parsedContext.environment) ? parsedContext.environment : DEFAULT_PROJECT_CONTEXT.environment,
+    };
+  } catch {
+    return DEFAULT_PROJECT_CONTEXT;
+  }
+}
+
+function createContextMessage(message: string, context: JamesProjectContext): string {
+  return [
+    "Mission Control workspace context:",
+    `Selected project: ${context.project}`,
+    `Selected environment: ${context.environment}`,
+    "Current safety rules:",
+    ...JAMES_SAFETY_RULES.map((rule) => `- ${rule}`),
+    "",
+    "User message:",
+    message,
+  ].join("\n");
+}
 
 function readAdminToken(): AdminToken {
   const storedToken = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)?.trim();
@@ -255,6 +311,7 @@ export default function James() {
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
   const [message, setMessage] = useState("");
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>(() => readChatHistory());
+  const [projectContext, setProjectContext] = useState<JamesProjectContext>(() => readProjectContext());
   const [isSending, setIsSending] = useState(false);
   const [didLastRequestFail, setDidLastRequestFail] = useState(false);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
@@ -285,6 +342,10 @@ export default function James() {
   }, [chatHistory]);
 
   useEffect(() => {
+    localStorage.setItem(PROJECT_CONTEXT_STORAGE_KEY, JSON.stringify(projectContext));
+  }, [projectContext]);
+
+  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory, isSending]);
 
@@ -292,6 +353,7 @@ export default function James() {
     const trimmedMessage = message.trim();
     if (!trimmedMessage || isSending) return;
 
+    const messageWithContext = createContextMessage(trimmedMessage, projectContext);
     const userMessage = createChatMessage("user", trimmedMessage);
     setChatHistory((currentHistory) => [...currentHistory, userMessage]);
     setMessage("");
@@ -306,7 +368,7 @@ export default function James() {
             "Content-Type": "application/json",
             ...authHeaders(),
           },
-          body: JSON.stringify({ message: trimmedMessage }),
+          body: JSON.stringify({ message: messageWithContext }),
         }),
       );
       setDidLastRequestFail(!result.success);
@@ -342,6 +404,14 @@ export default function James() {
   const jamesState = isSending ? "James Thinking" : didLastRequestFail || statusError ? "Request Failed" : isOnline ? "James Online" : "James Offline";
   const isUsingFallbackToken = readAdminToken().source === "fallback";
 
+  const updateProject = (project: JamesProject) => {
+    setProjectContext((currentContext) => ({ ...currentContext, project }));
+  };
+
+  const updateEnvironment = (environment: JamesEnvironment) => {
+    setProjectContext((currentContext) => ({ ...currentContext, environment }));
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="border-b border-border p-4 flex items-center justify-between gap-4">
@@ -366,25 +436,60 @@ export default function James() {
         ) : null}
 
         <Card>
-          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-3">
-            <div className="flex items-center gap-3">
-              <Bot className="h-4 w-4 text-muted-foreground" />
-              <Badge variant={isOnline && !statusError && !didLastRequestFail ? "default" : "destructive"}>{jamesState}</Badge>
-              {isLoadingStatus ? <span className="text-sm text-muted-foreground">Checking status...</span> : null}
-              {status?.version ? <span className="font-mono text-xs text-muted-foreground">{status.version}</span> : null}
+          <CardContent className="space-y-3 p-3">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(16rem,2fr)] md:items-end">
+              <div className="space-y-1.5">
+                <label htmlFor="james-project-context" className="text-xs font-mono uppercase text-muted-foreground">Project</label>
+                <Select value={projectContext.project} onValueChange={(value) => updateProject(value as JamesProject)}>
+                  <SelectTrigger id="james-project-context">
+                    <SelectValue placeholder="Select project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {JAMES_PROJECTS.map((project) => (
+                      <SelectItem key={project} value={project}>{project}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="james-environment-context" className="text-xs font-mono uppercase text-muted-foreground">Environment</label>
+                <Select value={projectContext.environment} onValueChange={(value) => updateEnvironment(value as JamesEnvironment)}>
+                  <SelectTrigger id="james-environment-context">
+                    <SelectValue placeholder="Select environment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {JAMES_ENVIRONMENTS.map((environment) => (
+                      <SelectItem key={environment} value={environment}>{environment}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="rounded-md border border-border bg-muted/20 p-3 text-sm">
+                <div className="font-mono text-xs uppercase text-muted-foreground">Selected context</div>
+                <div className="mt-1 font-medium">{projectContext.project} · {projectContext.environment}</div>
+                <div className="mt-1 text-xs text-muted-foreground">Safety rules are prepended automatically when you send.</div>
+              </div>
             </div>
-            {status ? (
-              <details className="text-sm">
-                <summary className="cursor-pointer text-muted-foreground">Status details</summary>
-              <dl className="mt-2 grid gap-2 md:grid-cols-2">
-                <div><dt className="text-muted-foreground">Binary</dt><dd className="font-mono">{status.binaryPath}</dd></div>
-                <div><dt className="text-muted-foreground">Version</dt><dd className="font-mono">{status.version ?? "Unavailable"}</dd></div>
-                <div><dt className="text-muted-foreground">Exists</dt><dd>{status.exists ? "Yes" : "No"}</dd></div>
-                <div><dt className="text-muted-foreground">Version check</dt><dd>{status.versionWorks ? "Passed" : "Failed"}</dd></div>
-              </dl>
-              </details>
-            ) : null}
-            {(statusError || status?.error) ? <p className="text-sm text-destructive">{statusError ?? status?.error}</p> : null}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Bot className="h-4 w-4 text-muted-foreground" />
+                <Badge variant={isOnline && !statusError && !didLastRequestFail ? "default" : "destructive"}>{jamesState}</Badge>
+                {isLoadingStatus ? <span className="text-sm text-muted-foreground">Checking status...</span> : null}
+                {status?.version ? <span className="font-mono text-xs text-muted-foreground">{status.version}</span> : null}
+              </div>
+              {status ? (
+                <details className="text-sm">
+                  <summary className="cursor-pointer text-muted-foreground">Status details</summary>
+                  <dl className="mt-2 grid gap-2 md:grid-cols-2">
+                    <div><dt className="text-muted-foreground">Binary</dt><dd className="font-mono">{status.binaryPath}</dd></div>
+                    <div><dt className="text-muted-foreground">Version</dt><dd className="font-mono">{status.version ?? "Unavailable"}</dd></div>
+                    <div><dt className="text-muted-foreground">Exists</dt><dd>{status.exists ? "Yes" : "No"}</dd></div>
+                    <div><dt className="text-muted-foreground">Version check</dt><dd>{status.versionWorks ? "Passed" : "Failed"}</dd></div>
+                  </dl>
+                </details>
+              ) : null}
+              {(statusError || status?.error) ? <p className="text-sm text-destructive">{statusError ?? status?.error}</p> : null}
+            </div>
           </CardContent>
         </Card>
 
