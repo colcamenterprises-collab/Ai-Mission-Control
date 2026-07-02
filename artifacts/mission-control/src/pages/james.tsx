@@ -434,20 +434,20 @@ export default function James() {
           <Bot className="h-4 w-4 shrink-0 text-muted-foreground" />
           <Badge variant={jamesStatusVariant} className="h-7 shrink-0 px-2 text-[12px] font-medium">James {jamesStatusState}</Badge>
           <Select value={projectContext.project} onValueChange={(value) => updateProject(value as JamesProject)}>
-            <SelectTrigger id="james-project-context" aria-label="Selected project" className="h-7 w-[9.5rem] min-w-0 px-2 text-[12px] sm:w-[10.5rem]">
+            <SelectTrigger id="james-project-context" aria-label="Selected project" className="h-7 w-[9.25rem] min-w-0 px-2 text-[12px] sm:w-[10.5rem]">
               <SelectValue placeholder="Select project" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper" sideOffset={4} align="start" className="max-w-[min(18rem,calc(100vw-1rem))]">
               {JAMES_PROJECTS.map((project) => (
                 <SelectItem key={project} value={project}>{project}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select value={projectContext.environment} onValueChange={(value) => updateEnvironment(value as JamesEnvironment)}>
-            <SelectTrigger id="james-environment-context" aria-label="Selected environment" className="h-7 w-[8.75rem] min-w-0 px-2 text-[12px] sm:w-[10rem]">
+            <SelectTrigger id="james-environment-context" aria-label="Selected environment" className="h-7 w-[8.5rem] min-w-0 px-2 text-[12px] sm:w-[10rem]">
               <SelectValue placeholder="Select environment" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper" sideOffset={4} align="start" className="max-w-[min(18rem,calc(100vw-1rem))]">
               {JAMES_ENVIRONMENTS.map((environment) => (
                 <SelectItem key={environment} value={environment}>{environment}</SelectItem>
               ))}
@@ -470,70 +470,85 @@ export default function James() {
       </header>
 
       <section className="flex min-h-0 flex-1 flex-col overflow-hidden" aria-label="Chat with James">
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden overscroll-y-contain bg-muted/20 p-2 [-webkit-overflow-scrolling:touch] sm:p-3">
-          <details className="rounded-md bg-background/70 text-[12px] text-muted-foreground ring-1 ring-border/40">
-            <summary className="cursor-pointer list-none px-3 py-1.5 font-medium text-foreground">Workspace Context</summary>
-            <div className="grid gap-1 border-t border-border/50 px-3 py-2 sm:grid-cols-3">
-              <div><span className="text-muted-foreground">Project:</span> {projectContext.project}</div>
-              <div><span className="text-muted-foreground">Environment:</span> {projectContext.environment}</div>
-              <div className="min-w-0 truncate font-mono" title={WORKSPACE_PATH}>{WORKSPACE_PATH}</div>
-            </div>
-          </details>
-
-          <div className="flex flex-wrap gap-1.5" aria-label="Workspace shortcuts">
-            {JAMES_PROJECTS.map((project) => (
-              <Button
-                key={project}
-                type="button"
-                variant={projectContext.project === project ? "default" : "outline"}
-                size="sm"
-                className="h-7 rounded-full px-3 text-[12px]"
-                onClick={() => updateProject(project)}
-              >
-                {project}
-              </Button>
-            ))}
-          </div>
-
-          {chatHistory.length === 0 ? (
-            <p className="px-1 text-[13px] text-muted-foreground sm:text-sm">No messages yet. Send a message to start a chat with James.</p>
-          ) : null}
-
-          {chatHistory.map((chatMessage, index) => {
-            const isUser = chatMessage.role === "user";
-            const isError = chatMessage.role === "error";
-            return (
-              <div key={`${chatMessage.timestamp}-${index}`} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[75%] rounded-2xl px-3 py-2 text-[13px] leading-[1.5] shadow-sm sm:text-sm ${
-                    isUser
-                      ? "bg-primary text-primary-foreground"
-                      : isError
-                        ? "bg-destructive/10 text-destructive ring-1 ring-destructive/30"
-                        : "bg-zinc-900 text-zinc-100 ring-1 ring-zinc-700/60 dark:bg-zinc-800"
-                  }`}
-                >
-                  <div className="mb-1 font-mono text-[12px] uppercase opacity-65">
-                    {isUser ? "You" : isError ? "Error" : "James"} · {formatMessageTime(chatMessage.timestamp)}
-                  </div>
-                  {isUser ? <div className="whitespace-pre-wrap break-words">{chatMessage.content}</div> : <MarkdownMessage content={chatMessage.content} />}
-                  {chatMessage.execution ? <ExecutionDetailsBlock details={chatMessage.execution} /> : null}
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain bg-muted/20 p-2 [-webkit-overflow-scrolling:touch] sm:p-3">
+          <div className="space-y-2">
+            <details className="group rounded-full bg-background/80 text-[12px] text-muted-foreground ring-1 ring-border/40 open:rounded-md">
+              <summary className="flex min-h-7 cursor-pointer list-none items-center gap-1.5 px-3 py-1 font-medium text-foreground [&::-webkit-details-marker]:hidden">
+                <span className="min-w-0 truncate">Workspace Context: {projectContext.project} · {projectContext.environment} · <span className="font-mono">{WORKSPACE_PATH}</span></span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="space-y-2 border-t border-border/50 px-3 py-2">
+                <div className="grid gap-1 sm:grid-cols-3">
+                  <div><span className="text-muted-foreground">Project:</span> {projectContext.project}</div>
+                  <div><span className="text-muted-foreground">Environment:</span> {projectContext.environment}</div>
+                  <div className="min-w-0 truncate font-mono" title={WORKSPACE_PATH}>{WORKSPACE_PATH}</div>
+                </div>
+                <div>
+                  <div className="font-medium text-foreground">Safety rules</div>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                    {JAMES_SAFETY_RULES.map((rule) => <li key={rule}>{rule}</li>)}
+                  </ul>
                 </div>
               </div>
-            );
-          })}
+            </details>
 
-          {isSending ? (
-            <div className="flex justify-start">
-              <div className="max-w-[75%] rounded-2xl bg-zinc-900 px-3 py-2 text-[13px] text-zinc-100 ring-1 ring-zinc-700/60 sm:text-sm">
-                James is thinking<span className="animate-pulse">...</span>
-              </div>
+            <div className="flex flex-wrap gap-1.5" aria-label="Workspace shortcuts">
+              {JAMES_PROJECTS.map((project) => (
+                <Button
+                  key={project}
+                  type="button"
+                  variant={projectContext.project === project ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 rounded-full px-3 text-[12px]"
+                  onClick={() => updateProject(project)}
+                >
+                  {project}
+                </Button>
+              ))}
             </div>
-          ) : null}
-          <div ref={chatEndRef} />
+          </div>
+
+          <div className="mt-2 space-y-2">
+            {chatHistory.length === 0 ? (
+              <p className="px-1 text-[13px] text-muted-foreground sm:text-sm">No messages yet. Send a message to start a chat with James.</p>
+            ) : null}
+
+            {chatHistory.map((chatMessage, index) => {
+              const isUser = chatMessage.role === "user";
+              const isError = chatMessage.role === "error";
+              return (
+                <div key={`${chatMessage.timestamp}-${index}`} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`max-w-[78%] rounded-2xl px-2.5 py-1.5 text-[13px] leading-[1.45] shadow-sm ${
+                      isUser
+                        ? "bg-primary text-primary-foreground"
+                        : isError
+                          ? "bg-destructive/10 text-destructive ring-1 ring-destructive/30"
+                          : "bg-zinc-900 text-zinc-100 ring-1 ring-zinc-700/60 dark:bg-zinc-800"
+                    }`}
+                  >
+                    <div className="mb-0.5 font-mono text-[11px] uppercase opacity-65">
+                      {isUser ? "You" : isError ? "Error" : "James"} · {formatMessageTime(chatMessage.timestamp)}
+                    </div>
+                    {isUser ? <div className="whitespace-pre-wrap break-words">{chatMessage.content}</div> : <MarkdownMessage content={chatMessage.content} />}
+                    {chatMessage.execution ? <ExecutionDetailsBlock details={chatMessage.execution} /> : null}
+                  </div>
+                </div>
+              );
+            })}
+
+            {isSending ? (
+              <div className="flex justify-start">
+                <div className="max-w-[78%] rounded-2xl bg-zinc-900 px-2.5 py-1.5 text-[13px] text-zinc-100 ring-1 ring-zinc-700/60">
+                  James is thinking<span className="animate-pulse">...</span>
+                </div>
+              </div>
+            ) : null}
+            <div ref={chatEndRef} />
+          </div>
         </div>
 
-        <div className="sticky bottom-0 z-10 shrink-0 space-y-2 border-t border-border/70 bg-background/95 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur sm:p-3">
+        <div className="sticky bottom-0 z-10 shrink-0 space-y-2 border-t border-border/70 bg-background/95 p-2 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur sm:p-3 sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <Textarea
             id="james-message"
             ref={messageInputRef}
@@ -541,7 +556,7 @@ export default function James() {
             onChange={(event) => setMessage(event.target.value)}
             onKeyDown={handleMessageKeyDown}
             placeholder="Ask James what you need done..."
-            className="max-h-40 min-h-[4.5rem] resize-none text-[13px] leading-[1.5] sm:text-sm"
+            className="max-h-36 min-h-[4rem] resize-none text-[13px] leading-[1.5]"
             disabled={isSending}
           />
           <div className="flex items-center justify-between gap-3">
