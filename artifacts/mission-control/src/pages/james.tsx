@@ -1,9 +1,11 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
-import { Bot, Check, ChevronDown, Copy, RefreshCw, Send, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Copy, RefreshCw, Send, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { JamesAvatar } from "@/components/james-avatar";
+import { type AgentStatusKey, jamesIdentity } from "@/lib/agent-identities";
 
 type JamesStatus = {
   binaryPath: string;
@@ -409,14 +411,17 @@ export default function James() {
   };
 
   const isOnline = status?.status === "online";
-  const jamesStatusState = isSending
-    ? "🔵 Thinking"
+  const jamesStatusKey: AgentStatusKey = isSending
+    ? "thinking"
     : didLastRequestFail || statusError || status?.error
-      ? "🔴 Error"
+      ? "error"
       : isOnline
-        ? "🟢 Online"
-        : "🟡 Waiting";
-  const jamesStatusVariant = jamesStatusState.includes("Error") ? "destructive" : "default";
+        ? "online"
+        : status
+          ? "offline"
+          : "waiting";
+  const jamesStatus = jamesIdentity.statuses[jamesStatusKey];
+  const jamesStatusVariant = jamesStatusKey === "error" ? "destructive" : "default";
 
   const updateProject = (project: JamesProject) => {
     setProjectContext((currentContext) => ({ ...currentContext, project }));
@@ -431,8 +436,15 @@ export default function James() {
       <header className="sticky top-0 z-20 shrink-0 border-b border-border/70 bg-background/95 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:px-3">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <span className="sr-only">Chat with James</span>
-          <Bot className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <Badge variant={jamesStatusVariant} className="h-7 shrink-0 px-2 text-[12px] font-medium">James {jamesStatusState}</Badge>
+          <Badge variant={jamesStatusVariant} className="h-8 shrink-0 gap-1.5 px-2 text-[12px] font-medium">
+            <JamesAvatar
+              className="h-6 w-6 rounded-full object-cover ring-1 ring-background/70"
+              fallbackClassName="text-current"
+            />
+            <span>{jamesIdentity.name}</span>
+            <span aria-hidden="true">{jamesStatus.indicator}</span>
+            <span>{jamesStatus.label}</span>
+          </Badge>
           <Select value={projectContext.project} onValueChange={(value) => updateProject(value as JamesProject)}>
             <SelectTrigger id="james-project-context" aria-label="Selected project" className="h-7 w-[9.25rem] min-w-0 px-2 text-[12px] sm:w-[10.5rem]">
               <SelectValue placeholder="Select project" />
@@ -527,9 +539,14 @@ export default function James() {
                           : "bg-zinc-900 text-zinc-100 ring-1 ring-zinc-700/60 dark:bg-zinc-800"
                     }`}
                   >
-                    <div className="mb-0.5 font-mono text-[11px] uppercase opacity-65">
-                      {isUser ? "You" : isError ? "Error" : "James"} · {formatMessageTime(chatMessage.timestamp)}
-                    </div>
+                    {!isUser ? (
+                      <div className="mb-1 flex items-center gap-2 font-mono text-[11px] uppercase opacity-75">
+                        <JamesAvatar className="h-7 w-7 rounded-full object-cover ring-1 ring-zinc-600/70" fallbackClassName="text-current" />
+                        <span>{isError ? "James Error" : jamesIdentity.name} · {formatMessageTime(chatMessage.timestamp)}</span>
+                      </div>
+                    ) : (
+                      <div className="mb-0.5 font-mono text-[11px] uppercase opacity-65">You · {formatMessageTime(chatMessage.timestamp)}</div>
+                    )}
                     {isUser ? <div className="whitespace-pre-wrap break-words">{chatMessage.content}</div> : <MarkdownMessage content={chatMessage.content} />}
                     {chatMessage.execution ? <ExecutionDetailsBlock details={chatMessage.execution} /> : null}
                   </div>
@@ -539,8 +556,9 @@ export default function James() {
 
             {isSending ? (
               <div className="flex justify-start">
-                <div className="max-w-[78%] rounded-2xl bg-zinc-900 px-2.5 py-1.5 text-[13px] text-zinc-100 ring-1 ring-zinc-700/60">
-                  James is thinking<span className="animate-pulse">...</span>
+                <div className="flex max-w-[78%] items-center gap-2 rounded-2xl bg-zinc-900 px-2.5 py-1.5 text-[13px] text-zinc-100 ring-1 ring-zinc-700/60">
+                  <JamesAvatar className="h-8 w-8 rounded-full object-cover ring-1 ring-zinc-600/70" fallbackClassName="text-current" />
+                  <span>{jamesIdentity.name} is thinking<span className="inline-flex w-5 animate-pulse">...</span></span>
                 </div>
               </div>
             ) : null}
