@@ -115,6 +115,13 @@ const ADMIN_TOKEN_STORAGE_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
 const CHAT_HISTORY_STORAGE_KEY = "mission-control:james-chat-history";
 const PROJECT_CONTEXT_STORAGE_KEY = "mission-control:james-project-context";
 const MVP_FALLBACK_ADMIN_TOKEN = "change-this-later";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim() ?? "").replace(
+  /\/$/,
+  "",
+);
+const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
+const POLL_REQUEST_TIMEOUT_MS = 10_000;
+const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
 const JAMES_PROJECTS: JamesProject[] = [
   "Mission Control",
   "SBB App Staging",
@@ -135,6 +142,137 @@ const JAMES_SAFETY_RULES = [
   "inspect before changing",
   "report files changed and commands run",
 ];
+
+type ApiRequestOptions = RequestInit & {
+  timeoutMs?: number;
+  retries?: number;
+};
+
+class ApiRequestError extends Error {
+  readonly status?: number;
+  readonly code: "api" | "network" | "timeout" | "parse";
+  readonly details?: string;
+  readonly retryable: boolean;
+
+  constructor({
+    message,
+    status,
+    code,
+    details,
+    retryable,
+  }: {
+    message: string;
+    status?: number;
+    code: ApiRequestError["code"];
+    details?: string;
+    retryable: boolean;
+  }) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.code = code;
+    this.details = details;
+    this.retryable = retryable;
+  }
+}
+
+function apiUrl(path: string): string {
+  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function shouldRetryRequest(error: unknown, method: string): boolean {
+  if (!["GET", "HEAD"].includes(method.toUpperCase())) return false;
+  if (error instanceof ApiRequestError) return error.retryable;
+  return false;
+}
+
+function formatApiError(error: unknown, fallback: string): string {
+  if (!(error instanceof ApiRequestError)) {
+    return error instanceof Error ? error.message : fallback;
+  }
+
+  if (error.code === "network") {
+    return `Network error while contacting James API${API_BASE_URL ? ` at ${API_BASE_URL}` : ""}: ${error.message}`;
+  }
+
+  if (error.code === "timeout") {
+    return `Timed out contacting James API after retrying: ${error.message}`;
+  }
+
+  if (error.status === 401 || error.status === 403) {
+    return `Authentication failed (${error.status}): ${error.message}`;
+  }
+
+  if (error.status) {
+    return `James API error (${error.status}): ${error.message}`;
+  }
+
+  return error.message || fallback;
+}
+
+async function apiFetch(
+  path: string,
+  {
+    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    retries = 0,
+    ...init
+  }: ApiRequestOptions = {},
+): Promise<Response> {
+  const method = init.method ?? "GET";
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(apiUrl(path), {
+        ...init,
+        signal: controller.signal,
+      });
+      window.clearTimeout(timeoutId);
+
+      if (
+        RETRYABLE_STATUS_CODES.has(response.status) &&
+        attempt < retries &&
+        ["GET", "HEAD"].includes(method.toUpperCase())
+      ) {
+        await wait(500 * 2 ** attempt);
+        continue;
+      }
+
+      return response;
+    } catch (error) {
+      window.clearTimeout(timeoutId);
+      const isTimeout =
+        error instanceof DOMException && error.name === "AbortError";
+      lastError = new ApiRequestError({
+        message: isTimeout
+          ? `${method} ${apiUrl(path)} exceeded ${timeoutMs}ms`
+          : error instanceof Error
+            ? error.message
+            : `Unable to reach ${apiUrl(path)}`,
+        code: isTimeout ? "timeout" : "network",
+        retryable: true,
+      });
+
+      if (attempt >= retries || !shouldRetryRequest(lastError, method)) break;
+      await wait(500 * 2 ** attempt);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new ApiRequestError({
+        message: `Unable to reach ${apiUrl(path)}`,
+        code: "network",
+        retryable: true,
+      });
+}
 
 function isJamesProject(value: unknown): value is JamesProject {
   return (
@@ -208,15 +346,47 @@ function authHeaders(): HeadersInit {
 }
 
 async function readJson<T>(response: Response): Promise<T> {
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error =
-      typeof data?.error === "string"
-        ? data.error
-        : `Request failed with ${response.status}`;
-    const details = typeof data?.details === "string" ? data.details : "";
-    throw new Error(details ? `${error}: ${details}` : error);
+  const text = await response.text();
+  let data: unknown = {};
+
+  if (text.trim()) {
+    try {
+      data = JSON.parse(text);
+    } catch (error) {
+      throw new ApiRequestError({
+        message: `Invalid JSON from James API: ${
+          error instanceof Error ? error.message : "Unable to parse response"
+        }`,
+        status: response.status,
+        code: "parse",
+        retryable: response.ok,
+      });
+    }
   }
+
+  if (!response.ok) {
+    const body = data !== null && typeof data === "object" ? data : {};
+    const error =
+      "error" in body && typeof body.error === "string"
+        ? body.error
+        : "message" in body && typeof body.message === "string"
+          ? body.message
+          : response.statusText || `Request failed with ${response.status}`;
+    const details =
+      "details" in body && typeof body.details === "string"
+        ? body.details
+        : "code" in body && typeof body.code === "string"
+          ? body.code
+          : undefined;
+    throw new ApiRequestError({
+      message: details ? `${error}: ${details}` : error,
+      status: response.status,
+      code: "api",
+      details,
+      retryable: RETRYABLE_STATUS_CODES.has(response.status),
+    });
+  }
+
   return data as T;
 }
 
@@ -508,14 +678,15 @@ export default function James() {
     setStatusError(null);
     try {
       const nextStatus = await readJson<JamesStatus>(
-        await fetch("/api/james/status", { headers: authHeaders() }),
+        await apiFetch("/api/james/status", {
+          headers: authHeaders(),
+          retries: 2,
+        }),
       );
       setStatus(nextStatus);
     } catch (error) {
       setStatus(null);
-      setStatusError(
-        error instanceof Error ? error.message : "Unable to load James status",
-      );
+      setStatusError(formatApiError(error, "Unable to load James status"));
     } finally {
       setIsLoadingStatus(false);
     }
@@ -523,7 +694,7 @@ export default function James() {
 
   const loadJobs = async () => {
     const result = await readJson<JamesJobsResponse>(
-      await fetch("/api/james/jobs", { headers: authHeaders() }),
+      await apiFetch("/api/james/jobs", { headers: authHeaders(), retries: 2 }),
     );
     setJobs(result.jobs);
     setActiveJobIds(
@@ -534,8 +705,17 @@ export default function James() {
   };
 
   useEffect(() => {
-    void loadStatus();
-    void loadJobs().catch(() => undefined);
+    const refreshJamesApiState = () => {
+      void loadStatus();
+      void loadJobs().catch((error) => {
+        setStatusError(formatApiError(error, "Unable to load James jobs"));
+      });
+    };
+
+    refreshJamesApiState();
+    window.addEventListener("online", refreshJamesApiState);
+
+    return () => window.removeEventListener("online", refreshJamesApiState);
   }, []);
 
   useEffect(() => {
@@ -558,7 +738,11 @@ export default function James() {
 
     const intervalId = window.setInterval(() => {
       activeJobIds.forEach((jobId) => {
-        void fetch(`/api/james/jobs/${jobId}`, { headers: authHeaders() })
+        void apiFetch(`/api/james/jobs/${jobId}`, {
+          headers: authHeaders(),
+          retries: 2,
+          timeoutMs: POLL_REQUEST_TIMEOUT_MS,
+        })
           .then((response) => readJson<JamesJob>(response))
           .then((job) => {
             setJobs((currentJobs) => [
@@ -580,7 +764,10 @@ export default function James() {
               ),
             ]);
           })
-          .catch(() => undefined);
+          .catch((error) => {
+            setDidLastRequestFail(true);
+            setStatusError(formatApiError(error, "Unable to poll James job"));
+          });
       });
     }, 3000);
 
@@ -610,7 +797,7 @@ export default function James() {
 
     try {
       const result = await readJson<JamesResponse>(
-        await fetch("/api/james/message", {
+        await apiFetch("/api/james/message", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -634,9 +821,7 @@ export default function James() {
         ...currentHistory,
         createChatMessage(
           "error",
-          error instanceof Error
-            ? error.message
-            : "Unable to send message to James",
+          formatApiError(error, "Unable to send message to James"),
         ),
       ]);
     } finally {
@@ -663,7 +848,7 @@ export default function James() {
 
     try {
       const result = await readJson<JamesJobStartResponse>(
-        await fetch("/api/james/jobs", {
+        await apiFetch("/api/james/jobs", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -694,9 +879,7 @@ export default function James() {
         ...currentHistory,
         createChatMessage(
           "error",
-          error instanceof Error
-            ? error.message
-            : "Unable to start James background job",
+          formatApiError(error, "Unable to start James background job"),
         ),
       ]);
     } finally {
@@ -706,7 +889,7 @@ export default function James() {
 
   const cancelJob = async (jobId: string) => {
     await readJson<{ status: JamesJobStatus }>(
-      await fetch(`/api/james/jobs/${jobId}/cancel`, {
+      await apiFetch(`/api/james/jobs/${jobId}/cancel`, {
         method: "POST",
         headers: authHeaders(),
       }),
