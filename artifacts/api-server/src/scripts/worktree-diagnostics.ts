@@ -1,9 +1,26 @@
-import { getWorktreeDiagnostics } from "../services/worktree-manager.js";
+import {
+  createTaskWorktree,
+  getWorktreeDiagnostics,
+} from "../services/worktree-manager.js";
 
-const repoId = process.argv[2] ?? "mission-control";
-const taskId = process.argv[3] ?? "diagnostic";
+const args = process.argv.slice(2);
+const dryRun = args.includes("--dry-run");
+const filteredArgs = args.filter((arg) => arg !== "--dry-run");
+const repoId = filteredArgs[0] ?? "mission-control";
+const taskId = filteredArgs[1] ?? "diagnostic";
+const branchName = filteredArgs[2] ?? `codex/${taskId}-dry-run`;
 
-getWorktreeDiagnostics(repoId, taskId)
+const command = dryRun
+  ? createTaskWorktree({
+      repoId,
+      taskId,
+      branchName,
+      dryRun: true,
+      safetyFlag: false,
+    })
+  : getWorktreeDiagnostics(repoId, taskId);
+
+command
   .then((diagnostics) => {
     process.stdout.write(`${JSON.stringify(diagnostics, null, 2)}\n`);
   })
