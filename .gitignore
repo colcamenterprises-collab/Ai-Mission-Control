@@ -53,3 +53,7 @@ replit.md
 
 # Build artifacts (platform-managed per artifact)
 artifacts/*/dist/
+
+# Local/reference source
+/vendor/orca/
+.env
