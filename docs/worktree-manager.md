@@ -1,16 +1,27 @@
 # Worktree Manager
 
-Patch #16 adds the first backend-only foundation for isolated task workspaces.
-It is intentionally diagnostics-only: it does not create, remove, or mutate Git
-worktrees.
+Patch #16 added the backend-only foundation for isolated task workspaces. Patch
+#17 keeps those diagnostics and adds a disabled-by-default lifecycle MVP for
+creating and cleaning up task worktrees.
 
-## Phase 1 Scope
+No James execution is wired to worktrees in this patch. No database schema or
+SBB production behavior is changed.
+
+## Scope
 
 - List configured repositories.
 - Calculate a safe future worktree path for a task.
 - Validate that workspace paths stay inside configured allowlisted roots.
+- Validate task branch names before any Git mutation is attempted.
+- Reject arbitrary caller-supplied paths; callers select a repository id and task
+  id only.
+- Prevent SBB production writes by refusing protected repository/path targets.
 - Inspect the current Git branch and short status.
 - Inspect whether `git worktree` is available for the configured repository.
+- Create a task worktree only when explicit safety gates are enabled.
+- Inspect Git status after a successful creation.
+- Cleanup/delete a task worktree only when explicit cleanup safety gates are
+  enabled.
 - Expose admin-protected diagnostics under `/api/worktrees/*`.
 
 The initial allowlist contains only the Mission Control repository:
@@ -22,18 +33,36 @@ The initial allowlist contains only the Mission Control repository:
 SBB production is not configured and must not be added without an explicit
 future change and production approval.
 
+## Safety Gates
+
+Creation and cleanup are disabled by default. A request must pass both gates to
+mutate the filesystem:
+
+| Operation        | Environment gate              | Request gate       |
+| ---------------- | ----------------------------- | ------------------ |
+| Create worktree  | `WORKTREE_CREATION_ENABLED=1` | `safetyFlag: true` |
+| Cleanup worktree | `WORKTREE_CLEANUP_ENABLED=1`  | `safetyFlag: true` |
+
+Dry-run requests do not require the environment gate and do not mutate Git or the
+filesystem.
+
 ## Safety Model
 
 - Repository selection is by configured repository id, not by caller-supplied
   filesystem path.
 - Git commands are executed with `execFile` and fixed argument arrays; no shell
   command strings are constructed from request data.
-- Future worktree paths are derived from a sanitized task id and a configured
-  worktree root.
-- Validation rejects paths outside the configured repository/worktree roots.
-- Worktree creation is present only as a disabled stub.
+- Worktree paths are derived from a sanitized task id and a configured worktree
+  root.
+- Validation rejects paths outside the configured worktree root before creation
+  or cleanup.
+- SBB production path markers are blocked even if accidentally introduced later.
+- Branch names reject whitespace, shell-sensitive characters, Git ref traversal,
+  `.lock` suffixes, and path traversal segments.
+- Cleanup checks Git status and refuses dirty worktrees unless `force: true` is
+  explicitly supplied with the cleanup safety gates.
 
-## Diagnostics
+## API Diagnostics and Lifecycle
 
 Admin-authenticated callers can use:
 
@@ -42,25 +71,65 @@ GET /api/worktrees/repositories
 GET /api/worktrees/path-preview?repoId=mission-control&taskId=123
 GET /api/worktrees/diagnostics?repoId=mission-control&taskId=123
 GET /api/worktrees/repositories/mission-control/git
+POST /api/worktrees/create
+POST /api/worktrees/cleanup
 ```
 
-A local diagnostic command is also available when dependencies are installed:
+Create dry-run body:
+
+```json
+{
+  "repoId": "mission-control",
+  "taskId": "123",
+  "branchName": "codex/patch-17-task-123",
+  "dryRun": true
+}
+```
+
+Actual creation requires both `WORKTREE_CREATION_ENABLED=1` and
+`"safetyFlag": true` in the request body.
+
+Cleanup dry-run body:
+
+```json
+{
+  "repoId": "mission-control",
+  "taskId": "123",
+  "dryRun": true
+}
+```
+
+Actual cleanup requires both `WORKTREE_CLEANUP_ENABLED=1` and
+`"safetyFlag": true` in the request body. Dirty worktrees require `"force": true`.
+
+## Local Diagnostics
+
+A local diagnostic command is available when dependencies are installed:
 
 ```bash
 pnpm exec tsx artifacts/api-server/src/scripts/worktree-diagnostics.ts mission-control 123
 ```
 
+Dry-run creation planning is also available and does not mutate Git:
+
+```bash
+pnpm exec tsx artifacts/api-server/src/scripts/worktree-diagnostics.ts --dry-run mission-control 123 codex/patch-17-task-123
+```
+
 ## Intended Lifecycle
 
-1. Create worktree: future phase only; create from an allowlisted repo into the
-   configured worktree root after branch/base validation.
-2. Assign agent: bind a Mission Control task and agent to the isolated workspace.
-3. Run task: launch agent work from the workspace path, not the main checkout.
-4. Collect logs: stream stdout/stderr, command events, and task metadata into
-   Mission Control.
-5. Diff/PR: inspect branch diff, summarize changes, and prepare a pull request.
-6. Cleanup: remove task-scoped runtime state, then remove the Git worktree only
-   after dirty-state checks and explicit approval where required.
+1. Create worktree: create from an allowlisted repo into the configured worktree
+   root after branch/base/path validation and explicit safety gates.
+2. Assign agent: future phase; bind a Mission Control task and agent to the
+   isolated workspace.
+3. Run task: future phase; launch agent work from the workspace path, not the
+   main checkout.
+4. Collect logs: future phase; stream stdout/stderr, command events, and task
+   metadata into Mission Control.
+5. Diff/PR: future phase; inspect branch diff, summarize changes, and prepare a
+   pull request.
+6. Cleanup: remove task-scoped runtime state, inspect dirty state, then remove
+   the Git worktree only when cleanup safety gates allow it.
 
-Phase 1 implements only the read-only checks needed before step 1 can be made
-safe.
+Patch #17 implements step 1 and step 6 as backend service/API lifecycle
+primitives only. It intentionally does not route James execution into worktrees.

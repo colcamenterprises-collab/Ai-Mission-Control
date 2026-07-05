@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { realpath } from "node:fs/promises";
+import { rm, realpath } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -10,6 +10,12 @@ const DEFAULT_WORKTREE_ROOT =
   "/opt/apps/ai-mission-control/.mission-control/worktrees";
 const GIT_TIMEOUT_MS = 10_000;
 const MAX_BUFFER = 1024 * 1024;
+const ENABLED_VALUES = new Set(["1", "true", "yes", "enabled"]);
+const SBB_PRODUCTION_PATH_MARKERS = [
+  "/opt/apps/sbb-production",
+  "/opt/apps/smash-brothers-burgers",
+  "/opt/apps/smash-brothers-burgers-production",
+];
 
 export type WorktreeRepositoryConfig = {
   id: string;
@@ -25,6 +31,13 @@ export type WorkspacePathValidation = {
   path: string;
   resolvedPath: string;
   allowedRoot: string | null;
+  reason: string | null;
+};
+
+export type BranchNameValidation = {
+  ok: boolean;
+  branchName: string;
+  normalizedBranchName: string | null;
   reason: string | null;
 };
 
@@ -61,6 +74,38 @@ export type WorktreePathPreview = {
   validation: WorkspacePathValidation;
 };
 
+export type WorktreeCreationRequest = {
+  repoId: string;
+  taskId: string | number;
+  branchName: string;
+  baseBranch?: string;
+  safetyFlag?: boolean;
+  dryRun?: boolean;
+};
+
+export type WorktreeCreationResult = {
+  ok: boolean;
+  enabled: boolean;
+  dryRun: boolean;
+  repoId: string;
+  taskId: string;
+  branchName: string | null;
+  baseBranch: string;
+  path: string;
+  pathValidation: WorkspacePathValidation;
+  branchValidation: BranchNameValidation;
+  gitStatus: GitStatusInspection | null;
+  error: string | null;
+};
+
+export type WorktreeCleanupRequest = {
+  repoId: string;
+  taskId: string | number;
+  safetyFlag?: boolean;
+  force?: boolean;
+  dryRun?: boolean;
+};
+
 const configuredRepositories: WorktreeRepositoryConfig[] = [
   {
     id: "mission-control",
@@ -78,7 +123,14 @@ function normalizeAbsolutePath(input: string): string {
 
 function pathInsideRoot(candidate: string, root: string): boolean {
   const relative = path.relative(root, candidate);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  return (
+    relative === "" ||
+    (!relative.startsWith("..") && !path.isAbsolute(relative))
+  );
+}
+
+function envEnabled(name: string): boolean {
+  return ENABLED_VALUES.has((process.env[name] ?? "").trim().toLowerCase());
 }
 
 function getAllowedWorkspaceRoots(): string[] {
@@ -89,7 +141,9 @@ function getAllowedWorkspaceRoots(): string[] {
 }
 
 function findRepository(repoId: string): WorktreeRepositoryConfig {
-  const repo = configuredRepositories.find((candidate) => candidate.id === repoId);
+  const repo = configuredRepositories.find(
+    (candidate) => candidate.id === repoId,
+  );
   if (!repo) {
     throw new Error(`Unknown worktree repository: ${repoId}`);
   }
@@ -122,7 +176,9 @@ async function getRealPathIfPresent(input: string): Promise<string | null> {
 async function runGit(
   cwd: string,
   args: string[],
-): Promise<{ ok: true; stdout: string; stderr: string } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; stdout: string; stderr: string } | { ok: false; error: string }
+> {
   try {
     const result = await execFileAsync("git", ["-C", cwd, ...args], {
       timeout: GIT_TIMEOUT_MS,
@@ -138,7 +194,9 @@ async function runGit(
   }
 }
 
-function parsePorcelainWorktreeList(output: string): GitWorktreeInspection["worktrees"] {
+function parsePorcelainWorktreeList(
+  output: string,
+): GitWorktreeInspection["worktrees"] {
   const worktrees: GitWorktreeInspection["worktrees"] = [];
   let current: GitWorktreeInspection["worktrees"][number] | null = null;
 
@@ -174,6 +232,45 @@ export function listConfiguredWorktreeRepositories(): WorktreeRepositoryConfig[]
   return configuredRepositories.map((repo) => ({ ...repo }));
 }
 
+export function validateBranchName(branchName: string): BranchNameValidation {
+  const normalizedBranchName = branchName.trim();
+  if (!normalizedBranchName) {
+    return {
+      ok: false,
+      branchName,
+      normalizedBranchName: null,
+      reason: "branchName is required",
+    };
+  }
+  if (normalizedBranchName.length > 120) {
+    return {
+      ok: false,
+      branchName,
+      normalizedBranchName,
+      reason: "branchName is too long",
+    };
+  }
+  if (
+    normalizedBranchName.startsWith("-") ||
+    normalizedBranchName.startsWith("/") ||
+    normalizedBranchName.endsWith("/") ||
+    normalizedBranchName.includes("..") ||
+    normalizedBranchName.includes("@{") ||
+    /[\\\s~^:?*[\]\x00-\x1f\x7f]/.test(normalizedBranchName) ||
+    /(^|\/)\.(\.?)(\/|$)/.test(normalizedBranchName) ||
+    /\.lock$/.test(normalizedBranchName)
+  ) {
+    return {
+      ok: false,
+      branchName,
+      normalizedBranchName,
+      reason: "branchName is not a safe Git branch name",
+    };
+  }
+
+  return { ok: true, branchName, normalizedBranchName, reason: null };
+}
+
 export function calculateSafeWorktreePath(
   repoId: string,
   taskId: string | number,
@@ -181,11 +278,15 @@ export function calculateSafeWorktreePath(
   const repo = findRepository(repoId);
   const safeTaskId = sanitizeTaskId(taskId);
   const directoryName = `${repo.id}-task-${safeTaskId}`;
-  const candidatePath = normalizeAbsolutePath(path.join(repo.worktreeRoot, directoryName));
-  const validation = validateWorkspacePath(candidatePath, [repo.worktreeRoot]);
+  const candidatePath = normalizeAbsolutePath(
+    path.join(repo.worktreeRoot, directoryName),
+  );
+  const validation = validateTargetWorktreePath(repo.id, candidatePath);
 
   if (!validation.ok) {
-    throw new Error(validation.reason ?? "Calculated worktree path failed validation");
+    throw new Error(
+      validation.reason ?? "Calculated worktree path failed validation",
+    );
   }
 
   return {
@@ -225,10 +326,38 @@ export function validateWorkspacePath(
   };
 }
 
-export async function inspectGitStatus(repoId: string): Promise<GitStatusInspection> {
+export function validateTargetWorktreePath(
+  repoId: string,
+  targetPath: string,
+): WorkspacePathValidation {
   const repo = findRepository(repoId);
-  const rootPath = normalizeAbsolutePath(repo.rootPath);
-  const validation = validateWorkspacePath(rootPath, [repo.rootPath]);
+  const validation = validateWorkspacePath(targetPath, [repo.worktreeRoot]);
+  if (!validation.ok) return validation;
+
+  const protectedPath = SBB_PRODUCTION_PATH_MARKERS.map(
+    normalizeAbsolutePath,
+  ).find((blocked) => pathInsideRoot(validation.resolvedPath, blocked));
+  if (repo.productionProtected || protectedPath) {
+    return {
+      ...validation,
+      ok: false,
+      reason: "Target path is protected from SBB production writes",
+    };
+  }
+
+  return validation;
+}
+
+export async function inspectGitStatus(
+  repoId: string,
+  workspacePath?: string,
+): Promise<GitStatusInspection> {
+  const repo = findRepository(repoId);
+  const rootPath = normalizeAbsolutePath(workspacePath ?? repo.rootPath);
+  const validation = validateWorkspacePath(rootPath, [
+    repo.rootPath,
+    repo.worktreeRoot,
+  ]);
 
   if (!validation.ok) {
     return {
@@ -319,7 +448,131 @@ export async function inspectGitWorktreeAvailability(
   };
 }
 
-export async function getWorktreeDiagnostics(repoId: string, taskId: string | number) {
+export async function createTaskWorktree(
+  request: WorktreeCreationRequest,
+): Promise<WorktreeCreationResult> {
+  const repo = findRepository(request.repoId);
+  const pathPreview = calculateSafeWorktreePath(repo.id, request.taskId);
+  const branchValidation = validateBranchName(request.branchName);
+  const baseBranch = request.baseBranch?.trim() || repo.defaultBaseBranch;
+  const dryRun = request.dryRun === true;
+  const enabled =
+    envEnabled("WORKTREE_CREATION_ENABLED") && request.safetyFlag === true;
+
+  const baseResult = {
+    enabled,
+    dryRun,
+    repoId: repo.id,
+    taskId: pathPreview.taskId,
+    branchName: branchValidation.normalizedBranchName,
+    baseBranch,
+    path: pathPreview.path,
+    pathValidation: pathPreview.validation,
+    branchValidation,
+  };
+
+  if (!branchValidation.ok) {
+    return {
+      ...baseResult,
+      ok: false,
+      gitStatus: null,
+      error: branchValidation.reason,
+    };
+  }
+  if (!enabled && !dryRun) {
+    return {
+      ...baseResult,
+      ok: false,
+      gitStatus: null,
+      error:
+        "Worktree creation is disabled unless WORKTREE_CREATION_ENABLED and safetyFlag are both enabled.",
+    };
+  }
+  if (dryRun) {
+    return { ...baseResult, ok: true, gitStatus: null, error: null };
+  }
+
+  const result = await runGit(repo.rootPath, [
+    "worktree",
+    "add",
+    "-b",
+    branchValidation.normalizedBranchName!,
+    pathPreview.path,
+    baseBranch,
+  ]);
+  if (!result.ok) {
+    return { ...baseResult, ok: false, gitStatus: null, error: result.error };
+  }
+
+  return {
+    ...baseResult,
+    ok: true,
+    gitStatus: await inspectGitStatus(repo.id, pathPreview.path),
+    error: null,
+  };
+}
+
+export async function cleanupTaskWorktree(
+  request: WorktreeCleanupRequest,
+): Promise<WorktreeCreationResult> {
+  const repo = findRepository(request.repoId);
+  const pathPreview = calculateSafeWorktreePath(repo.id, request.taskId);
+  const branchValidation = validateBranchName(`cleanup/${pathPreview.taskId}`);
+  const dryRun = request.dryRun === true;
+  const enabled =
+    envEnabled("WORKTREE_CLEANUP_ENABLED") && request.safetyFlag === true;
+  const baseResult = {
+    enabled,
+    dryRun,
+    repoId: repo.id,
+    taskId: pathPreview.taskId,
+    branchName: null,
+    baseBranch: repo.defaultBaseBranch,
+    path: pathPreview.path,
+    pathValidation: pathPreview.validation,
+    branchValidation,
+  };
+
+  if (!enabled && !dryRun) {
+    return {
+      ...baseResult,
+      ok: false,
+      gitStatus: null,
+      error:
+        "Worktree cleanup is disabled unless WORKTREE_CLEANUP_ENABLED and safetyFlag are both enabled.",
+    };
+  }
+
+  const gitStatus = await inspectGitStatus(repo.id, pathPreview.path);
+  if (dryRun) {
+    return { ...baseResult, ok: true, gitStatus, error: null };
+  }
+  if (gitStatus.dirty && request.force !== true) {
+    return {
+      ...baseResult,
+      ok: false,
+      gitStatus,
+      error: "Refusing to remove dirty worktree without force=true.",
+    };
+  }
+
+  const remove = await runGit(repo.rootPath, [
+    "worktree",
+    "remove",
+    ...(request.force === true ? ["--force"] : []),
+    pathPreview.path,
+  ]);
+  if (!remove.ok) {
+    return { ...baseResult, ok: false, gitStatus, error: remove.error };
+  }
+  await rm(pathPreview.path, { recursive: true, force: true });
+  return { ...baseResult, ok: true, gitStatus, error: null };
+}
+
+export async function getWorktreeDiagnostics(
+  repoId: string,
+  taskId: string | number,
+) {
   const repo = findRepository(repoId);
   const [status, worktree] = await Promise.all([
     inspectGitStatus(repo.id),
@@ -332,12 +585,22 @@ export async function getWorktreeDiagnostics(repoId: string, taskId: string | nu
     git: status,
     worktree,
     creation: {
-      enabled: false,
-      reason: "Phase 1 is diagnostics-only; worktree creation is intentionally disabled.",
+      enabled: envEnabled("WORKTREE_CREATION_ENABLED"),
+      requiresSafetyFlag: true,
+      reason:
+        "Worktree creation is disabled by default and requires WORKTREE_CREATION_ENABLED plus an explicit safety flag.",
+    },
+    cleanup: {
+      enabled: envEnabled("WORKTREE_CLEANUP_ENABLED"),
+      requiresSafetyFlag: true,
+      reason:
+        "Worktree cleanup is disabled by default and requires WORKTREE_CLEANUP_ENABLED plus an explicit safety flag.",
     },
   };
 }
 
 export function createWorktreeDisabled(): never {
-  throw new Error("Worktree creation is disabled in Orca Phase 1.");
+  throw new Error(
+    "Worktree creation is disabled unless the lifecycle safety gates are explicitly enabled.",
+  );
 }
