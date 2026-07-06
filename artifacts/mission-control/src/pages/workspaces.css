@@ -639,3 +639,16 @@
   background: linear-gradient(135deg, rgba(34, 211, 238, 0.96), rgba(124, 58, 237, 0.92));
   color: white;
 }
+
+.dashboard-section-title {
+  font-size: clamp(1.6rem, 3.6vw, 3rem);
+  font-weight: 500;
+  letter-spacing: -0.075em;
+  line-height: 0.92;
+  color: rgba(248, 250, 252, 0.94);
+}
+
+.dashboard-section-title svg {
+  color: rgb(129, 140, 248);
+  flex: 0 0 auto;
+}

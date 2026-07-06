@@ -1,6 +1,5 @@
 import { useGetDashboardSummary } from "@workspace/api-client-react";
 import {
-  Activity,
   Calendar as CalendarIcon,
   CheckCircle2,
   Clock,
@@ -39,37 +38,30 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <HomeMetric title="Live system status" value="Operational" icon={CheckCircle2} tone="good" />
-          <HomeMetric title="Active tasks" value={String(summary?.activeTaskCount ?? 0)} icon={ListTodo} loading={isSummaryLoading} />
-          <HomeMetric title="Pending tasks" value={String(summary?.pendingTaskCount ?? 0)} icon={Clock} loading={isSummaryLoading} tone="warning" />
-          <HomeMetric title="Upcoming events" value={String(summary?.upcomingEventCount ?? 0)} icon={CalendarIcon} loading={isSummaryLoading} />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <HomeMetric title="Live System Status" value="Operational" icon={CheckCircle2} tone="good" />
+          <HomeMetric title="Active Tasks" value={String(summary?.activeTaskCount ?? 0)} icon={ListTodo} loading={isSummaryLoading} />
+          <HomeMetric title="Pending Tasks" value={String(summary?.pendingTaskCount ?? 0)} icon={Clock} loading={isSummaryLoading} tone="warning" />
+          <HomeMetric title="Upcoming Events" value={String(summary?.upcomingEventCount ?? 0)} icon={CalendarIcon} loading={isSummaryLoading} />
+          <HomeMetric title="Token Usage Today" value="0" detail="Token backend not connected" icon={Zap} />
         </div>
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.3fr_0.7fr]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.8fr_1.2fr]">
           <section className="workspace-panel p-4">
-            <h2 className="workspace-section-title mb-3 flex items-center gap-2"><Activity className="h-4 w-4" /> Daily token usage</h2>
-            <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">Total tokens used today across all agents</p>
-            <p className="mt-3 text-sm text-foreground/80">No token usage recorded today</p>
+            <h2 className="dashboard-section-title mb-3 flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Current permissions</h2>
+            <InfoRow label="Mode" value="Read-only dashboard" />
+            <InfoRow label="Workspace actions" value="Safety gated" />
+            <InfoRow label="Production" value="Protected" />
           </section>
-
-          <div className="space-y-4">
-            <section className="workspace-panel p-4">
-              <h2 className="workspace-section-title mb-3 flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Current permissions</h2>
-              <InfoRow label="Mode" value="Read-only dashboard" />
-              <InfoRow label="Workspace actions" value="Safety gated" />
-              <InfoRow label="Production" value="Protected" />
-            </section>
-            <section className="workspace-panel p-4">
-              <h2 className="workspace-section-title mb-3 flex items-center gap-2"><Zap className="h-4 w-4" /> Quick launch</h2>
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
-                <QuickLink href="/content" icon={FileText} label="Content" />
-                <QuickLink href="/calendar" icon={CalendarIcon} label="Calendar" />
-                <QuickLink href="/team" icon={Users} label="Team" />
-                <QuickLink href="/settings" icon={ShieldCheck} label="Settings" />
-              </div>
-            </section>
-          </div>
+          <section className="workspace-panel p-4">
+            <h2 className="dashboard-section-title mb-3 flex items-center gap-2"><Zap className="h-4 w-4" /> Quick Launch</h2>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              <QuickLink href="/content" icon={FileText} label="Content" />
+              <QuickLink href="/calendar" icon={CalendarIcon} label="Calendar" />
+              <QuickLink href="/team" icon={Users} label="Team" />
+              <QuickLink href="/settings" icon={ShieldCheck} label="Settings" />
+            </div>
+          </section>
         </div>
       </div>
     </div>
@@ -86,7 +78,7 @@ function CustomliLogo() {
   );
 }
 
-function HomeMetric({ title, value, icon: Icon, loading, tone }: { title: string; value: string; icon: typeof Activity; loading?: boolean; tone?: "good" | "warning" }) {
+function HomeMetric({ title, value, icon: Icon, loading, detail, tone }: { title: string; value: string; icon: typeof CheckCircle2; loading?: boolean; detail?: string; tone?: "good" | "warning" }) {
   return (
     <div className="workspace-stat p-4">
       <div className="mb-4 flex items-start justify-between gap-3">
@@ -94,6 +86,7 @@ function HomeMetric({ title, value, icon: Icon, loading, tone }: { title: string
         <Icon className={`h-4 w-4 ${tone === "good" ? "text-emerald-300" : tone === "warning" ? "text-yellow-400" : "text-primary"}`} />
       </div>
       {loading ? <Skeleton className="h-8 w-20" /> : <p className="truncate text-3xl font-light tracking-tight">{value}</p>}
+      {detail ? <p className="mt-2 text-xs text-muted-foreground">{detail}</p> : null}
     </div>
   );
 }
@@ -102,6 +95,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   return <div className="diagnostic-row mb-2 text-xs"><span className="font-mono uppercase tracking-wider text-muted-foreground">{label}</span><span className="truncate text-right" title={value}>{value}</span></div>;
 }
 
-function QuickLink({ href, icon: Icon, label }: { href: string; icon: typeof Activity; label: string }) {
+function QuickLink({ href, icon: Icon, label }: { href: string; icon: typeof CheckCircle2; label: string }) {
   return <Button asChild size="sm" className="quick-launch-button justify-start gap-2"><Link href={href}><Icon className="h-3.5 w-3.5" />{label}</Link></Button>;
 }
