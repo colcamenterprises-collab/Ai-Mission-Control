@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import customliLogo from "@/assets/customli-logo.svg";
 import { Skeleton } from "@/components/ui/skeleton";
 import "./workspaces.css";
 
@@ -25,7 +24,6 @@ export default function Dashboard() {
         <section className="workspace-hero mission-home-hero">
           <div className="workspace-hero-copy max-w-3xl">
             <div className="mission-title-lockup">
-              <CustomliLogo />
               <h1>Workspace Command Centre</h1>
             </div>
             <p>
@@ -67,10 +65,6 @@ export default function Dashboard() {
       </div>
     </div>
   );
-}
-
-function CustomliLogo() {
-  return <img className="customli-logo" src={customliLogo} alt="Customli logo" />;
 }
 
 function HomeMetric({ title, value, icon: Icon, loading, detail, tone }: { title: string; value: string; icon: typeof CheckCircle2; loading?: boolean; detail?: string; tone?: "good" | "warning" }) {
