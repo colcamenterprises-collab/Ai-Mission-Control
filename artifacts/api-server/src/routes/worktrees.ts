@@ -8,6 +8,7 @@ import {
   inspectGitWorktreeAvailability,
   listConfiguredWorktreeRepositories,
   listOrcaWorkspaces,
+  launchWorkspaceAgent,
   readWorktreeMetadataStore,
 } from "../services/worktree-manager.js";
 
@@ -120,7 +121,11 @@ router.post("/worktrees/create", async (req, res): Promise<void> => {
       branchName,
       baseBranch: getQueryString(req.body?.baseBranch) ?? undefined,
       safetyFlag: getBodyBoolean(req.body?.safetyFlag),
+      permit: getBodyBoolean(req.body?.permit),
       dryRun: getBodyBoolean(req.body?.dryRun),
+      taskName: getQueryString(req.body?.taskName) ?? undefined,
+      assignedAgent: getQueryString(req.body?.assignedAgent) ?? undefined,
+      permissionMode: getQueryString(req.body?.permissionMode) as any,
     });
     res.status(result.ok ? 200 : 409).json(result);
   } catch (error) {
@@ -145,6 +150,8 @@ router.post("/worktrees/cleanup", async (req, res): Promise<void> => {
       repoId,
       taskId,
       safetyFlag: getBodyBoolean(req.body?.safetyFlag),
+      permit: getBodyBoolean(req.body?.permit),
+      permissionMode: getQueryString(req.body?.permissionMode) as any,
       force: getBodyBoolean(req.body?.force),
       dryRun: getBodyBoolean(req.body?.dryRun),
     });
@@ -153,6 +160,41 @@ router.post("/worktrees/cleanup", async (req, res): Promise<void> => {
     res.status(400).json({
       error:
         error instanceof Error ? error.message : "Unable to cleanup worktree",
+    });
+  }
+});
+
+router.post("/worktrees/agents/launch", async (req, res): Promise<void> => {
+  const repoId = getQueryString(req.body?.repoId) ?? "mission-control";
+  const taskId = getQueryString(req.body?.taskId);
+  const assignedAgent = getQueryString(req.body?.assignedAgent);
+
+  if (!taskId || !assignedAgent) {
+    res.status(400).json({ error: "taskId and assignedAgent are required" });
+    return;
+  }
+
+  try {
+    const result = await launchWorkspaceAgent({
+      repoId,
+      taskId,
+      assignedAgent,
+      permissionMode: getQueryString(req.body?.permissionMode) as any,
+      permit: getBodyBoolean(req.body?.permit),
+      dryRun: getBodyBoolean(req.body?.dryRun),
+      commandArgs: Array.isArray(req.body?.commandArgs)
+        ? req.body.commandArgs
+        : [],
+    });
+    res
+      .status(result.ok ? 200 : result.status === "blocked" ? 403 : 409)
+      .json(result);
+  } catch (error) {
+    res.status(400).json({
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to launch workspace agent",
     });
   }
 });
