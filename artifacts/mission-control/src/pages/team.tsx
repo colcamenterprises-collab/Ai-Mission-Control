@@ -20,7 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Plug, Plus, CheckCircle2, Eye, EyeOff, Trash2, ChevronLeft, ExternalLink, Copy, Check, Radio, Send, RefreshCw, Terminal } from "lucide-react";
+import { Plug, Plus, CheckCircle2, Eye, EyeOff, Trash2, ChevronLeft, ExternalLink, Copy, Check, Radio, Send, RefreshCw, Terminal, ShieldCheck, Users } from "lucide-react";
+import James from "@/pages/james";
 import "./workspaces.css";
 
 function isOnline(lastPing: string | null | undefined): boolean {
@@ -34,6 +35,49 @@ function timeSince(lastPing: string | null | undefined): string {
   if (secs < 60) return `${secs}s ago`;
   if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
   return `${Math.floor(secs / 3600)}h ago`;
+}
+
+
+type CoreAgent = {
+  name: string;
+  role: string;
+  status: string;
+  currentTask: string;
+  permissions: string;
+};
+
+const CORE_AGENT_TEAM: CoreAgent[] = [
+  { name: "James", role: "Orchestrator", status: "Online", currentTask: "Review user-created tasks and coordinate delegation", permissions: "Read Only / Safety gated" },
+  { name: "OpenClaw / OpenCore", role: "Build Agent / Coding Agent", status: "Configurable", currentTask: "Awaiting delegated build task", permissions: "Configurable by repository and environment" },
+  { name: "Scout", role: "Research", status: "Offline", currentTask: "No active research job", permissions: "Read-only research context" },
+  { name: "Scribe", role: "Documentation / Content", status: "Offline", currentTask: "No active documentation job", permissions: "Content and memory drafting" },
+  { name: "Reach", role: "Marketing / Outreach", status: "Offline", currentTask: "No active outreach job", permissions: "Contacts/content review required" },
+];
+
+const CURRENT_ORCHESTRATOR_AGENT = CORE_AGENT_TEAM.find((agent) => agent.role === "Orchestrator") ?? CORE_AGENT_TEAM[0];
+
+function CoreAgentCard({ agent }: { agent: CoreAgent }) {
+  const online = agent.status.toLowerCase() === "online";
+  return (
+    <article className="workspace-panel p-4">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${online ? "border-primary/40 bg-primary/15 text-primary" : "border-white/10 bg-white/5 text-muted-foreground"}`}>
+            <Users className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="text-base font-semibold tracking-tight">{agent.name}</h3>
+            <p className="text-xs text-muted-foreground">Role: {agent.role}</p>
+          </div>
+        </div>
+        <Badge variant={online ? "default" : "outline"} className="font-mono text-[10px] uppercase">{agent.status}</Badge>
+      </div>
+      <div className="space-y-2 text-xs">
+        <div className="diagnostic-row"><span className="font-mono uppercase tracking-wider text-muted-foreground">Current task</span><span className="text-right">{agent.currentTask}</span></div>
+        <div className="diagnostic-row"><span className="font-mono uppercase tracking-wider text-muted-foreground">Permissions / mode</span><span className="text-right">{agent.permissions}</span></div>
+      </div>
+    </article>
+  );
 }
 
 function CopyButton({ text, label }: { text: string; label?: string }) {
@@ -751,9 +795,9 @@ export default function Team() {
       <div className="workspaces-canvas flex-1 space-y-8">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <p className="workspace-eyebrow">Subagents</p>
-            <h1 className="mt-2 text-5xl font-medium leading-none tracking-[-0.07em] md:text-6xl">The collective.</h1>
-            <p className="mt-3 max-w-2xl text-sm text-muted-foreground">Roles stay independent from names so the assigned AI, model, and permissions can change without changing the operating system.</p>
+            <p className="workspace-eyebrow">Agent Team</p>
+            <h1 className="mt-2 text-5xl font-medium leading-none tracking-[-0.07em] md:text-6xl">Mission Control agent team.</h1>
+            <p className="mt-3 max-w-2xl text-sm text-muted-foreground">Team contains agents. Orchestrator is a role assigned to the current agent, not a separate product area. Default current orchestrator: James.</p>
           </div>
           <Button size="sm" onClick={() => setShowConnect(true)} className="gap-2 text-xs">
             <Plug className="w-3.5 h-3.5" />
@@ -761,6 +805,28 @@ export default function Team() {
           </Button>
         </header>
 
+
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {CORE_AGENT_TEAM.map((agent) => <CoreAgentCard key={agent.name} agent={agent} />)}
+        </section>
+
+        <section className="workspace-panel p-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="workspace-eyebrow">Orchestrator role</p>
+              <h2 className="dashboard-section-title mt-1 flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Chat with current Orchestrator</h2>
+              <p className="mt-2 text-xs text-muted-foreground">Current orchestrator is whichever agent has role = Orchestrator. Current agent: {CURRENT_ORCHESTRATOR_AGENT.name}.</p>
+            </div>
+            <Badge className="font-mono text-[10px] uppercase">{CURRENT_ORCHESTRATOR_AGENT.role}: {CURRENT_ORCHESTRATOR_AGENT.name}</Badge>
+          </div>
+          <James embedded />
+        </section>
+
+        <section className="space-y-4">
+          <div>
+            <p className="workspace-eyebrow">Connected agents</p>
+            <h2 className="dashboard-section-title mt-1">Configurable bridge agents</h2>
+          </div>
 
         {isLoading ? (
           <div className="space-y-4">
@@ -872,6 +938,7 @@ export default function Team() {
             )}
           </>
         )}
+        </section>
       </div>
 
       <Dialog open={!!selectedAgent} onOpenChange={o => !o && setSelectedAgent(null)}>

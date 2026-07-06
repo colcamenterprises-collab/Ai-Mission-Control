@@ -652,7 +652,7 @@ function ExecutionDetailsBlock({ details }: { details: ExecutionDetails }) {
   );
 }
 
-export default function James() {
+export default function James({ embedded = false }: { embedded?: boolean } = {}) {
   const [status, setStatus] = useState<JamesStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
@@ -929,9 +929,10 @@ export default function James() {
   };
 
   return (
-    <div className="mission-app-bg flex h-full min-h-0 flex-col overflow-hidden text-[13px] leading-[1.5] sm:text-sm">
+    <div className={`${embedded ? "" : "mission-app-bg"} flex h-full min-h-[36rem] flex-col overflow-hidden rounded-2xl border border-white/10 bg-card/80 text-[13px] leading-[1.5] shadow-2xl shadow-black/20 backdrop-blur-xl sm:text-sm`}>
       <header className="sticky top-0 z-20 shrink-0 border-b border-white/10 bg-background/65 px-3 py-3 backdrop-blur-xl">
         <div className="mb-3">
+          <p className="workspace-eyebrow">Chat with current Orchestrator</p>
           <h1 className="mission-page-title">{CURRENT_ORCHESTRATOR.name}</h1>
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
