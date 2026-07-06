@@ -10,7 +10,6 @@ import {
   Settings,
   Activity,
   Boxes,
-  Bot,
   Sun,
   Moon,
   PanelLeftClose,
@@ -26,11 +25,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/tasks", label: "Tasks", icon: CheckSquare },
+    { href: "/team", label: "Team", icon: Users },
+    { href: "/memory", label: "Memory", icon: Activity },
+    { href: "/workspaces", label: "Repositories", icon: Boxes },
     { href: "/content", label: "Content", icon: PenTool },
     { href: "/calendar", label: "Calendar", icon: CalendarDays },
-    { href: "/workspaces", label: "Repositories", icon: Boxes },
-    { href: "/team", label: "Team", icon: Users },
-    { href: "/orchestrator", label: "Orchestrator", icon: Bot },
     { href: "/contacts", label: "Contacts", icon: UsersRound },
     { href: "/settings", label: "Settings", icon: Settings },
   ];

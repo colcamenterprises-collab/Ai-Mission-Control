@@ -5,6 +5,7 @@ import {
   Clock,
   FileText,
   ListTodo,
+  Radio,
   ShieldCheck,
   Terminal,
   Users,
@@ -24,33 +25,34 @@ export default function Dashboard() {
         <section className="workspace-hero mission-home-hero">
           <div className="workspace-hero-copy max-w-3xl">
             <div className="mission-title-lockup">
-              <h1>Workspace Command Centre</h1>
+              <h1>Mission Control Dashboard</h1>
             </div>
             <p>
-              One operational surface for system status, orchestration, active jobs, workspace context, and permissions.
+              Summary home for the AI agent team, task flow, memory, repositories, content calendar, contacts, and operating status.
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               <Button asChild size="sm" className="quick-launch-button gap-2"><Link href="/tasks"><ListTodo className="h-3.5 w-3.5" />Launch Tasks</Link></Button>
               <Button asChild size="sm" className="quick-launch-button gap-2"><Link href="/workspaces"><Terminal className="h-3.5 w-3.5" />Repositories</Link></Button>
-              <Button asChild size="sm" className="quick-launch-button gap-2"><Link href="/orchestrator"><Terminal className="h-3.5 w-3.5" />Orchestrator</Link></Button>
+              <Button asChild size="sm" className="quick-launch-button gap-2"><Link href="/team"><Users className="h-3.5 w-3.5" />Agent Team</Link></Button>
             </div>
           </div>
         </section>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <HomeMetric title="Live System Status" value="Operational" icon={CheckCircle2} tone="good" />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <HomeMetric title="Agents Online" value="1" detail="James online by default" icon={Users} tone="good" />
+          <HomeMetric title="Current Orchestrator" value="James" detail="Role assignment: Orchestrator" icon={Radio} tone="good" />
           <HomeMetric title="Active Tasks" value={String(summary?.activeTaskCount ?? 0)} icon={ListTodo} loading={isSummaryLoading} />
           <HomeMetric title="Pending Tasks" value={String(summary?.pendingTaskCount ?? 0)} icon={Clock} loading={isSummaryLoading} tone="warning" />
           <HomeMetric title="Upcoming Events" value={String(summary?.upcomingEventCount ?? 0)} icon={CalendarIcon} loading={isSummaryLoading} />
-          <HomeMetric title="Token Usage Today" value="0" detail="Token backend not connected" icon={Zap} />
+          <HomeMetric title="Daily Token Usage" value="0" detail="All agents; token backend not connected" icon={Zap} />
         </div>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.8fr_1.2fr]">
           <section className="workspace-panel p-4">
-            <h2 className="dashboard-section-title mb-3 flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Current permissions</h2>
-            <InfoRow label="Mode" value="Read-only dashboard" />
-            <InfoRow label="Workspace actions" value="Safety gated" />
-            <InfoRow label="Production" value="Protected" />
+            <h2 className="dashboard-section-title mb-3 flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Recent activity</h2>
+            <InfoRow label="Task intake" value="User-created tasks route to Orchestrator review" />
+            <InfoRow label="Delegation" value="Orchestrator assigns by agent role/capability" />
+            <InfoRow label="Approvals" value="Reports and handoffs remain attached to tasks" />
           </section>
           <section className="workspace-panel p-4">
             <h2 className="dashboard-section-title mb-3 flex items-center gap-2"><Zap className="h-4 w-4" /> Quick Launch</h2>
