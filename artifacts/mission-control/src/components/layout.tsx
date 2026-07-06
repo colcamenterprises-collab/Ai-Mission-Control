@@ -34,7 +34,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/workspaces", label: "Workspaces", icon: Boxes },
     { href: "/team", label: "Team", icon: Users },
     { href: "/contacts", label: "Contacts", icon: UsersRound },
-    { href: "/james", label: "James", avatar: jamesIdentity.avatar },
+    { href: "/james", label: "Orchestrator", avatar: jamesIdentity.avatar },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 

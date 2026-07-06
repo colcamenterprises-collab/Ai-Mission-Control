@@ -938,7 +938,7 @@ export default function James() {
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-[13px] leading-[1.5] sm:text-sm">
       <header className="sticky top-0 z-20 shrink-0 border-b border-border/70 bg-background/95 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:px-3">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span className="sr-only">Chat with James</span>
+          <span className="sr-only">Orchestrator chat with James</span>
           <Badge
             variant={jamesStatusVariant}
             className="h-8 shrink-0 gap-1.5 px-2 text-[12px] font-medium"
@@ -947,10 +947,17 @@ export default function James() {
               className="h-6 w-6 rounded-full object-cover ring-1 ring-background/70"
               fallbackClassName="text-current"
             />
-            <span>{jamesIdentity.name}</span>
+            <span>Orchestrator</span>
+            <span className="text-muted-foreground">Agent: {jamesIdentity.name}</span>
             <span aria-hidden="true">{jamesStatus.indicator}</span>
             <span>{jamesStatus.label}</span>
           </Badge>
+          <span className="rounded-md border border-border bg-muted/30 px-2 py-1 font-mono text-[12px] text-muted-foreground">
+            Current orchestrator agent: {jamesIdentity.name}
+          </span>
+          <span className="rounded-md border border-border bg-muted/30 px-2 py-1 font-mono text-[12px] text-muted-foreground">
+            Permission mode: {projectContext.environment}
+          </span>
           <Select
             value={projectContext.project}
             onValueChange={(value) => updateProject(value as JamesProject)}
@@ -1047,15 +1054,14 @@ export default function James() {
 
       <section
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
-        aria-label="Chat with James"
+        aria-label="Orchestrator chat with James"
       >
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain bg-muted/20 p-2 [-webkit-overflow-scrolling:touch] sm:p-3">
           <div className="space-y-2">
             <details className="group rounded-full bg-background/80 text-[12px] text-muted-foreground ring-1 ring-border/40 open:rounded-md">
               <summary className="flex min-h-7 cursor-pointer list-none items-center gap-1.5 px-3 py-1 font-medium text-foreground [&::-webkit-details-marker]:hidden">
                 <span className="min-w-0 truncate">
-                  Workspace Context: {projectContext.project} ·{" "}
-                  {projectContext.environment} ·{" "}
+                  Workspace Context: {projectContext.project} · Permission mode: {projectContext.environment} ·{" "}
                   <span className="font-mono">{WORKSPACE_PATH}</span>
                 </span>
                 <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180" />
@@ -1067,7 +1073,7 @@ export default function James() {
                     {projectContext.project}
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Environment:</span>{" "}
+                    <span className="text-muted-foreground">Permission mode:</span>{" "}
                     {projectContext.environment}
                   </div>
                   <div
@@ -1155,7 +1161,7 @@ export default function James() {
           <div className="mt-2 space-y-2">
             {chatHistory.length === 0 ? (
               <p className="px-1 text-[13px] text-muted-foreground sm:text-sm">
-                No messages yet. Send a message to start a chat with James.
+                No messages yet. Send a message to start a chat with James, the current Orchestrator agent.
               </p>
             ) : null}
 
@@ -1232,7 +1238,7 @@ export default function James() {
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             onKeyDown={handleMessageKeyDown}
-            placeholder="Ask James what you need done..."
+            placeholder="Ask the Orchestrator (James) what you need done..."
             className="max-h-36 min-h-[4rem] resize-none text-[13px] leading-[1.5]"
             disabled={isSending}
           />

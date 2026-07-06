@@ -39,6 +39,7 @@ function Router() {
         <Route path="/team" component={Team} />
         <Route path="/contacts" component={Contacts} />
         <Route path="/settings" component={Settings} />
+        <Route path="/orchestrator" component={James} />
         <Route path="/james" component={James} />
         <Route component={NotFound} />
       </Switch>

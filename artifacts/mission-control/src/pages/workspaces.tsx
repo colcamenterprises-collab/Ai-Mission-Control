@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Archive,
@@ -11,9 +11,7 @@ import {
   Play,
   Plus,
   ShieldCheck,
-  Sparkles,
   Trash2,
-  UsersRound,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,44 +27,6 @@ const ADMIN_TOKEN_STORAGE_KEY = "mission_control_admin_token";
 const LEGACY_ADMIN_TOKEN_STORAGE_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
 const MVP_FALLBACK_ADMIN_TOKEN = "change-this-later";
 const DEFAULT_DIAGNOSTICS_TASK_ID = "20";
-
-const AGENT_ROLES = [
-  {
-    name: "James",
-    role: "Orchestrator",
-    brief: "Plans, routes, coordinates, and reports before any future action.",
-  },
-  {
-    name: "Scout",
-    role: "Research",
-    brief: "Gathers source-backed context and returns structured briefs.",
-  },
-  {
-    name: "Scribe",
-    role: "Documentation/content",
-    brief: "Turns validated work into docs, notes, and content drafts.",
-  },
-  {
-    name: "Reach",
-    role: "Marketing/outreach",
-    brief:
-      "Prepares campaign and audience outreach materials from approved briefs.",
-  },
-  {
-    name: "Dev/Codex",
-    role: "Build agent",
-    brief: "Implements scoped build tasks after an explicit plan is approved.",
-  },
-] as const;
-
-const OPERATING_RULES = [
-  "Show plan before action.",
-  "Give progress updates on multi-step tasks.",
-  "Never go silent during long tasks.",
-  "Delegate with structured briefs, not raw chat.",
-  "Report failures clearly.",
-  "Never fabricate results.",
-] as const;
 
 type WorktreeRepository = {
   id: string;
@@ -393,9 +353,6 @@ export default function Workspaces() {
               <span className="status-dot" /> All systems operational
             </span>
             <span className="workspace-status-pill">
-              Active agent: James / Orchestrator
-            </span>
-            <span className="workspace-status-pill">
               Session: live telemetry
             </span>
           </div>
@@ -418,67 +375,6 @@ export default function Workspaces() {
             <p>Live repository, branch, worktree and diagnostics telemetry.</p>
           </div>
 
-          <div
-            className="agent-concept-panel"
-            aria-labelledby="agent-concept-title"
-          >
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="workspace-eyebrow">Future agent structure</p>
-                <h2
-                  id="agent-concept-title"
-                  className="workspace-section-heading"
-                >
-                  Orchestrator / sub-agent pattern
-                </h2>
-              </div>
-              <Badge variant="secondary" className="gap-1">
-                <Sparkles className="h-3 w-3" /> Concept only
-              </Badge>
-            </div>
-            <div className="grid gap-2 md:grid-cols-5">
-              {AGENT_ROLES.map((agent) => (
-                <div key={agent.name} className="agent-role-card">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs font-semibold text-foreground">
-                      {agent.name}
-                    </span>
-                    <span className="agent-role-chip">{agent.role}</span>
-                  </div>
-                  <p>{agent.brief}</p>
-                </div>
-              ))}
-            </div>
-            <div className="operating-rules mt-2">
-              <div className="flex items-center gap-2 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground">
-                <UsersRound className="h-3.5 w-3.5" /> Operating rules
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {OPERATING_RULES.map((rule) => (
-                  <span key={rule} className="operating-rule-pill">
-                    {rule}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="memory-burst" aria-hidden="true">
-            <div className="burst-line line-one" />
-            <div className="burst-line line-two" />
-            <div className="burst-line line-three" />
-            <div className="burst-orbit orbit-one" />
-            <div className="burst-orbit orbit-two" />
-            <div className="burst-core">
-              <Boxes className="h-8 w-8" />
-            </div>
-            {Array.from({ length: 24 }, (_, index) => (
-              <span
-                key={index}
-                className="burst-particle"
-                style={{ "--i": index } as CSSProperties}
-              />
-            ))}
-          </div>
         </section>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -788,7 +684,7 @@ function WorkspaceCard({ workspace }: { workspace: OrcaWorkspace }) {
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <DisabledActionButton label="Open in James" icon={Play} />
+        <DisabledActionButton label="Open in Orchestrator" icon={Play} />
         <DisabledActionButton label="Launch Codex" icon={Hammer} />
         <DisabledActionButton label="Archive" icon={Archive} />
         <DisabledActionButton label="Cleanup" icon={Trash2} />
