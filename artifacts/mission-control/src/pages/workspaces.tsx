@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Archive,
@@ -23,6 +23,9 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim() ?? "").replace(
   "",
 );
 const SAFETY_GATED_REASON = "Coming next / safety gated";
+const ADMIN_TOKEN_STORAGE_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
+const MVP_FALLBACK_ADMIN_TOKEN = "change-this-later";
+const DEFAULT_DIAGNOSTICS_TASK_ID = "20";
 
 type WorktreeRepository = {
   id: string;
@@ -65,6 +68,11 @@ type WorktreeWorkspacesResponse = {
   workspaces: OrcaWorkspace[];
 };
 
+type AdminToken = {
+  source: "localStorage" | "env" | "fallback";
+  value: string;
+};
+
 type WorktreeDiagnosticsResponse = {
   repository: WorktreeRepository;
   git: {
@@ -97,21 +105,149 @@ type WorktreeDiagnosticsResponse = {
   };
 };
 
+class WorkspacesApiError extends Error {
+  readonly endpoint: string;
+  readonly status?: number;
+  readonly backendMessage?: string;
+
+  constructor({
+    message,
+    endpoint,
+    status,
+    backendMessage,
+  }: {
+    message: string;
+    endpoint: string;
+    status?: number;
+    backendMessage?: string;
+  }) {
+    super(message);
+    this.name = "WorkspacesApiError";
+    this.endpoint = endpoint;
+    this.status = status;
+    this.backendMessage = backendMessage;
+  }
+}
+
 function apiUrl(path: string): string {
   return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(apiUrl(path), {
-    headers: { Accept: "application/json" },
-  });
+function readAdminToken(): AdminToken {
+  const storedToken = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)?.trim();
+  if (storedToken) return { source: "localStorage", value: storedToken };
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(body || `Request failed with HTTP ${response.status}`);
+  const envToken = import.meta.env.VITE_MISSION_CONTROL_ADMIN_TOKEN?.trim();
+  if (envToken) return { source: "env", value: envToken };
+
+  return { source: "fallback", value: MVP_FALLBACK_ADMIN_TOKEN };
+}
+
+function authHeaders(): HeadersInit {
+  const token = readAdminToken();
+  return { Authorization: `Bearer ${token.value}` };
+}
+
+function extractBackendMessage(
+  data: unknown,
+  fallback?: string,
+): string | undefined {
+  if (data !== null && typeof data === "object") {
+    if ("error" in data && typeof data.error === "string") return data.error;
+    if ("message" in data && typeof data.message === "string")
+      return data.message;
+    if ("details" in data && typeof data.details === "string")
+      return data.details;
   }
 
-  return (await response.json()) as T;
+  return fallback?.trim() || undefined;
+}
+
+async function parseJsonResponse(
+  response: Response,
+  endpoint: string,
+): Promise<unknown> {
+  const text = await response.text();
+  if (!text.trim()) return {};
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (error) {
+    throw new WorkspacesApiError({
+      message: `Invalid JSON from ${endpoint}: ${
+        error instanceof Error ? error.message : "Unable to parse response"
+      }`,
+      endpoint,
+      status: response.status,
+      backendMessage: text.slice(0, 300),
+    });
+  }
+}
+
+function ensureArray(value: unknown): Array<unknown> {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeWorkspacesResponse(
+  data: WorktreeWorkspacesResponse,
+): WorktreeWorkspacesResponse {
+  return {
+    ...data,
+    metadata: {
+      schemaVersion: data.metadata?.schemaVersion ?? 0,
+      records: ensureArray(data.metadata?.records),
+    },
+    workspaces: Array.isArray(data.workspaces) ? data.workspaces : [],
+  };
+}
+
+async function fetchJson<T>(path: string): Promise<T> {
+  const endpoint = apiUrl(path);
+  let response: Response;
+
+  try {
+    response = await fetch(endpoint, {
+      headers: {
+        Accept: "application/json",
+        ...authHeaders(),
+      },
+      credentials: "same-origin",
+    });
+  } catch (error) {
+    throw new WorkspacesApiError({
+      message:
+        error instanceof Error ? error.message : `Unable to reach ${endpoint}`,
+      endpoint,
+    });
+  }
+
+  const data = await parseJsonResponse(response, endpoint);
+
+  if (!response.ok) {
+    const backendMessage = extractBackendMessage(data, response.statusText);
+    throw new WorkspacesApiError({
+      message: backendMessage || `Request failed with HTTP ${response.status}`,
+      endpoint,
+      status: response.status,
+      backendMessage,
+    });
+  }
+
+  return data as T;
+}
+
+function formatWorkspacesError(error: unknown): string {
+  if (error instanceof WorkspacesApiError) {
+    return [
+      error.status ? `Status: ${error.status}` : "Status: network/unknown",
+      `Endpoint: ${error.endpoint}`,
+      `Message: ${error.backendMessage || error.message}`,
+    ].join(" · ");
+  }
+
+  return error instanceof Error
+    ? error.message
+    : "Unknown workspaces API error";
 }
 
 function shortCommit(head: string | null): string {
@@ -149,7 +285,7 @@ function DisabledActionButton({
 }
 
 export default function Workspaces() {
-  const [selectedRepoId, setSelectedRepoId] = useState("mission-control");
+  const [selectedRepoId, setSelectedRepoId] = useState<string | null>(null);
 
   const repositoriesQuery = useQuery({
     queryKey: ["worktrees", "repositories"],
@@ -158,23 +294,43 @@ export default function Workspaces() {
   });
 
   const workspacesQuery = useQuery({
-    queryKey: ["worktrees", "workspaces", selectedRepoId],
-    queryFn: () =>
-      fetchJson<WorktreeWorkspacesResponse>(
-        `/api/worktrees/workspaces?repoId=${encodeURIComponent(selectedRepoId)}`,
+    queryKey: ["worktrees", "workspaces"],
+    queryFn: async () =>
+      normalizeWorkspacesResponse(
+        await fetchJson<WorktreeWorkspacesResponse>(
+          "/api/worktrees/workspaces",
+        ),
       ),
   });
 
+  const diagnosticsRepoId = selectedRepoId ?? "mission-control";
   const diagnosticsQuery = useQuery({
-    queryKey: ["worktrees", "diagnostics", selectedRepoId],
+    queryKey: [
+      "worktrees",
+      "diagnostics",
+      diagnosticsRepoId,
+      DEFAULT_DIAGNOSTICS_TASK_ID,
+    ],
     queryFn: () =>
       fetchJson<WorktreeDiagnosticsResponse>(
-        `/api/worktrees/diagnostics?repoId=${encodeURIComponent(selectedRepoId)}`,
+        `/api/worktrees/diagnostics?repo=${encodeURIComponent(
+          diagnosticsRepoId,
+        )}&taskId=${DEFAULT_DIAGNOSTICS_TASK_ID}`,
       ),
+    enabled: Boolean(diagnosticsRepoId),
   });
 
   const repositories = repositoriesQuery.data?.repositories ?? [];
   const workspaces = workspacesQuery.data?.workspaces ?? [];
+
+  useEffect(() => {
+    if (selectedRepoId || repositories.length === 0) return;
+
+    const missionControlRepo = repositories.find(
+      (repo) => repo.id === "mission-control",
+    );
+    setSelectedRepoId((missionControlRepo ?? repositories[0]).id);
+  }, [repositories, selectedRepoId]);
   const mainWorkspace = useMemo(
     () => workspaces.find((workspace) => workspace.isMainWorktree),
     [workspaces],
@@ -256,9 +412,12 @@ export default function Workspaces() {
                     ))}
                   </div>
                 ) : (
-                  <p className="p-4 text-sm text-muted-foreground">
-                    No repositories returned.
-                  </p>
+                  <div className="space-y-2 p-4 text-sm text-muted-foreground">
+                    <p>No repositories returned.</p>
+                    {repositoriesQuery.isError && (
+                      <ApiErrorDetail error={repositoriesQuery.error} />
+                    )}
+                  </div>
                 )}
               </div>
             </section>
@@ -277,9 +436,10 @@ export default function Workspaces() {
                     ))}
                   </div>
                 ) : diagnosticsQuery.isError ? (
-                  <p className="text-destructive">
-                    Unable to load diagnostics.
-                  </p>
+                  <div className="space-y-2 text-destructive">
+                    <p>Unable to load diagnostics.</p>
+                    <ApiErrorDetail error={diagnosticsQuery.error} />
+                  </div>
                 ) : (
                   <>
                     <DiagnosticRow
@@ -367,11 +527,15 @@ export default function Workspaces() {
               />
               <Metric
                 title="Main workspace"
-                value={mainWorkspace?.branch ?? "unknown"}
+                value={
+                  mainWorkspace
+                    ? `${mainWorkspace.branch ?? "unknown"} · ${mainWorkspace.path}`
+                    : "unknown"
+                }
               />
               <Metric
                 title="Selected repo"
-                value={selectedRepository?.id ?? selectedRepoId}
+                value={selectedRepository?.id ?? selectedRepoId ?? "loading"}
               />
             </div>
 
@@ -398,7 +562,11 @@ export default function Workspaces() {
                   ))
                 ) : (
                   <div className="col-span-full rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-                    No workspaces returned for this repository.
+                    {workspacesQuery.isError ? (
+                      <ApiErrorDetail error={workspacesQuery.error} />
+                    ) : (
+                      "No workspaces returned for this repository."
+                    )}
                   </div>
                 )}
               </div>
@@ -407,6 +575,14 @@ export default function Workspaces() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ApiErrorDetail({ error }: { error: unknown }) {
+  return (
+    <p className="api-error-detail font-mono text-xs">
+      {formatWorkspacesError(error)}
+    </p>
   );
 }
 
