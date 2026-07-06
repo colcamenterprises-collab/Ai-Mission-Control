@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { rm, realpath } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -11,6 +18,9 @@ const DEFAULT_WORKTREE_ROOT =
 const GIT_TIMEOUT_MS = 10_000;
 const MAX_BUFFER = 1024 * 1024;
 const ENABLED_VALUES = new Set(["1", "true", "yes", "enabled"]);
+const METADATA_FILE_NAME = "mission-control-worktrees.json";
+const METADATA_SCHEMA_VERSION = 1;
+
 const SBB_PRODUCTION_PATH_MARKERS = [
   "/opt/apps/sbb-production",
   "/opt/apps/smash-brothers-burgers",
@@ -24,6 +34,62 @@ export type WorktreeRepositoryConfig = {
   defaultBaseBranch: string;
   worktreeRoot: string;
   productionProtected: boolean;
+  metadataPath: string;
+};
+
+export type OrcaWorkspaceKind = "git" | "folder-workspace";
+export type OrcaWorkspaceStatus =
+  | "working"
+  | "active"
+  | "permission"
+  | "done"
+  | "inactive";
+
+export type WorktreeMeta = {
+  displayName: string | null;
+  comment: string | null;
+  linkedIssue: number | null;
+  linkedPR: number | null;
+  isArchived: boolean;
+  isUnread: boolean;
+  sortOrder: number | null;
+  lastActivityAt: string | null;
+  workspaceStatus: OrcaWorkspaceStatus | null;
+};
+
+export type OrcaWorkspace = WorktreeMeta & {
+  id: string;
+  workspaceKey: string;
+  workspaceKind: OrcaWorkspaceKind;
+  repoId: string;
+  repo: string;
+  path: string;
+  head: string | null;
+  branch: string | null;
+  isBare: boolean;
+  isMainWorktree: boolean;
+  parentWorktreeId: string | null;
+  childWorktreeIds: string[];
+  lineageDepth: number;
+  lineageChildCount: number;
+};
+
+export type WorktreeMetadataRecord = {
+  id: string;
+  repoId: string;
+  taskId: string;
+  path: string;
+  branchName: string;
+  baseBranch: string;
+  workspaceKind: OrcaWorkspaceKind;
+  createdAt: string | null;
+  updatedAt: string | null;
+  meta: WorktreeMeta;
+};
+
+export type WorktreeMetadataStore = {
+  schemaVersion: number;
+  records: WorktreeMetadataRecord[];
 };
 
 export type WorkspacePathValidation = {
@@ -95,6 +161,8 @@ export type WorktreeCreationResult = {
   pathValidation: WorkspacePathValidation;
   branchValidation: BranchNameValidation;
   gitStatus: GitStatusInspection | null;
+  metadata: WorktreeMetadataRecord | null;
+  workspace: OrcaWorkspace | null;
   error: string | null;
 };
 
@@ -114,8 +182,121 @@ const configuredRepositories: WorktreeRepositoryConfig[] = [
     defaultBaseBranch: "main",
     worktreeRoot: DEFAULT_WORKTREE_ROOT,
     productionProtected: false,
+    metadataPath: path.join(DEFAULT_WORKTREE_ROOT, METADATA_FILE_NAME),
   },
 ];
+
+function createDefaultWorktreeMeta(displayName: string | null): WorktreeMeta {
+  return {
+    displayName,
+    comment: null,
+    linkedIssue: null,
+    linkedPR: null,
+    isArchived: false,
+    isUnread: false,
+    sortOrder: null,
+    lastActivityAt: null,
+    workspaceStatus: null,
+  };
+}
+
+function getWorktreeId(repoId: string, taskId: string): string {
+  return `${repoId}:${taskId}`;
+}
+
+function getWorkspaceKey(repoId: string, worktreeId: string): string {
+  return `git:${repoId}:${worktreeId}`;
+}
+
+function metadataStorePath(repo: WorktreeRepositoryConfig): string {
+  return normalizeAbsolutePath(repo.metadataPath);
+}
+
+function normalizeMetadataStore(input: unknown): WorktreeMetadataStore {
+  if (!input || typeof input !== "object") {
+    return { schemaVersion: METADATA_SCHEMA_VERSION, records: [] };
+  }
+  const candidate = input as { schemaVersion?: unknown; records?: unknown };
+  return {
+    schemaVersion:
+      typeof candidate.schemaVersion === "number"
+        ? candidate.schemaVersion
+        : METADATA_SCHEMA_VERSION,
+    records: Array.isArray(candidate.records)
+      ? candidate.records.filter(
+          (record): record is WorktreeMetadataRecord =>
+            !!record &&
+            typeof record === "object" &&
+            typeof (record as WorktreeMetadataRecord).id === "string" &&
+            typeof (record as WorktreeMetadataRecord).repoId === "string" &&
+            typeof (record as WorktreeMetadataRecord).taskId === "string" &&
+            typeof (record as WorktreeMetadataRecord).path === "string" &&
+            typeof (record as WorktreeMetadataRecord).branchName === "string" &&
+            typeof (record as WorktreeMetadataRecord).baseBranch === "string",
+        )
+      : [],
+  };
+}
+
+export async function readWorktreeMetadataStore(
+  repoId = "mission-control",
+): Promise<WorktreeMetadataStore> {
+  const repo = findRepository(repoId);
+  try {
+    return normalizeMetadataStore(
+      JSON.parse(await readFile(metadataStorePath(repo), "utf8")),
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return { schemaVersion: METADATA_SCHEMA_VERSION, records: [] };
+    }
+    throw error;
+  }
+}
+
+async function writeWorktreeMetadataStore(
+  repo: WorktreeRepositoryConfig,
+  store: WorktreeMetadataStore,
+): Promise<void> {
+  const target = metadataStorePath(repo);
+  const validation = validateWorkspacePath(target, [repo.worktreeRoot]);
+  if (!validation.ok) {
+    throw new Error(validation.reason ?? "Metadata path failed validation");
+  }
+  await mkdir(path.dirname(target), { recursive: true });
+  const tmp = `${target}.tmp`;
+  const records = [...store.records].sort((a, b) => a.id.localeCompare(b.id));
+  await writeFile(
+    tmp,
+    `${JSON.stringify({ schemaVersion: METADATA_SCHEMA_VERSION, records }, null, 2)}\n`,
+    "utf8",
+  );
+  await rename(tmp, target);
+}
+
+function mergeMetadataRecord(
+  store: WorktreeMetadataStore,
+  record: WorktreeMetadataRecord,
+): WorktreeMetadataStore {
+  return {
+    schemaVersion: METADATA_SCHEMA_VERSION,
+    records: [
+      ...store.records.filter((candidate) => candidate.id !== record.id),
+      record,
+    ],
+  };
+}
+
+async function removeMetadataRecord(
+  repo: WorktreeRepositoryConfig,
+  worktreeId: string,
+): Promise<void> {
+  const store = await readWorktreeMetadataStore(repo.id);
+  await writeWorktreeMetadataStore(repo, {
+    schemaVersion: METADATA_SCHEMA_VERSION,
+    records: store.records.filter((record) => record.id !== worktreeId),
+  });
+}
 
 function normalizeAbsolutePath(input: string): string {
   return path.resolve(input);
@@ -448,6 +629,50 @@ export async function inspectGitWorktreeAvailability(
   };
 }
 
+export async function listOrcaWorkspaces(
+  repoId = "mission-control",
+): Promise<OrcaWorkspace[]> {
+  const repo = findRepository(repoId);
+  const [metadata, inspection] = await Promise.all([
+    readWorktreeMetadataStore(repo.id),
+    inspectGitWorktreeAvailability(repo.id),
+  ]);
+  const metadataByPath = new Map(
+    metadata.records.map((record) => [
+      normalizeAbsolutePath(record.path),
+      record,
+    ]),
+  );
+
+  return inspection.worktrees.map((worktree) => {
+    const normalizedPath = normalizeAbsolutePath(worktree.path);
+    const record = metadataByPath.get(normalizedPath);
+    const id = record?.id ?? `${repo.id}:${path.basename(normalizedPath)}`;
+    const isMainWorktree =
+      normalizeAbsolutePath(repo.rootPath) === normalizedPath;
+    const meta =
+      record?.meta ?? createDefaultWorktreeMeta(path.basename(normalizedPath));
+
+    return {
+      ...meta,
+      id,
+      workspaceKey: getWorkspaceKey(repo.id, id),
+      workspaceKind: record?.workspaceKind ?? "git",
+      repoId: repo.id,
+      repo: repo.displayName,
+      path: normalizedPath,
+      head: worktree.head,
+      branch: worktree.branch,
+      isBare: false,
+      isMainWorktree,
+      parentWorktreeId: null,
+      childWorktreeIds: [],
+      lineageDepth: 0,
+      lineageChildCount: 0,
+    };
+  });
+}
+
 export async function createTaskWorktree(
   request: WorktreeCreationRequest,
 ): Promise<WorktreeCreationResult> {
@@ -469,6 +694,8 @@ export async function createTaskWorktree(
     path: pathPreview.path,
     pathValidation: pathPreview.validation,
     branchValidation,
+    metadata: null,
+    workspace: null,
   };
 
   if (!branchValidation.ok) {
@@ -504,10 +731,33 @@ export async function createTaskWorktree(
     return { ...baseResult, ok: false, gitStatus: null, error: result.error };
   }
 
+  const metadata: WorktreeMetadataRecord = {
+    id: getWorktreeId(repo.id, pathPreview.taskId),
+    repoId: repo.id,
+    taskId: pathPreview.taskId,
+    path: pathPreview.path,
+    branchName: branchValidation.normalizedBranchName!,
+    baseBranch,
+    workspaceKind: "git",
+    createdAt: null,
+    updatedAt: null,
+    meta: createDefaultWorktreeMeta(pathPreview.taskId),
+  };
+  await writeWorktreeMetadataStore(
+    repo,
+    mergeMetadataRecord(await readWorktreeMetadataStore(repo.id), metadata),
+  );
+  const workspace =
+    (await listOrcaWorkspaces(repo.id)).find(
+      (candidate) => candidate.id === metadata.id,
+    ) ?? null;
+
   return {
     ...baseResult,
     ok: true,
     gitStatus: await inspectGitStatus(repo.id, pathPreview.path),
+    metadata,
+    workspace,
     error: null,
   };
 }
@@ -531,6 +781,8 @@ export async function cleanupTaskWorktree(
     path: pathPreview.path,
     pathValidation: pathPreview.validation,
     branchValidation,
+    metadata: null,
+    workspace: null,
   };
 
   if (!enabled && !dryRun) {
@@ -566,6 +818,7 @@ export async function cleanupTaskWorktree(
     return { ...baseResult, ok: false, gitStatus, error: remove.error };
   }
   await rm(pathPreview.path, { recursive: true, force: true });
+  await removeMetadataRecord(repo, getWorktreeId(repo.id, pathPreview.taskId));
   return { ...baseResult, ok: true, gitStatus, error: null };
 }
 
@@ -574,9 +827,11 @@ export async function getWorktreeDiagnostics(
   taskId: string | number,
 ) {
   const repo = findRepository(repoId);
-  const [status, worktree] = await Promise.all([
+  const [status, worktree, metadata, workspaces] = await Promise.all([
     inspectGitStatus(repo.id),
     inspectGitWorktreeAvailability(repo.id),
+    readWorktreeMetadataStore(repo.id),
+    listOrcaWorkspaces(repo.id),
   ]);
 
   return {
@@ -584,6 +839,8 @@ export async function getWorktreeDiagnostics(
     pathPreview: calculateSafeWorktreePath(repo.id, taskId),
     git: status,
     worktree,
+    metadata,
+    workspaces,
     creation: {
       enabled: envEnabled("WORKTREE_CREATION_ENABLED"),
       requiresSafetyFlag: true,
