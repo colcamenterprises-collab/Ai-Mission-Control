@@ -343,236 +343,246 @@ export default function Workspaces() {
 
   return (
     <div className="workspaces-shell h-full overflow-y-auto">
-      <div className="workspaces-canvas">
-        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <Boxes className="h-5 w-5 text-primary" />
-              <h1 className="font-mono text-2xl font-semibold uppercase tracking-tight">
-                Workspaces
-              </h1>
+      <div className="workspaces-canvas space-y-4">
+        <header className="workspaces-page-header">
+          <div className="mb-2 flex items-center gap-2">
+            <Boxes className="h-5 w-5 text-primary" />
+            <h1 className="font-mono text-2xl font-semibold uppercase tracking-tight">
+              Workspaces
+            </h1>
+          </div>
+          <p className="max-w-3xl text-sm text-muted-foreground">
+            Read-only visibility into live repositories, worktrees, diagnostics,
+            and safety-gated workspace operations.
+          </p>
+        </header>
+
+        <section className="workspace-hero">
+          <div className="workspace-hero-copy">
+            <p className="workspace-eyebrow">Live worktree telemetry</p>
+            <h2>Workspace Command Centre</h2>
+            <p>Live repository, branch, worktree and diagnostics telemetry.</p>
+          </div>
+          <div className="memory-burst" aria-hidden="true">
+            <div className="burst-line line-one" />
+            <div className="burst-line line-two" />
+            <div className="burst-line line-three" />
+            <div className="burst-orbit orbit-one" />
+            <div className="burst-orbit orbit-two" />
+            <div className="burst-core">
+              <Boxes className="h-8 w-8" />
             </div>
-            <p className="max-w-3xl text-sm text-muted-foreground">
-              Orca-inspired workspace manager for read-only repository and
-              worktree visibility. Creation, agent launch, archive, and cleanup
-              actions remain safety gated.
-            </p>
+            {Array.from({ length: 24 }, (_, index) => (
+              <span
+                key={index}
+                className="burst-particle"
+                style={{ "--i": index } as CSSProperties}
+              />
+            ))}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <DisabledActionButton label="Create Workspace" icon={Plus} />
-            <DisabledActionButton label="Cleanup" icon={Trash2} />
-          </div>
+        </section>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <Metric title="Workspace count" value={String(workspaces.length)} />
+          <Metric
+            title="Main workspace"
+            value={
+              mainWorkspace
+                ? `${mainWorkspace.branch ?? "unknown"} · ${mainWorkspace.path}`
+                : "unknown"
+            }
+          />
+          <Metric
+            title="Selected repo"
+            value={selectedRepository?.id ?? selectedRepoId ?? "loading"}
+          />
         </div>
 
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(280px,340px)_1fr]">
-          <aside className="space-y-5">
-            <section className="workspace-panel overflow-hidden">
-              <div className="workspace-panel-header px-4 py-3">
-                <h2 className="font-mono text-sm uppercase text-muted-foreground">
-                  Repositories
-                </h2>
-              </div>
-              <div className="p-3">
-                {repositoriesQuery.isLoading ? (
-                  <div className="space-y-2">
-                    {[1, 2].map((item) => (
-                      <Skeleton key={item} className="h-20 w-full" />
-                    ))}
-                  </div>
-                ) : repositories.length ? (
-                  <div className="space-y-2">
-                    {repositories.map((repo) => (
-                      <button
-                        key={repo.id}
-                        type="button"
-                        onClick={() => setSelectedRepoId(repo.id)}
-                        className={`repository-pill w-full p-3 text-left ${
-                          selectedRepoId === repo.id
-                            ? "repository-pill-active"
-                            : ""
-                        }`}
-                      >
-                        <div className="info-line flex items-center justify-between gap-3">
-                          <span className="font-mono text-sm font-medium">
-                            {repo.displayName}
-                          </span>
-                          {repo.productionProtected ? (
-                            <Badge variant="destructive">Protected</Badge>
-                          ) : (
-                            <Badge variant="secondary">Allowed</Badge>
-                          )}
-                        </div>
-                        <p className="mt-2 truncate font-mono text-xs text-muted-foreground">
-                          {repo.rootPath}
-                        </p>
-                        <p className="mt-1 font-mono text-xs text-muted-foreground">
-                          Base: {repo.defaultBaseBranch}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-2 p-4 text-sm text-muted-foreground">
-                    <p>No repositories returned.</p>
-                    {repositoriesQuery.isError && (
-                      <ApiErrorDetail error={repositoriesQuery.error} />
-                    )}
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="workspace-panel diagnostics-panel overflow-hidden">
-              <div className="workspace-panel-header px-4 py-3">
-                <h2 className="flex items-center gap-2 font-mono text-sm uppercase text-muted-foreground">
-                  <ShieldCheck className="h-4 w-4" /> Diagnostics
-                </h2>
-              </div>
-              <div className="diagnostics-compact p-4 text-sm">
-                {diagnosticsQuery.isLoading ? (
-                  <div className="space-y-2">
-                    {[1, 2, 3, 4].map((item) => (
-                      <Skeleton key={item} className="h-8 w-full" />
-                    ))}
-                  </div>
-                ) : diagnosticsQuery.isError ? (
-                  <div className="space-y-2 text-destructive">
-                    <p>Unable to load diagnostics.</p>
-                    <ApiErrorDetail error={diagnosticsQuery.error} />
-                  </div>
-                ) : (
-                  <>
-                    <DiagnosticRow
-                      label="Git"
-                      value={diagnosticsQuery.data?.git.ok ? "OK" : "Error"}
-                    />
-                    <DiagnosticRow
-                      label="Worktree CLI"
-                      value={
-                        diagnosticsQuery.data?.worktree.available
-                          ? "Available"
-                          : "Unavailable"
-                      }
-                    />
-                    <DiagnosticRow
-                      label="Creation"
-                      value={creation?.enabled ? "Enabled" : "Disabled"}
-                      muted={!creation?.enabled}
-                    />
-                    <p className="diagnostic-note text-xs text-muted-foreground">
-                      {creation?.enabled
-                        ? "Safety flag still required."
-                        : creation?.reason}
-                    </p>
-                    <DiagnosticRow
-                      label="Cleanup"
-                      value={cleanup?.enabled ? "Enabled" : "Disabled"}
-                      muted={!cleanup?.enabled}
-                    />
-                    <p className="diagnostic-note text-xs text-muted-foreground">
-                      {cleanup?.enabled
-                        ? "Safety flag still required."
-                        : cleanup?.reason}
-                    </p>
-                    <DiagnosticRow
-                      label="Metadata records"
-                      value={String(
-                        diagnosticsQuery.data?.metadata.records.length ?? 0,
-                      )}
-                    />
-                  </>
-                )}
-              </div>
-            </section>
-          </aside>
-
-          <section className="space-y-5">
-            <section className="workspace-hero">
-              <div className="workspace-hero-copy">
-                <p className="workspace-eyebrow">
-                  Live worktree command centre
-                </p>
-                <h2>
-                  Premium workspace visibility without operational side effects.
-                </h2>
-                <p>
-                  Read-only repository, branch, commit, and diagnostics
-                  telemetry stay connected to the live worktree APIs while
-                  mutation workflows remain safety gated.
-                </p>
-              </div>
-              <div className="memory-burst" aria-hidden="true">
-                <div className="burst-line line-one" />
-                <div className="burst-line line-two" />
-                <div className="burst-line line-three" />
-                <div className="burst-orbit orbit-one" />
-                <div className="burst-orbit orbit-two" />
-                <div className="burst-core">
-                  <Boxes className="h-10 w-10" />
+        <section className="workspace-panel overflow-hidden">
+          <div className="workspace-panel-header flex items-center justify-between px-4 py-2.5">
+            <h2 className="workspace-section-title">Repository selector</h2>
+            {(repositoriesQuery.isLoading || diagnosticsQuery.isFetching) && (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            )}
+          </div>
+          <div className="grid gap-3 p-3 lg:grid-cols-[minmax(220px,320px)_1fr]">
+            <div>
+              {repositoriesQuery.isLoading ? (
+                <div className="space-y-2">
+                  {[1, 2].map((item) => (
+                    <Skeleton key={item} className="h-16 w-full" />
+                  ))}
                 </div>
-                {Array.from({ length: 24 }, (_, index) => (
-                  <span
-                    key={index}
-                    className="burst-particle"
-                    style={{ "--i": index } as CSSProperties}
-                  />
-                ))}
-              </div>
-            </section>
+              ) : repositories.length ? (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                  {repositories.map((repo) => (
+                    <button
+                      key={repo.id}
+                      type="button"
+                      onClick={() => setSelectedRepoId(repo.id)}
+                      className={`repository-pill w-full p-2.5 text-left ${
+                        selectedRepoId === repo.id ? "repository-pill-active" : ""
+                      }`}
+                    >
+                      <div className="info-line flex items-center justify-between gap-3">
+                        <span className="font-mono text-sm font-medium">
+                          {repo.displayName}
+                        </span>
+                        {repo.productionProtected ? (
+                          <Badge variant="destructive">Protected</Badge>
+                        ) : (
+                          <Badge variant="secondary">Allowed</Badge>
+                        )}
+                      </div>
+                      <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
+                        {repo.rootPath}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2 p-3 text-sm text-muted-foreground">
+                  <p>No repositories returned.</p>
+                  {repositoriesQuery.isError && (
+                    <ApiErrorDetail error={repositoriesQuery.error} />
+                  )}
+                </div>
+              )}
+            </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <Metric
-                title="Workspace count"
-                value={String(workspaces.length)}
+            <div className="workspace-card-meta grid gap-2 p-3 text-sm sm:grid-cols-2">
+              <InfoLine
+                icon={Boxes}
+                label="Repository"
+                value={selectedRepository?.displayName ?? "loading"}
               />
-              <Metric
-                title="Main workspace"
+              <InfoLine
+                icon={GitBranch}
+                label="Base"
+                value={selectedRepository?.defaultBaseBranch ?? "unknown"}
+              />
+              <InfoLine
+                icon={ShieldCheck}
+                label="Protection"
                 value={
-                  mainWorkspace
-                    ? `${mainWorkspace.branch ?? "unknown"} · ${mainWorkspace.path}`
-                    : "unknown"
+                  selectedRepository?.productionProtected ? "Protected" : "Allowed"
                 }
               />
-              <Metric
-                title="Selected repo"
-                value={selectedRepository?.id ?? selectedRepoId ?? "loading"}
+              <InfoLine
+                icon={Archive}
+                label="Metadata"
+                value={selectedRepository?.metadataPath ?? "unknown"}
               />
             </div>
+          </div>
+        </section>
 
-            <div className="workspace-panel overflow-hidden">
-              <div className="workspace-panel-header flex items-center justify-between px-4 py-3">
-                <h2 className="font-mono text-sm uppercase text-muted-foreground">
-                  Workspace Cards
-                </h2>
-                {(workspacesQuery.isLoading || diagnosticsQuery.isFetching) && (
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                )}
-              </div>
-              <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-2">
-                {workspacesQuery.isLoading ? (
-                  [1, 2, 3, 4].map((item) => (
-                    <Skeleton key={item} className="h-56 w-full" />
-                  ))
-                ) : workspaces.length ? (
-                  workspaces.map((workspace) => (
-                    <WorkspaceCard
-                      key={workspace.workspaceKey}
-                      workspace={workspace}
-                    />
-                  ))
+        <section className="workspace-panel overflow-hidden">
+          <div className="workspace-panel-header flex items-center justify-between px-4 py-2.5">
+            <h2 className="workspace-section-title">Workspace cards</h2>
+            {workspacesQuery.isLoading && (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-3 p-3 lg:grid-cols-2">
+            {workspacesQuery.isLoading ? (
+              [1, 2, 3, 4].map((item) => (
+                <Skeleton key={item} className="h-44 w-full" />
+              ))
+            ) : workspaces.length ? (
+              workspaces.map((workspace) => (
+                <WorkspaceCard
+                  key={workspace.workspaceKey}
+                  workspace={workspace}
+                />
+              ))
+            ) : (
+              <div className="col-span-full rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                {workspacesQuery.isError ? (
+                  <ApiErrorDetail error={workspacesQuery.error} />
                 ) : (
-                  <div className="col-span-full rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-                    {workspacesQuery.isError ? (
-                      <ApiErrorDetail error={workspacesQuery.error} />
-                    ) : (
-                      "No workspaces returned for this repository."
-                    )}
-                  </div>
+                  "No workspaces returned for this repository."
                 )}
               </div>
+            )}
+          </div>
+        </section>
+
+        <section className="workspace-panel diagnostics-panel overflow-hidden">
+          <div className="workspace-panel-header px-4 py-2.5">
+            <h2 className="workspace-section-title flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" /> Diagnostics
+            </h2>
+          </div>
+          <div className="diagnostics-compact p-3 text-sm">
+            {diagnosticsQuery.isLoading ? (
+              <div className="grid gap-2 md:grid-cols-2">
+                {[1, 2, 3, 4].map((item) => (
+                  <Skeleton key={item} className="h-8 w-full" />
+                ))}
+              </div>
+            ) : diagnosticsQuery.isError ? (
+              <div className="space-y-2 text-destructive">
+                <p>Unable to load diagnostics.</p>
+                <ApiErrorDetail error={diagnosticsQuery.error} />
+              </div>
+            ) : (
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                <DiagnosticRow
+                  label="Git"
+                  value={diagnosticsQuery.data?.git.ok ? "OK" : "Error"}
+                />
+                <DiagnosticRow
+                  label="Worktree CLI"
+                  value={
+                    diagnosticsQuery.data?.worktree.available
+                      ? "Available"
+                      : "Unavailable"
+                  }
+                />
+                <DiagnosticRow
+                  label="Creation"
+                  value={creation?.enabled ? "Enabled" : "Disabled"}
+                  muted={!creation?.enabled}
+                />
+                <DiagnosticRow
+                  label="Cleanup"
+                  value={cleanup?.enabled ? "Enabled" : "Disabled"}
+                  muted={!cleanup?.enabled}
+                />
+                <DiagnosticRow
+                  label="Metadata records"
+                  value={String(
+                    diagnosticsQuery.data?.metadata.records.length ?? 0,
+                  )}
+                />
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="workspace-panel overflow-hidden">
+          <div className="workspace-panel-header px-4 py-2.5">
+            <h2 className="workspace-section-title">Safety and metadata</h2>
+          </div>
+          <div className="grid gap-3 p-3 lg:grid-cols-[1fr_auto] lg:items-start">
+            <div className="grid gap-2 md:grid-cols-2">
+              <p className="diagnostic-note text-xs text-muted-foreground">
+                Creation: {creation?.enabled ? "Safety flag still required." : creation?.reason}
+              </p>
+              <p className="diagnostic-note text-xs text-muted-foreground">
+                Cleanup: {cleanup?.enabled ? "Safety flag still required." : cleanup?.reason}
+              </p>
+              <p className="diagnostic-note text-xs text-muted-foreground md:col-span-2">
+                Repository root: {selectedRepository?.rootPath ?? "unknown"}
+              </p>
             </div>
-          </section>
-        </div>
+            <div className="flex flex-wrap gap-2">
+              <DisabledActionButton label="Create Workspace" icon={Plus} />
+              <DisabledActionButton label="Cleanup" icon={Trash2} />
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
