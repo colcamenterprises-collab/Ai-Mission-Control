@@ -36,9 +36,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className="min-h-screen mission-app-bg flex text-foreground">
+    <div className="mission-app-bg relative min-h-screen overflow-hidden flex text-foreground">
+      <div className="mission-orbital-background" aria-hidden="true">
+        <span className="mission-orbit mission-orbit-one" />
+        <span className="mission-orbit mission-orbit-two" />
+        <span className="mission-orbit mission-orbit-three" />
+        <span className="mission-orbit-core" />
+      </div>
       <aside
-        className={`${isCollapsed ? "w-[4.25rem]" : "w-44 md:w-48"} border-r border-white/10 bg-sidebar/80 backdrop-blur-xl flex-shrink-0 flex flex-col transition-[width] duration-200`}
+        className={`${isCollapsed ? "w-[4.25rem]" : "w-44 md:w-48"} relative z-10 border-r border-white/10 bg-sidebar/80 backdrop-blur-xl flex-shrink-0 flex flex-col transition-[width] duration-200`}
       >
         <div
           className={`h-12 flex items-center border-b border-border gap-2 ${isCollapsed ? "justify-center px-2" : "px-3"}`}
@@ -113,7 +119,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </aside>
-      <main className="flex-1 flex flex-col h-screen overflow-hidden bg-transparent">
+      <main className="relative z-10 flex-1 flex flex-col h-screen overflow-hidden bg-transparent">
         {children}
       </main>
     </div>

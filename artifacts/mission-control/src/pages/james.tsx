@@ -10,13 +10,6 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { JamesAvatar } from "@/components/james-avatar";
 import { type AgentStatusKey, jamesIdentity } from "@/lib/agent-identities";
@@ -938,8 +931,7 @@ export default function James() {
     <div className="mission-app-bg flex h-full min-h-0 flex-col overflow-hidden text-[13px] leading-[1.5] sm:text-sm">
       <header className="sticky top-0 z-20 shrink-0 border-b border-white/10 bg-background/65 px-3 py-3 backdrop-blur-xl">
         <div className="mb-3">
-          <p className="workspace-eyebrow">Current Orchestrator</p>
-          <h1 className="text-3xl font-medium leading-none tracking-[-0.06em]">{jamesIdentity.name}</h1>
+          <h1 className="mission-page-title">{jamesIdentity.name}</h1>
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <span className="sr-only">Orchestrator console with current assigned agent</span>
@@ -962,56 +954,6 @@ export default function James() {
           <span className="rounded-md border border-border bg-muted/30 px-2 py-1 font-mono text-[12px] text-muted-foreground">
             Permission mode: {projectContext.environment}
           </span>
-          <Select
-            value={projectContext.project}
-            onValueChange={(value) => updateProject(value as JamesProject)}
-          >
-            <SelectTrigger
-              id="james-project-context"
-              aria-label="Selected project"
-              className="h-7 w-[9.25rem] min-w-0 px-2 text-[12px] sm:w-[10.5rem]"
-            >
-              <SelectValue placeholder="Select project" />
-            </SelectTrigger>
-            <SelectContent
-              position="popper"
-              sideOffset={4}
-              align="start"
-              className="max-w-[min(18rem,calc(100vw-1rem))]"
-            >
-              {JAMES_PROJECTS.map((project) => (
-                <SelectItem key={project} value={project}>
-                  {project}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={projectContext.environment}
-            onValueChange={(value) =>
-              updateEnvironment(value as JamesEnvironment)
-            }
-          >
-            <SelectTrigger
-              id="james-environment-context"
-              aria-label="Selected environment"
-              className="h-7 w-[8.5rem] min-w-0 px-2 text-[12px] sm:w-[10rem]"
-            >
-              <SelectValue placeholder="Select environment" />
-            </SelectTrigger>
-            <SelectContent
-              position="popper"
-              sideOffset={4}
-              align="start"
-              className="max-w-[min(18rem,calc(100vw-1rem))]"
-            >
-              {JAMES_ENVIRONMENTS.map((environment) => (
-                <SelectItem key={environment} value={environment}>
-                  {environment}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <span
             className="min-w-0 max-w-[11rem] truncate rounded bg-muted/60 px-2 py-1 font-mono text-[12px] text-muted-foreground sm:max-w-[20rem]"
             title={WORKSPACE_PATH}
@@ -1062,107 +1004,6 @@ export default function James() {
       >
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain bg-muted/20 p-2 [-webkit-overflow-scrolling:touch] sm:p-3">
           <div className="space-y-2">
-            <details className="group rounded-full bg-background/80 text-[12px] text-muted-foreground ring-1 ring-border/40 open:rounded-md">
-              <summary className="flex min-h-7 cursor-pointer list-none items-center gap-1.5 px-3 py-1 font-medium text-foreground [&::-webkit-details-marker]:hidden">
-                <span className="min-w-0 truncate">
-                  Workspace Context: {projectContext.project} · Permission mode: {projectContext.environment} ·{" "}
-                  <span className="font-mono">{WORKSPACE_PATH}</span>
-                </span>
-                <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180" />
-              </summary>
-              <div className="space-y-2 border-t border-border/50 px-3 py-2">
-                <div className="grid gap-1 sm:grid-cols-3">
-                  <div>
-                    <span className="text-muted-foreground">Project:</span>{" "}
-                    {projectContext.project}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Permission mode:</span>{" "}
-                    {projectContext.environment}
-                  </div>
-                  <div
-                    className="min-w-0 truncate font-mono"
-                    title={WORKSPACE_PATH}
-                  >
-                    {WORKSPACE_PATH}
-                  </div>
-                </div>
-                <div>
-                  <div className="font-medium text-foreground">
-                    Safety rules
-                  </div>
-                  <ul className="mt-1 list-disc space-y-0.5 pl-4">
-                    {JAMES_SAFETY_RULES.map((rule) => (
-                      <li key={rule}>{rule}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </details>
-
-            <div
-              className="flex flex-wrap gap-1.5"
-              aria-label="Workspace shortcuts"
-            >
-              {JAMES_PROJECTS.map((project) => (
-                <Button
-                  key={project}
-                  type="button"
-                  variant={
-                    projectContext.project === project ? "default" : "outline"
-                  }
-                  size="sm"
-                  className="h-7 rounded-full px-3 text-[12px]"
-                  onClick={() => updateProject(project)}
-                >
-                  {project}
-                </Button>
-              ))}
-            </div>
-
-            <details className="rounded-md bg-background/80 text-[12px] ring-1 ring-border/40">
-              <summary className="flex min-h-7 cursor-pointer list-none items-center justify-between gap-2 px-3 py-1 font-medium [&::-webkit-details-marker]:hidden">
-                <span>Recent Jobs ({jobs.length})</span>
-                <ChevronDown className="h-3.5 w-3.5" />
-              </summary>
-              <div className="space-y-2 border-t border-border/50 px-3 py-2">
-                <p className="text-muted-foreground">
-                  In-memory MVP: jobs reset if the API server restarts.
-                </p>
-                {jobs.length === 0 ? (
-                  <p className="text-muted-foreground">
-                    No recent background jobs.
-                  </p>
-                ) : null}
-                {jobs.slice(0, 5).map((job) => (
-                  <div
-                    key={job.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded bg-muted/40 px-2 py-1"
-                  >
-                    <span className="min-w-0 truncate font-mono" title={job.id}>
-                      {job.id}
-                    </span>
-                    <span>{job.status}</span>
-                    <span>{formatDuration(job.durationMs ?? undefined)}</span>
-                    {!isJobFinished(job.status) ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-[12px]"
-                        onClick={() => void cancelJob(job.id)}
-                      >
-                        <Square className="mr-1 h-3 w-3" />
-                        Cancel
-                      </Button>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            </details>
-          </div>
-
-          <div className="mt-2 space-y-2">
             {chatHistory.length === 0 ? (
               <p className="px-1 text-[13px] text-muted-foreground sm:text-sm">
                 No messages yet. Send a message to start a chat with the current Orchestrator agent.

@@ -205,3 +205,108 @@
   text-transform: uppercase;
   color: rgba(226, 232, 240, 0.86);
 }
+
+.mission-orbital-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.mission-orbital-background::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background:
+    repeating-radial-gradient(circle at 50% 48%, rgba(34, 211, 238, 0.11) 0 1px, transparent 1px 42px),
+    radial-gradient(circle at 50% 45%, rgba(79, 70, 229, 0.18), transparent 32%),
+    radial-gradient(circle at 50% 45%, rgba(34, 211, 238, 0.12), transparent 48%);
+  animation: mission-grid-spin 46s linear infinite;
+  opacity: 0.66;
+}
+
+.mission-orbit,
+.mission-orbit-core {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+}
+
+.mission-orbit {
+  border: 1px solid rgba(103, 232, 249, 0.16);
+  box-shadow: 0 0 36px rgba(34, 211, 238, 0.06);
+  animation: mission-orbit-pulse 6s ease-in-out infinite;
+}
+
+.mission-orbit-one {
+  width: min(76vw, 58rem);
+  aspect-ratio: 1;
+}
+
+.mission-orbit-two {
+  width: min(58vw, 42rem);
+  aspect-ratio: 1;
+  border-color: rgba(167, 139, 250, 0.16);
+  animation-delay: -1.6s;
+}
+
+.mission-orbit-three {
+  width: min(38vw, 28rem);
+  aspect-ratio: 1;
+  border-color: rgba(52, 211, 153, 0.14);
+  animation-delay: -3.2s;
+}
+
+.mission-orbit-core {
+  width: min(18vw, 9rem);
+  aspect-ratio: 1;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.18), rgba(79, 70, 229, 0.12) 48%, transparent 72%);
+  filter: blur(2px);
+  animation: mission-core-pulse 4s ease-in-out infinite;
+}
+
+@keyframes mission-grid-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes mission-orbit-pulse {
+  0%, 100% {
+    opacity: 0.36;
+    transform: translate(-50%, -50%) scale(0.98) rotate(0deg);
+  }
+  50% {
+    opacity: 0.78;
+    transform: translate(-50%, -50%) scale(1.02) rotate(8deg);
+  }
+}
+
+@keyframes mission-core-pulse {
+  0%, 100% {
+    opacity: 0.46;
+    transform: translate(-50%, -50%) scale(0.96);
+  }
+  50% {
+    opacity: 0.86;
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mission-orbital-background::before,
+  .mission-orbit,
+  .mission-orbit-core {
+    animation: none;
+  }
+}
+
+.mission-page-title {
+  font-size: clamp(2.4rem, 6vw, 5rem);
+  font-weight: 500;
+  letter-spacing: -0.075em;
+  line-height: 0.92;
+}
