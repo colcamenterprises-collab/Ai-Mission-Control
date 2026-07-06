@@ -27,6 +27,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/content", label: "Content", icon: PenTool },
     { href: "/calendar", label: "Calendar", icon: CalendarDays },
     { href: "/memory", label: "Memory", icon: BrainCircuit },
+    { href: "/workspaces", label: "Workspaces", icon: Boxes },
     { href: "/team", label: "Team", icon: Users },
     { href: "/contacts", label: "Contacts", icon: UsersRound },
     { href: "/james", label: "James", avatar: jamesIdentity.avatar },
