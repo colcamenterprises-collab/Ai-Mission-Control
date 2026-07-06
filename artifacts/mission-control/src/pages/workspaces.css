@@ -17,7 +17,7 @@
 .workspaces-canvas {
   margin: 0 auto;
   width: min(100%, 1500px);
-  padding: clamp(1rem, 2.4vw, 2rem);
+  padding: clamp(0.75rem, 1.8vw, 1.35rem);
 }
 
 .workspace-panel,
@@ -34,7 +34,7 @@
     0 0 0 1px rgba(34, 211, 238, 0.04),
     0 24px 90px rgba(0, 0, 0, 0.34);
   backdrop-filter: blur(22px);
-  border-radius: 1.25rem;
+  border-radius: 0.75rem;
 }
 
 .workspace-panel-header {
@@ -48,7 +48,7 @@
 
 .repository-pill {
   border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: 0.9rem;
+  border-radius: 0.7rem;
   background: rgba(2, 6, 23, 0.38);
   transition:
     border-color 180ms ease,
@@ -67,9 +67,9 @@
 
 .workspace-hero {
   position: relative;
-  min-height: clamp(22rem, 35vw, 32rem);
+  min-height: clamp(12rem, 20vw, 16rem);
   overflow: hidden;
-  padding: clamp(1.25rem, 3vw, 2rem);
+  padding: clamp(0.95rem, 2vw, 1.35rem);
 }
 
 .workspace-hero::before {
@@ -94,7 +94,7 @@
 .workspace-hero-copy {
   position: relative;
   z-index: 4;
-  max-width: 31rem;
+  max-width: 28rem;
 }
 
 .workspace-eyebrow {
@@ -102,24 +102,24 @@
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     monospace;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
 .workspace-hero h2 {
-  margin-top: 0.75rem;
-  font-size: clamp(2rem, 4.8vw, 4.8rem);
-  font-weight: 300;
-  letter-spacing: -0.06em;
-  line-height: 0.94;
+  margin-top: 0.45rem;
+  font-size: clamp(1.35rem, 2.6vw, 2.35rem);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
 }
 
 .workspace-hero-copy p:last-child {
-  margin-top: 1rem;
+  margin-top: 0.6rem;
   color: rgba(203, 213, 225, 0.72);
-  font-size: 0.94rem;
-  line-height: 1.65;
+  font-size: 0.84rem;
+  line-height: 1.5;
 }
 
 .workspace-stat {
@@ -169,7 +169,7 @@
 
 .workspace-card-meta {
   border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: 0.95rem;
+  border-radius: 0.75rem;
   background: rgba(2, 6, 23, 0.46);
 }
 
@@ -216,7 +216,7 @@
   border: 1px solid rgba(148, 163, 184, 0.12);
   background: rgba(2, 6, 23, 0.36);
   border-radius: 999px;
-  padding: 0.58rem 0.75rem;
+  padding: 0.42rem 0.6rem;
 }
 
 .diagnostic-note {
@@ -287,7 +287,7 @@
   z-index: 3;
   display: grid;
   place-items: center;
-  width: clamp(6.75rem, 11vw, 9rem);
+  width: clamp(4.75rem, 8vw, 6.25rem);
   aspect-ratio: 1;
   border-radius: 999px;
   color: rgb(207, 250, 254);
@@ -299,8 +299,8 @@
   );
   border: 1px solid rgba(103, 232, 249, 0.52);
   box-shadow:
-    0 0 38px rgba(34, 211, 238, 0.42),
-    0 0 120px rgba(168, 85, 247, 0.3);
+    0 0 28px rgba(34, 211, 238, 0.32),
+    0 0 80px rgba(168, 85, 247, 0.22);
   animation: core-pulse 3.8s ease-in-out infinite;
 }
 
@@ -313,11 +313,11 @@
 }
 
 .orbit-one {
-  width: min(44vw, 18rem);
+  width: min(34vw, 12rem);
   aspect-ratio: 1;
 }
 .orbit-two {
-  width: min(58vw, 29rem);
+  width: min(42vw, 18rem);
   aspect-ratio: 1;
   animation-delay: 1.2s;
   border-color: rgba(167, 139, 250, 0.22);
@@ -326,7 +326,7 @@
 .burst-line {
   position: absolute;
   z-index: 1;
-  width: min(48vw, 28rem);
+  width: min(40vw, 18rem);
   height: 1px;
   background: linear-gradient(
     90deg,
@@ -409,14 +409,14 @@
     opacity: 1;
   }
   100% {
-    transform: rotate(var(--angle)) translateX(min(28vw, 18rem)) scale(1.1);
+    transform: rotate(var(--angle)) translateX(min(20vw, 12rem)) scale(1.1);
     opacity: 0;
   }
 }
 
 @media (max-width: 1024px) {
   .workspace-hero {
-    min-height: 28rem;
+    min-height: 15rem;
   }
   .workspace-hero::before {
     background: linear-gradient(
@@ -435,7 +435,7 @@
     padding: 1rem;
   }
   .workspace-hero {
-    min-height: 32rem;
+    min-height: 18rem;
   }
   .workspace-hero-copy {
     max-width: none;
@@ -461,4 +461,45 @@
 .api-error-detail {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+
+.workspaces-page-header {
+  padding-top: 0.15rem;
+}
+
+.workspace-section-title {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.workspace-stat {
+  padding: 0.75rem;
+}
+
+.workspace-stat p:last-child {
+  margin-top: 0.35rem;
+  font-size: 0.92rem;
+  line-height: 1.25;
+}
+
+.workspace-card {
+  font-size: 0.875rem;
+}
+
+@media (max-width: 900px) {
+  .memory-burst {
+    opacity: 0.45;
+    transform: translateX(28%);
+  }
+}
+
+@media (max-width: 720px) {
+  .workspaces-canvas {
+    padding: 0.75rem;
+  }
 }

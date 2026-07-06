@@ -31,16 +31,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/team", label: "Team", icon: Users },
     { href: "/contacts", label: "Contacts", icon: UsersRound },
     { href: "/james", label: "James", avatar: jamesIdentity.avatar },
-    { href: "/workspaces", label: "Workspaces", icon: Boxes },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 
   return (
     <div className="min-h-screen bg-background flex text-foreground">
-      <div className="w-64 border-r border-border bg-sidebar flex-shrink-0 flex flex-col">
-        <div className="h-16 flex items-center px-6 border-b border-border gap-3">
+      <div className="w-52 border-r border-border bg-sidebar flex-shrink-0 flex flex-col md:w-56">
+        <div className="h-14 flex items-center px-4 border-b border-border gap-2.5">
           <Activity className="w-5 h-5 text-primary flex-shrink-0" />
-          <span className="font-mono font-bold tracking-tight text-sm uppercase flex-1 truncate">MISSION CONTROL</span>
+          <span className="font-mono font-bold tracking-tight text-xs uppercase flex-1 truncate">MISSION CONTROL</span>
           <button
             onClick={toggle}
             aria-label="Toggle theme"
@@ -53,15 +52,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
             )}
           </button>
         </div>
-        <nav className="flex-1 overflow-y-auto py-4">
-          <ul className="space-y-1 px-3">
+        <nav className="flex-1 overflow-y-auto py-3">
+          <ul className="space-y-0.5 px-2">
             {navItems.map((item) => {
               const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
               return (
                 <li key={item.href}>
                   <Link 
                     href={item.href}
-                    className={`flex items-center px-3 py-2 text-sm rounded-md transition-colors ${
+                    className={`flex items-center px-2.5 py-1.5 text-sm rounded-md transition-colors ${
                       isActive 
                         ? "bg-primary/10 text-primary font-medium" 
                         : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
@@ -69,11 +68,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   >
                     {"avatar" in item ? (
                       <JamesAvatar
-                        className={`mr-3 h-5 w-5 flex-shrink-0 rounded-full object-cover ring-1 ${isActive ? "ring-primary/40" : "ring-sidebar-border"}`}
+                        className={`mr-2.5 h-[1.125rem] w-[1.125rem] flex-shrink-0 rounded-full object-cover ring-1 ${isActive ? "ring-primary/40" : "ring-sidebar-border"}`}
                         fallbackClassName={isActive ? "text-primary" : "text-muted-foreground"}
                       />
                     ) : (
-                      <item.icon className={`w-4 h-4 mr-3 flex-shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                      <item.icon className={`w-4 h-4 mr-2.5 flex-shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
                     )}
                     {item.label}
                   </Link>
@@ -82,7 +81,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             })}
           </ul>
         </nav>
-        <div className="p-4 border-t border-border text-xs text-muted-foreground font-mono">
+        <div className="p-3 border-t border-border text-[0.68rem] text-muted-foreground font-mono">
           SYSTEM: ONLINE<br/>
           STATUS: NOMINAL
         </div>
