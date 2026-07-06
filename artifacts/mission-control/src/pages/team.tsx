@@ -20,7 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Plug, Plus, CheckCircle2, Eye, EyeOff, Trash2, ChevronLeft, ExternalLink, Copy, Check, Radio, Send, RefreshCw, Terminal } from "lucide-react";
+import { Plug, Plus, CheckCircle2, Eye, EyeOff, Trash2, ChevronLeft, ExternalLink, Copy, Check, Radio, Send, RefreshCw, Terminal, Bot } from "lucide-react";
+import "./workspaces.css";
 
 function isOnline(lastPing: string | null | undefined): boolean {
   if (!lastPing) return false;
@@ -785,47 +786,40 @@ export default function Team() {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-6 border-b border-border flex items-center justify-between">
-        <h1 className="text-xl font-mono font-semibold uppercase tracking-tight">AI Team</h1>
-        <Button size="sm" onClick={() => setShowConnect(true)} className="gap-2 text-xs">
-          <Plug className="w-3.5 h-3.5" />
-          Plug In Agent
-        </Button>
-      </div>
+    <div className="workspaces-shell flex h-full flex-col overflow-y-auto">
+      <div className="workspaces-canvas flex-1 space-y-8">
+        <header className="flex items-start justify-between gap-4">
+          <div>
+            <p className="workspace-eyebrow">Subagents</p>
+            <h1 className="mt-2 text-5xl font-medium leading-none tracking-[-0.07em] md:text-6xl">The collective.</h1>
+            <p className="mt-3 max-w-2xl text-sm text-muted-foreground">Roles stay independent from names so the assigned AI, model, and permissions can change without changing the operating system.</p>
+          </div>
+          <Button size="sm" onClick={() => setShowConnect(true)} className="gap-2 text-xs">
+            <Plug className="w-3.5 h-3.5" />
+            Plug In Agent
+          </Button>
+        </header>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-8">
-        <section className="rounded-lg border border-border bg-card p-4">
-          <div className="mb-3">
-            <h2 className="font-mono text-sm font-semibold uppercase tracking-tight">
-              Agent role structure
-            </h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Roles are separate from agent names. Current Orchestrator agent: James.
-            </p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
-              <thead className="border-b border-border text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="py-2 pr-3 font-mono font-medium">Role</th>
-                  <th className="py-2 pr-3 font-mono font-medium">Agent</th>
-                  <th className="py-2 pr-3 font-mono font-medium">Status</th>
-                  <th className="py-2 font-mono font-medium">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ROLE_STRUCTURE.map((item) => (
-                  <tr key={`${item.role}-${item.agentName}`} className="border-b border-border/60 last:border-0">
-                    <td className="py-2 pr-3 font-medium">{item.role}</td>
-                    <td className="py-2 pr-3 font-mono text-xs">{item.agentName}</td>
-                    <td className="py-2 pr-3 text-xs text-muted-foreground">{item.status}</td>
-                    <td className="py-2 text-xs text-muted-foreground">{item.notes}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
+          {ROLE_STRUCTURE.map((item, index) => (
+            <div key={`${item.role}-${item.agentName}`} className="workspace-card p-5 xl:col-span-1">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-1 font-mono text-[0.62rem] uppercase tracking-[0.18em] text-primary">{item.role.slice(0, 4)}</span>
+                <span className="rounded-full border border-white/10 px-2 py-1 font-mono text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground">{item.status}</span>
+              </div>
+              <Bot className="mb-4 h-6 w-6 text-primary" />
+              <h2 className="text-xl font-semibold tracking-[-0.05em]">{item.role}</h2>
+              <p className="mt-1 font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">Agent Name</p>
+              <p className="mt-1 text-sm text-foreground">{item.agentName}</p>
+              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{item.notes}</p>
+              <div className="mt-5 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 text-xs">
+                <div><p className="font-mono uppercase tracking-wider text-muted-foreground">Model</p><p className="mt-1 truncate">Configurable</p></div>
+                <div><p className="font-mono uppercase tracking-wider text-muted-foreground">Permission</p><p className="mt-1 truncate">Role scoped</p></div>
+                <div><p className="font-mono uppercase tracking-wider text-muted-foreground">Activity</p><p className="mt-1">{index === 0 ? "Active" : "Ready"}</p></div>
+                <div><p className="font-mono uppercase tracking-wider text-muted-foreground">Status</p><p className="mt-1">{item.status}</p></div>
+              </div>
+            </div>
+          ))}
         </section>
 
         {isLoading ? (

@@ -5,20 +5,18 @@ import {
   CheckSquare,
   PenTool,
   CalendarDays,
-  BrainCircuit,
   Users,
   UsersRound,
   Settings,
   Activity,
   Boxes,
+  Bot,
   Sun,
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
 import { useTheme } from "@/lib/theme";
-import { jamesIdentity } from "@/lib/agent-identities";
-import { JamesAvatar } from "@/components/james-avatar";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -30,18 +28,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/tasks", label: "Tasks", icon: CheckSquare },
     { href: "/content", label: "Content", icon: PenTool },
     { href: "/calendar", label: "Calendar", icon: CalendarDays },
-    { href: "/memory", label: "Memory", icon: BrainCircuit },
-    { href: "/workspaces", label: "Workspaces", icon: Boxes },
+    { href: "/workspaces", label: "Repositories", icon: Boxes },
     { href: "/team", label: "Team", icon: Users },
+    { href: "/orchestrator", label: "Orchestrator", icon: Bot },
     { href: "/contacts", label: "Contacts", icon: UsersRound },
-    { href: "/james", label: "Orchestrator", avatar: jamesIdentity.avatar },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 
   return (
-    <div className="min-h-screen bg-background flex text-foreground">
+    <div className="min-h-screen mission-app-bg flex text-foreground">
       <aside
-        className={`${isCollapsed ? "w-[4.25rem]" : "w-44 md:w-48"} border-r border-border bg-sidebar flex-shrink-0 flex flex-col transition-[width] duration-200`}
+        className={`${isCollapsed ? "w-[4.25rem]" : "w-44 md:w-48"} border-r border-white/10 bg-sidebar/80 backdrop-blur-xl flex-shrink-0 flex flex-col transition-[width] duration-200`}
       >
         <div
           className={`h-12 flex items-center border-b border-border gap-2 ${isCollapsed ? "justify-center px-2" : "px-3"}`}
@@ -81,18 +78,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
                     }`}
                   >
-                    {"avatar" in item ? (
-                      <JamesAvatar
-                        className={`${isCollapsed ? "" : "mr-2"} h-4 w-4 flex-shrink-0 rounded-full object-cover ring-1 ${isActive ? "ring-primary/40" : "ring-sidebar-border"}`}
-                        fallbackClassName={
-                          isActive ? "text-primary" : "text-muted-foreground"
-                        }
-                      />
-                    ) : (
-                      <item.icon
-                        className={`w-3.5 h-3.5 ${isCollapsed ? "" : "mr-2"} flex-shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`}
-                      />
-                    )}
+                    <item.icon
+                      className={`w-3.5 h-3.5 ${isCollapsed ? "" : "mr-2"} flex-shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`}
+                    />
                     {!isCollapsed && (
                       <span className="truncate">{item.label}</span>
                     )}
@@ -125,7 +113,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </aside>
-      <main className="flex-1 flex flex-col h-screen overflow-hidden bg-background">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden bg-transparent">
         {children}
       </main>
     </div>
