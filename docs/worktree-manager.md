@@ -171,3 +171,51 @@ Rebuild / rollback:
 - Cleanup: use the existing cleanup endpoint or script path. Cleanup still
   requires `WORKTREE_CLEANUP_ENABLED=1` plus `safetyFlag: true`; dirty worktrees
   still require `force: true`.
+
+## Patch #27 Operational Workspace Gates
+
+Patch #27 turns the backend workspace lifecycle from read-only diagnostics into a controlled operation surface. It does not change database schemas, SBB production flows, frontend UI, or canonical business logic.
+
+### Permission Modes
+
+| Permission mode   | Allowed operations                                                                                                         |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `read-only`       | Inspect diagnostics and workspace status only.                                                                             |
+| `write-allowed`   | Create a managed branch/worktree when the environment gate and explicit request permit are present.                        |
+| `execute-allowed` | Create a managed branch/worktree and launch a registered agent command from that workspace path when explicitly permitted. |
+| `admin`           | Includes execute permissions and is required for cleanup/archive operations.                                               |
+
+### Operational Create Body
+
+```json
+{
+  "repoId": "mission-control",
+  "taskId": "27",
+  "taskName": "Patch 27",
+  "branchName": "codex/patch-27-workspaces",
+  "assignedAgent": "codex",
+  "permissionMode": "write-allowed",
+  "permit": true,
+  "dryRun": false
+}
+```
+
+Actual creation requires `WORKTREE_CREATION_ENABLED=1`, `permit: true` (or the legacy `safetyFlag: true`), and a permission mode of `write-allowed`, `execute-allowed`, or `admin`.
+
+### Agent Launch Foundation
+
+Registered agent ids currently include `james` and `codex`. Additional agents can be configured without code changes through `AGENT_<ID>_COMMAND` environment variables. Launch requests must target a managed workspace path and require explicit permit plus `execute-allowed` or `admin` permission mode.
+
+```text
+POST /api/worktrees/agents/launch
+```
+
+### Audit Log
+
+Every create, cleanup, dry-run, blocked, and agent-launch decision appends deterministic JSON Lines audit entries under the configured worktree root:
+
+```text
+<worktreeRoot>/mission-control-worktree-audit.jsonl
+```
+
+Audit entries include who/what requested the action, repo, branch, workspace path, permission mode, command, result, and status (`permitted`, `blocked`, `created`, `running`, or `failed`).

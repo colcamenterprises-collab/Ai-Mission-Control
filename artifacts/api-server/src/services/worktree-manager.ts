@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import {
   mkdir,
   readFile,
@@ -6,6 +6,7 @@ import {
   rename,
   rm,
   writeFile,
+  appendFile,
 } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -19,13 +20,26 @@ const GIT_TIMEOUT_MS = 10_000;
 const MAX_BUFFER = 1024 * 1024;
 const ENABLED_VALUES = new Set(["1", "true", "yes", "enabled"]);
 const METADATA_FILE_NAME = "mission-control-worktrees.json";
-const METADATA_SCHEMA_VERSION = 1;
+const METADATA_SCHEMA_VERSION = 2;
+const AUDIT_FILE_NAME = "mission-control-worktree-audit.jsonl";
 
 const SBB_PRODUCTION_PATH_MARKERS = [
   "/opt/apps/sbb-production",
   "/opt/apps/smash-brothers-burgers",
   "/opt/apps/smash-brothers-burgers-production",
 ];
+
+export type WorkspacePermissionMode =
+  | "read-only"
+  | "write-allowed"
+  | "execute-allowed"
+  | "admin";
+export type WorkspaceOperationStatus =
+  | "permitted"
+  | "blocked"
+  | "created"
+  | "running"
+  | "failed";
 
 export type WorktreeRepositoryConfig = {
   id: string;
@@ -78,6 +92,9 @@ export type WorktreeMetadataRecord = {
   id: string;
   repoId: string;
   taskId: string;
+  taskName: string | null;
+  assignedAgent: string | null;
+  permissionMode: WorkspacePermissionMode;
   path: string;
   branchName: string;
   baseBranch: string;
@@ -147,6 +164,10 @@ export type WorktreeCreationRequest = {
   baseBranch?: string;
   safetyFlag?: boolean;
   dryRun?: boolean;
+  taskName?: string;
+  assignedAgent?: string;
+  permissionMode?: WorkspacePermissionMode;
+  permit?: boolean;
 };
 
 export type WorktreeCreationResult = {
@@ -163,6 +184,8 @@ export type WorktreeCreationResult = {
   gitStatus: GitStatusInspection | null;
   metadata: WorktreeMetadataRecord | null;
   workspace: OrcaWorkspace | null;
+  status: WorkspaceOperationStatus;
+  auditId: string | null;
   error: string | null;
 };
 
@@ -172,6 +195,32 @@ export type WorktreeCleanupRequest = {
   safetyFlag?: boolean;
   force?: boolean;
   dryRun?: boolean;
+  permit?: boolean;
+  permissionMode?: WorkspacePermissionMode;
+};
+
+export type AgentLaunchRequest = {
+  repoId: string;
+  taskId: string | number;
+  assignedAgent: string;
+  permissionMode?: WorkspacePermissionMode;
+  permit?: boolean;
+  dryRun?: boolean;
+  commandArgs?: string[];
+};
+
+export type AgentLaunchResult = {
+  ok: boolean;
+  status: WorkspaceOperationStatus;
+  dryRun: boolean;
+  repoId: string;
+  taskId: string;
+  assignedAgent: string;
+  workspacePath: string;
+  command: string | null;
+  result: string | null;
+  auditId: string | null;
+  error: string | null;
 };
 
 const configuredRepositories: WorktreeRepositoryConfig[] = [
@@ -210,6 +259,10 @@ function getWorkspaceKey(repoId: string, worktreeId: string): string {
 
 function metadataStorePath(repo: WorktreeRepositoryConfig): string {
   return normalizeAbsolutePath(repo.metadataPath);
+}
+
+function auditStorePath(repo: WorktreeRepositoryConfig): string {
+  return normalizeAbsolutePath(path.join(repo.worktreeRoot, AUDIT_FILE_NAME));
 }
 
 function normalizeMetadataStore(input: unknown): WorktreeMetadataStore {
@@ -312,6 +365,80 @@ function pathInsideRoot(candidate: string, root: string): boolean {
 
 function envEnabled(name: string): boolean {
   return ENABLED_VALUES.has((process.env[name] ?? "").trim().toLowerCase());
+}
+
+function normalizePermissionMode(
+  mode: WorkspacePermissionMode | undefined,
+): WorkspacePermissionMode {
+  if (
+    mode === "read-only" ||
+    mode === "write-allowed" ||
+    mode === "execute-allowed" ||
+    mode === "admin"
+  ) {
+    return mode;
+  }
+  return "read-only";
+}
+
+function permissionAllows(
+  mode: WorkspacePermissionMode,
+  operation: "create" | "execute" | "cleanup",
+): boolean {
+  if (operation === "create") {
+    return (
+      mode === "write-allowed" || mode === "execute-allowed" || mode === "admin"
+    );
+  }
+  if (operation === "execute") {
+    return mode === "execute-allowed" || mode === "admin";
+  }
+  return mode === "admin";
+}
+
+function explicitPermit(request: {
+  safetyFlag?: boolean;
+  permit?: boolean;
+}): boolean {
+  return request.permit === true || request.safetyFlag === true;
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+async function writeAuditLog(
+  repo: WorktreeRepositoryConfig,
+  entry: Record<string, unknown>,
+): Promise<string> {
+  const target = auditStorePath(repo);
+  const validation = validateWorkspacePath(target, [repo.worktreeRoot]);
+  if (!validation.ok) {
+    throw new Error(validation.reason ?? "Audit path failed validation");
+  }
+  await mkdir(path.dirname(target), { recursive: true });
+  const auditId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  await appendFile(
+    target,
+    `${JSON.stringify({ auditId, at: nowIso(), ...entry })}\n`,
+    "utf8",
+  );
+  return auditId;
+}
+
+const agentRegistry: Record<string, { command: string; args: string[] }> = {
+  james: { command: process.env.JAMES_AGENT_COMMAND ?? "james", args: [] },
+  codex: { command: process.env.CODEX_AGENT_COMMAND ?? "codex", args: [] },
+};
+
+function resolveAgent(
+  agentId: string,
+): { command: string; args: string[] } | null {
+  const normalized = agentId.trim().toLowerCase();
+  if (!normalized) return null;
+  const envCommand = process.env[`AGENT_${normalized.toUpperCase()}_COMMAND`];
+  if (envCommand) return { command: envCommand, args: [] };
+  return agentRegistry[normalized] ?? null;
 }
 
 function getAllowedWorkspaceRoots(): string[] {
@@ -681,8 +808,11 @@ export async function createTaskWorktree(
   const branchValidation = validateBranchName(request.branchName);
   const baseBranch = request.baseBranch?.trim() || repo.defaultBaseBranch;
   const dryRun = request.dryRun === true;
+  const permissionMode = normalizePermissionMode(request.permissionMode);
   const enabled =
-    envEnabled("WORKTREE_CREATION_ENABLED") && request.safetyFlag === true;
+    envEnabled("WORKTREE_CREATION_ENABLED") &&
+    explicitPermit(request) &&
+    permissionAllows(permissionMode, "create");
 
   const baseResult = {
     enabled,
@@ -696,6 +826,8 @@ export async function createTaskWorktree(
     branchValidation,
     metadata: null,
     workspace: null,
+    status: enabled || dryRun ? ("permitted" as const) : ("blocked" as const),
+    auditId: null,
   };
 
   if (!branchValidation.ok) {
@@ -707,16 +839,51 @@ export async function createTaskWorktree(
     };
   }
   if (!enabled && !dryRun) {
+    const auditId = await writeAuditLog(repo, {
+      action: "workspace.create",
+      status: "blocked",
+      requestedBy: "api",
+      repoId: repo.id,
+      branchName: branchValidation.normalizedBranchName,
+      workspacePath: pathPreview.path,
+      permissionMode,
+      command: null,
+      result: "blocked",
+      reason: !permissionAllows(permissionMode, "create")
+        ? "permission mode does not allow workspace creation"
+        : "missing environment gate or explicit permit",
+    });
     return {
       ...baseResult,
       ok: false,
+      status: "blocked",
+      auditId,
       gitStatus: null,
       error:
-        "Worktree creation is disabled unless WORKTREE_CREATION_ENABLED and safetyFlag are both enabled.",
+        "Worktree creation requires WORKTREE_CREATION_ENABLED, an explicit permit, and write-allowed/execute-allowed/admin permission mode.",
     };
   }
   if (dryRun) {
-    return { ...baseResult, ok: true, gitStatus: null, error: null };
+    const auditId = await writeAuditLog(repo, {
+      action: "workspace.create",
+      status: "permitted",
+      dryRun,
+      requestedBy: "api",
+      repoId: repo.id,
+      branchName: branchValidation.normalizedBranchName,
+      workspacePath: pathPreview.path,
+      permissionMode,
+      command: null,
+      result: "dry-run",
+    });
+    return {
+      ...baseResult,
+      ok: true,
+      status: "permitted",
+      auditId,
+      gitStatus: null,
+      error: null,
+    };
   }
 
   const result = await runGit(repo.rootPath, [
@@ -728,19 +895,40 @@ export async function createTaskWorktree(
     baseBranch,
   ]);
   if (!result.ok) {
-    return { ...baseResult, ok: false, gitStatus: null, error: result.error };
+    const auditId = await writeAuditLog(repo, {
+      action: "workspace.create",
+      status: "failed",
+      requestedBy: "api",
+      repoId: repo.id,
+      branchName: branchValidation.normalizedBranchName,
+      workspacePath: pathPreview.path,
+      permissionMode,
+      command: `git worktree add -b ${branchValidation.normalizedBranchName} ${pathPreview.path} ${baseBranch}`,
+      result: result.error,
+    });
+    return {
+      ...baseResult,
+      ok: false,
+      status: "failed",
+      auditId,
+      gitStatus: null,
+      error: result.error,
+    };
   }
 
   const metadata: WorktreeMetadataRecord = {
     id: getWorktreeId(repo.id, pathPreview.taskId),
     repoId: repo.id,
     taskId: pathPreview.taskId,
+    taskName: request.taskName?.trim() || null,
+    assignedAgent: request.assignedAgent?.trim() || null,
+    permissionMode,
     path: pathPreview.path,
     branchName: branchValidation.normalizedBranchName!,
     baseBranch,
     workspaceKind: "git",
-    createdAt: null,
-    updatedAt: null,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
     meta: createDefaultWorktreeMeta(pathPreview.taskId),
   };
   await writeWorktreeMetadataStore(
@@ -752,9 +940,24 @@ export async function createTaskWorktree(
       (candidate) => candidate.id === metadata.id,
     ) ?? null;
 
+  const auditId = await writeAuditLog(repo, {
+    action: "workspace.create",
+    status: "created",
+    requestedBy: "api",
+    repoId: repo.id,
+    branchName: metadata.branchName,
+    workspacePath: metadata.path,
+    permissionMode,
+    assignedAgent: metadata.assignedAgent,
+    command: `git worktree add -b ${metadata.branchName} ${metadata.path} ${baseBranch}`,
+    result: "created",
+  });
+
   return {
     ...baseResult,
     ok: true,
+    status: "created",
+    auditId,
     gitStatus: await inspectGitStatus(repo.id, pathPreview.path),
     metadata,
     workspace,
@@ -769,8 +972,11 @@ export async function cleanupTaskWorktree(
   const pathPreview = calculateSafeWorktreePath(repo.id, request.taskId);
   const branchValidation = validateBranchName(`cleanup/${pathPreview.taskId}`);
   const dryRun = request.dryRun === true;
+  const permissionMode = normalizePermissionMode(request.permissionMode);
   const enabled =
-    envEnabled("WORKTREE_CLEANUP_ENABLED") && request.safetyFlag === true;
+    envEnabled("WORKTREE_CLEANUP_ENABLED") &&
+    explicitPermit(request) &&
+    permissionAllows(permissionMode, "cleanup");
   const baseResult = {
     enabled,
     dryRun,
@@ -783,21 +989,55 @@ export async function cleanupTaskWorktree(
     branchValidation,
     metadata: null,
     workspace: null,
+    status: enabled || dryRun ? ("permitted" as const) : ("blocked" as const),
+    auditId: null,
   };
 
   if (!enabled && !dryRun) {
+    const auditId = await writeAuditLog(repo, {
+      action: "workspace.cleanup",
+      status: "blocked",
+      requestedBy: "api",
+      repoId: repo.id,
+      branchName: null,
+      workspacePath: pathPreview.path,
+      permissionMode,
+      command: null,
+      result: "blocked",
+    });
     return {
       ...baseResult,
       ok: false,
+      status: "blocked",
+      auditId,
       gitStatus: null,
       error:
-        "Worktree cleanup is disabled unless WORKTREE_CLEANUP_ENABLED and safetyFlag are both enabled.",
+        "Worktree cleanup requires WORKTREE_CLEANUP_ENABLED, an explicit permit, and admin permission mode.",
     };
   }
 
   const gitStatus = await inspectGitStatus(repo.id, pathPreview.path);
   if (dryRun) {
-    return { ...baseResult, ok: true, gitStatus, error: null };
+    const auditId = await writeAuditLog(repo, {
+      action: "workspace.cleanup",
+      status: "permitted",
+      dryRun,
+      requestedBy: "api",
+      repoId: repo.id,
+      branchName: null,
+      workspacePath: pathPreview.path,
+      permissionMode,
+      command: null,
+      result: "dry-run",
+    });
+    return {
+      ...baseResult,
+      ok: true,
+      status: "permitted",
+      auditId,
+      gitStatus,
+      error: null,
+    };
   }
   if (gitStatus.dirty && request.force !== true) {
     return {
@@ -815,11 +1055,187 @@ export async function cleanupTaskWorktree(
     pathPreview.path,
   ]);
   if (!remove.ok) {
-    return { ...baseResult, ok: false, gitStatus, error: remove.error };
+    const auditId = await writeAuditLog(repo, {
+      action: "workspace.cleanup",
+      status: "failed",
+      requestedBy: "api",
+      repoId: repo.id,
+      branchName: null,
+      workspacePath: pathPreview.path,
+      permissionMode,
+      command: `git worktree remove ${pathPreview.path}`,
+      result: remove.error,
+    });
+    return {
+      ...baseResult,
+      ok: false,
+      status: "failed",
+      auditId,
+      gitStatus,
+      error: remove.error,
+    };
   }
   await rm(pathPreview.path, { recursive: true, force: true });
   await removeMetadataRecord(repo, getWorktreeId(repo.id, pathPreview.taskId));
-  return { ...baseResult, ok: true, gitStatus, error: null };
+  const auditId = await writeAuditLog(repo, {
+    action: "workspace.cleanup",
+    status: "created",
+    requestedBy: "api",
+    repoId: repo.id,
+    branchName: null,
+    workspacePath: pathPreview.path,
+    permissionMode,
+    command: `git worktree remove ${pathPreview.path}`,
+    result: "removed",
+  });
+  return {
+    ...baseResult,
+    ok: true,
+    status: "created",
+    auditId,
+    gitStatus,
+    error: null,
+  };
+}
+
+export async function launchWorkspaceAgent(
+  request: AgentLaunchRequest,
+): Promise<AgentLaunchResult> {
+  const repo = findRepository(request.repoId);
+  const pathPreview = calculateSafeWorktreePath(repo.id, request.taskId);
+  const permissionMode = normalizePermissionMode(request.permissionMode);
+  const dryRun = request.dryRun === true;
+  const agent = resolveAgent(request.assignedAgent);
+  const pathValidation = validateTargetWorktreePath(repo.id, pathPreview.path);
+  const commandArgs = Array.isArray(request.commandArgs)
+    ? request.commandArgs.filter(
+        (arg): arg is string => typeof arg === "string",
+      )
+    : [];
+  const base = {
+    dryRun,
+    repoId: repo.id,
+    taskId: pathPreview.taskId,
+    assignedAgent: request.assignedAgent,
+    workspacePath: pathPreview.path,
+    command: agent
+      ? [agent.command, ...agent.args, ...commandArgs].join(" ")
+      : null,
+    result: null,
+    auditId: null,
+  };
+
+  if (
+    !agent ||
+    !pathValidation.ok ||
+    !explicitPermit(request) ||
+    !permissionAllows(permissionMode, "execute")
+  ) {
+    const auditId = await writeAuditLog(repo, {
+      action: "agent.launch",
+      status: "blocked",
+      requestedBy: "api",
+      repoId: repo.id,
+      branchName: null,
+      workspacePath: pathPreview.path,
+      permissionMode,
+      assignedAgent: request.assignedAgent,
+      command: base.command,
+      result: "blocked",
+      reason: !agent
+        ? "unknown agent"
+        : !pathValidation.ok
+          ? pathValidation.reason
+          : !explicitPermit(request)
+            ? "missing explicit permit"
+            : "permission mode does not allow execution",
+    });
+    return {
+      ...base,
+      ok: false,
+      status: "blocked",
+      auditId,
+      error:
+        "Agent launch requires a registered agent, explicit permit, execute-allowed/admin permission mode, and a managed workspace path.",
+    };
+  }
+
+  if (dryRun) {
+    const auditId = await writeAuditLog(repo, {
+      action: "agent.launch",
+      status: "permitted",
+      dryRun,
+      requestedBy: "api",
+      repoId: repo.id,
+      branchName: null,
+      workspacePath: pathPreview.path,
+      permissionMode,
+      assignedAgent: request.assignedAgent,
+      command: base.command,
+      result: "dry-run",
+    });
+    return {
+      ...base,
+      ok: true,
+      status: "permitted",
+      auditId,
+      result: "dry-run",
+      error: null,
+    };
+  }
+
+  try {
+    const child = spawn(agent.command, [...agent.args, ...commandArgs], {
+      cwd: pathPreview.path,
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    child.unref();
+    const auditId = await writeAuditLog(repo, {
+      action: "agent.launch",
+      status: "running",
+      requestedBy: "api",
+      repoId: repo.id,
+      branchName: null,
+      workspacePath: pathPreview.path,
+      permissionMode,
+      assignedAgent: request.assignedAgent,
+      command: base.command,
+      result: `pid:${child.pid ?? "unknown"}`,
+    });
+    return {
+      ...base,
+      ok: true,
+      status: "running",
+      auditId,
+      result: `pid:${child.pid ?? "unknown"}`,
+      error: null,
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "agent launch failed";
+    const auditId = await writeAuditLog(repo, {
+      action: "agent.launch",
+      status: "failed",
+      requestedBy: "api",
+      repoId: repo.id,
+      branchName: null,
+      workspacePath: pathPreview.path,
+      permissionMode,
+      assignedAgent: request.assignedAgent,
+      command: base.command,
+      result: message,
+    });
+    return {
+      ...base,
+      ok: false,
+      status: "failed",
+      auditId,
+      result: message,
+      error: message,
+    };
+  }
 }
 
 export async function getWorktreeDiagnostics(
