@@ -1,0 +1,28 @@
+.workspaces-shell {
+  background: radial-gradient(circle at 25% 0%, rgba(79, 70, 229, 0.22), transparent 34%), radial-gradient(circle at 80% 12%, rgba(6, 182, 212, 0.16), transparent 28%), #050816;
+}
+.workspace-panel, .workspace-stat, .workspace-card {
+  border: 1px solid rgba(103, 232, 249, 0.14);
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.86), rgba(2, 6, 23, 0.94));
+  box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.06), 0 24px 80px rgba(0, 0, 0, 0.28);
+  border-radius: 1rem;
+}
+.workspace-stat { padding: 1rem; color: rgb(103 232 249); }
+.workspace-stat-violet { color: rgb(196 181 253); }
+.workspace-stat-emerald { color: rgb(110 231 183); }
+.workspace-stat-blue { color: rgb(147 197 253); }
+.workspace-card { padding: 1rem; transition: border-color 180ms ease, transform 180ms ease; }
+.workspace-card:hover { border-color: rgba(34, 211, 238, 0.45); transform: translateY(-1px); }
+.diagnostic-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; border: 1px solid rgba(51, 65, 85, 0.72); background: rgba(2, 6, 23, 0.45); border-radius: 0.75rem; padding: 0.75rem; }
+.memory-burst { position: absolute; inset: 3rem 1rem 0; display: grid; place-items: center; overflow: hidden; }
+.memory-burst::before { content: ""; position: absolute; width: min(58vw, 560px); aspect-ratio: 1; border-radius: 999px; background: repeating-radial-gradient(circle, rgba(34,211,238,.18) 0 1px, transparent 1px 24px), conic-gradient(from 90deg, rgba(168,85,247,.0), rgba(168,85,247,.38), rgba(34,211,238,.42), rgba(52,211,153,.32), rgba(168,85,247,.0)); filter: blur(.2px); animation: burst-spin 18s linear infinite; opacity: .9; }
+.burst-core { position: relative; z-index: 2; display: grid; place-items: center; width: 8.5rem; aspect-ratio: 1; border-radius: 999px; color: rgb(207 250 254); background: radial-gradient(circle, rgba(34,211,238,.45), rgba(79,70,229,.2) 48%, rgba(2,6,23,.85) 70%); border: 1px solid rgba(103,232,249,.5); box-shadow: 0 0 36px rgba(34,211,238,.38), 0 0 90px rgba(168,85,247,.28); }
+.burst-orbit { position: absolute; z-index: 1; border-radius: 999px; border: 1px solid rgba(103,232,249,.28); animation: burst-pulse 3.8s ease-in-out infinite; }
+.orbit-one { width: 17rem; aspect-ratio: 1; }
+.orbit-two { width: 25rem; aspect-ratio: 1; animation-delay: 1.3s; border-color: rgba(167,139,250,.24); }
+.burst-particle { --angle: calc(var(--i) * 15deg); position: absolute; z-index: 2; width: .38rem; aspect-ratio: 1; border-radius: 999px; background: rgb(52 211 153); box-shadow: 0 0 14px rgb(52 211 153); transform: rotate(var(--angle)) translateX(4rem); animation: particle-burst 2.9s cubic-bezier(.4,0,.2,1) infinite; animation-delay: calc(var(--i) * -0.11s); }
+@keyframes burst-spin { to { transform: rotate(360deg); } }
+@keyframes burst-pulse { 0%,100% { transform: scale(.82); opacity: .34; } 50% { transform: scale(1.08); opacity: .9; } }
+@keyframes particle-burst { 0% { transform: rotate(var(--angle)) translateX(4rem) scale(.5); opacity: 0; } 35% { opacity: 1; } 100% { transform: rotate(var(--angle)) translateX(min(31vw, 18rem)) scale(1.15); opacity: 0; } }
+@media (max-width: 900px) { .memory-burst { min-height: 300px; inset: 5rem 0 0; } .orbit-two { width: 19rem; } }
+@media (prefers-reduced-motion: reduce) { .memory-burst::before, .burst-orbit, .burst-particle { animation-duration: 12s; animation-iteration-count: 1; } }
