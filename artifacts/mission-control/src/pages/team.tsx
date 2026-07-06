@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Plug, Plus, CheckCircle2, Eye, EyeOff, Trash2, ChevronLeft, ExternalLink, Copy, Check, Radio, Send, RefreshCw, Terminal, Bot } from "lucide-react";
+import { Plug, Plus, CheckCircle2, Eye, EyeOff, Trash2, ChevronLeft, ExternalLink, Copy, Check, Radio, Send, RefreshCw, Terminal } from "lucide-react";
 import "./workspaces.css";
 
 function isOnline(lastPing: string | null | undefined): boolean {
@@ -335,45 +335,6 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const DEPARTMENTS = ["Developers", "Writers", "Researchers", "Operators"] as const;
-
-const ROLE_STRUCTURE = [
-  {
-    role: "Orchestrator",
-    agentName: "James",
-    status: "Current",
-    notes: "Coordinates plans, workspace context, permissions, and chat handoff.",
-  },
-  {
-    role: "Research",
-    agentName: "Scout",
-    status: "Role",
-    notes: "Source-backed research and structured briefs.",
-  },
-  {
-    role: "Documentation/content",
-    agentName: "Scribe",
-    status: "Role",
-    notes: "Validated notes, docs, and content drafts.",
-  },
-  {
-    role: "Marketing/outreach",
-    agentName: "Reach",
-    status: "Role",
-    notes: "Approved audience and outreach materials.",
-  },
-  {
-    role: "Build agent",
-    agentName: "Dev/Codex",
-    status: "Role",
-    notes: "Scoped implementation after explicit plans are approved.",
-  },
-  {
-    role: "Orchestrator candidate",
-    agentName: "OpenClaw/Bob",
-    status: "Placeholder",
-    notes: "Future agent can assume Orchestrator without deleting James.",
-  },
-] as const;
 
 interface Provider {
   id: string;
@@ -800,27 +761,6 @@ export default function Team() {
           </Button>
         </header>
 
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
-          {ROLE_STRUCTURE.map((item, index) => (
-            <div key={`${item.role}-${item.agentName}`} className="workspace-card p-5 xl:col-span-1">
-              <div className="mb-5 flex items-center justify-between gap-3">
-                <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-1 font-mono text-[0.62rem] uppercase tracking-[0.18em] text-primary">{item.role.slice(0, 4)}</span>
-                <span className="rounded-full border border-white/10 px-2 py-1 font-mono text-[0.62rem] uppercase tracking-[0.18em] text-muted-foreground">{item.status}</span>
-              </div>
-              <Bot className="mb-4 h-6 w-6 text-primary" />
-              <h2 className="text-xl font-semibold tracking-[-0.05em]">{item.role}</h2>
-              <p className="mt-1 font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">Agent Name</p>
-              <p className="mt-1 text-sm text-foreground">{item.agentName}</p>
-              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{item.notes}</p>
-              <div className="mt-5 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 text-xs">
-                <div><p className="font-mono uppercase tracking-wider text-muted-foreground">Model</p><p className="mt-1 truncate">Configurable</p></div>
-                <div><p className="font-mono uppercase tracking-wider text-muted-foreground">Permission</p><p className="mt-1 truncate">Role scoped</p></div>
-                <div><p className="font-mono uppercase tracking-wider text-muted-foreground">Activity</p><p className="mt-1">{index === 0 ? "Active" : "Ready"}</p></div>
-                <div><p className="font-mono uppercase tracking-wider text-muted-foreground">Status</p><p className="mt-1">{item.status}</p></div>
-              </div>
-            </div>
-          ))}
-        </section>
 
         {isLoading ? (
           <div className="space-y-4">
