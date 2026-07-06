@@ -335,6 +335,45 @@ const STATUS_LABEL: Record<string, string> = {
 
 const DEPARTMENTS = ["Developers", "Writers", "Researchers", "Operators"] as const;
 
+const ROLE_STRUCTURE = [
+  {
+    role: "Orchestrator",
+    agentName: "James",
+    status: "Current",
+    notes: "Coordinates plans, workspace context, permissions, and chat handoff.",
+  },
+  {
+    role: "Research",
+    agentName: "Scout",
+    status: "Role",
+    notes: "Source-backed research and structured briefs.",
+  },
+  {
+    role: "Documentation/content",
+    agentName: "Scribe",
+    status: "Role",
+    notes: "Validated notes, docs, and content drafts.",
+  },
+  {
+    role: "Marketing/outreach",
+    agentName: "Reach",
+    status: "Role",
+    notes: "Approved audience and outreach materials.",
+  },
+  {
+    role: "Build agent",
+    agentName: "Dev/Codex",
+    status: "Role",
+    notes: "Scoped implementation after explicit plans are approved.",
+  },
+  {
+    role: "Orchestrator candidate",
+    agentName: "OpenClaw/Bob",
+    status: "Placeholder",
+    notes: "Future agent can assume Orchestrator without deleting James.",
+  },
+] as const;
+
 interface Provider {
   id: string;
   name: string;
@@ -756,6 +795,39 @@ export default function Team() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-8">
+        <section className="rounded-lg border border-border bg-card p-4">
+          <div className="mb-3">
+            <h2 className="font-mono text-sm font-semibold uppercase tracking-tight">
+              Agent role structure
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Roles are separate from agent names. Current Orchestrator agent: James.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-left text-sm">
+              <thead className="border-b border-border text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="py-2 pr-3 font-mono font-medium">Role</th>
+                  <th className="py-2 pr-3 font-mono font-medium">Agent</th>
+                  <th className="py-2 pr-3 font-mono font-medium">Status</th>
+                  <th className="py-2 font-mono font-medium">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ROLE_STRUCTURE.map((item) => (
+                  <tr key={`${item.role}-${item.agentName}`} className="border-b border-border/60 last:border-0">
+                    <td className="py-2 pr-3 font-medium">{item.role}</td>
+                    <td className="py-2 pr-3 font-mono text-xs">{item.agentName}</td>
+                    <td className="py-2 pr-3 text-xs text-muted-foreground">{item.status}</td>
+                    <td className="py-2 text-xs text-muted-foreground">{item.notes}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         {isLoading ? (
           <div className="space-y-4">
             <Skeleton className="h-32 w-full max-w-sm" />
