@@ -133,3 +133,41 @@ pnpm exec tsx artifacts/api-server/src/scripts/worktree-diagnostics.ts --dry-run
 
 Patch #17 implements step 1 and step 6 as backend service/API lifecycle
 primitives only. It intentionally does not route James execution into worktrees.
+
+## Patch #19 Metadata Model
+
+Patch #19 adds an Orca-style workspace metadata layer without changing database
+schemas, canonical task data, frontend code, or the Patch #17 lifecycle safety
+gates. Metadata is persisted as deterministic JSON under each configured
+worktree root (`mission-control-worktrees.json`) and can be rebuilt from the
+Git worktree list plus managed create records.
+
+The metadata store contains:
+
+- `schemaVersion` for explicit future migrations.
+- One record per Mission Control-managed task worktree.
+- Stable workspace ids in the form `<repoId>:<taskId>`.
+- Orca-compatible fields such as `workspaceKind`, `displayName`, `comment`,
+  linked issue/PR placeholders, archive/unread flags, sort order, activity
+  timestamp, and workspace status.
+
+Diagnostics remain backward compatible and now include `metadata` and
+`workspaces` alongside the existing `repository`, `pathPreview`, `git`,
+`worktree`, `creation`, and `cleanup` payloads. A read-only workspace endpoint
+is also available:
+
+```txt
+GET /api/worktrees/workspaces?repoId=mission-control
+```
+
+Rebuild / rollback:
+
+- Rebuild: run the standard worktree diagnostics command to compare Git
+  worktrees with metadata. Managed records are deterministic for newly created
+  worktrees.
+- Rollback metadata only: delete the derived
+  `<worktreeRoot>/mission-control-worktrees.json` file. This does not touch Git
+  worktrees, database tables, task data, ingestion, or frontend state.
+- Cleanup: use the existing cleanup endpoint or script path. Cleanup still
+  requires `WORKTREE_CLEANUP_ENABLED=1` plus `safetyFlag: true`; dirty worktrees
+  still require `force: true`.

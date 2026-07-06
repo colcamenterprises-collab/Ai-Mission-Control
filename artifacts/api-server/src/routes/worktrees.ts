@@ -7,6 +7,8 @@ import {
   inspectGitStatus,
   inspectGitWorktreeAvailability,
   listConfiguredWorktreeRepositories,
+  listOrcaWorkspaces,
+  readWorktreeMetadataStore,
 } from "../services/worktree-manager.js";
 
 const router: IRouter = Router();
@@ -42,6 +44,25 @@ router.get("/worktrees/path-preview", (req, res): void => {
         error instanceof Error
           ? error.message
           : "Unable to preview worktree path",
+    });
+  }
+});
+
+router.get("/worktrees/workspaces", async (req, res): Promise<void> => {
+  const repoId = getQueryString(req.query.repoId) ?? "mission-control";
+
+  try {
+    const [metadata, workspaces] = await Promise.all([
+      readWorktreeMetadataStore(repoId),
+      listOrcaWorkspaces(repoId),
+    ]);
+    res.json({ metadata, workspaces });
+  } catch (error) {
+    res.status(400).json({
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to list worktree workspaces",
     });
   }
 });
