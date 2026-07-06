@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { JamesAvatar } from "@/components/james-avatar";
 import { type AgentStatusKey, jamesIdentity } from "@/lib/agent-identities";
+import { CURRENT_ORCHESTRATOR } from "@/lib/operational-agents";
 
 type JamesStatus = {
   binaryPath: string;
@@ -106,8 +107,8 @@ type AdminToken = {
 
 const ADMIN_TOKEN_STORAGE_KEY = "mission_control_admin_token";
 const LEGACY_ADMIN_TOKEN_STORAGE_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
-const CHAT_HISTORY_STORAGE_KEY = "mission-control:james-chat-history";
-const PROJECT_CONTEXT_STORAGE_KEY = "mission-control:james-project-context";
+const CHAT_HISTORY_STORAGE_KEY = CURRENT_ORCHESTRATOR.chatHistoryStorageKey;
+const PROJECT_CONTEXT_STORAGE_KEY = CURRENT_ORCHESTRATOR.projectContextStorageKey;
 const MVP_FALLBACK_ADMIN_TOKEN = "change-this-later";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim() ?? "").replace(
   /\/$/,
@@ -674,7 +675,7 @@ export default function James() {
     setStatusError(null);
     try {
       const nextStatus = await readJson<JamesStatus>(
-        await apiFetch("/api/james/status", {
+        await apiFetch(`${CURRENT_ORCHESTRATOR.apiBasePath}/status`, {
           headers: authHeaders(),
           retries: 2,
         }),
@@ -682,7 +683,7 @@ export default function James() {
       setStatus(nextStatus);
     } catch (error) {
       setStatus(null);
-      setStatusError(formatApiError(error, "Unable to load James status"));
+      setStatusError(formatApiError(error, `Unable to load ${CURRENT_ORCHESTRATOR.name} status`));
     } finally {
       setIsLoadingStatus(false);
     }
@@ -690,7 +691,7 @@ export default function James() {
 
   const loadJobs = async () => {
     const result = await readJson<JamesJobsResponse>(
-      await apiFetch("/api/james/jobs", { headers: authHeaders(), retries: 2 }),
+      await apiFetch(`${CURRENT_ORCHESTRATOR.apiBasePath}/jobs`, { headers: authHeaders(), retries: 2 }),
     );
     setJobs(result.jobs);
     setActiveJobIds(
@@ -704,7 +705,7 @@ export default function James() {
     const refreshJamesApiState = () => {
       void loadStatus();
       void loadJobs().catch((error) => {
-        setStatusError(formatApiError(error, "Unable to load James jobs"));
+        setStatusError(formatApiError(error, `Unable to load ${CURRENT_ORCHESTRATOR.name} jobs`));
       });
     };
 
@@ -734,7 +735,7 @@ export default function James() {
 
     const intervalId = window.setInterval(() => {
       activeJobIds.forEach((jobId) => {
-        void apiFetch(`/api/james/jobs/${jobId}`, {
+        void apiFetch(`${CURRENT_ORCHESTRATOR.apiBasePath}/jobs/${jobId}`, {
           headers: authHeaders(),
           retries: 2,
           timeoutMs: POLL_REQUEST_TIMEOUT_MS,
@@ -762,7 +763,7 @@ export default function James() {
           })
           .catch((error) => {
             setDidLastRequestFail(true);
-            setStatusError(formatApiError(error, "Unable to poll James job"));
+            setStatusError(formatApiError(error, `Unable to poll ${CURRENT_ORCHESTRATOR.name} job`));
           });
       });
     }, 3000);
@@ -793,7 +794,7 @@ export default function James() {
 
     try {
       const result = await readJson<JamesResponse>(
-        await apiFetch("/api/james/message", {
+        await apiFetch(`${CURRENT_ORCHESTRATOR.apiBasePath}/message`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -817,7 +818,7 @@ export default function James() {
         ...currentHistory,
         createChatMessage(
           "error",
-          formatApiError(error, "Unable to send message to James"),
+          formatApiError(error, `Unable to send message to ${CURRENT_ORCHESTRATOR.name}`),
         ),
       ]);
     } finally {
@@ -844,7 +845,7 @@ export default function James() {
 
     try {
       const result = await readJson<JamesJobStartResponse>(
-        await apiFetch("/api/james/jobs", {
+        await apiFetch(`${CURRENT_ORCHESTRATOR.apiBasePath}/jobs`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -875,7 +876,7 @@ export default function James() {
         ...currentHistory,
         createChatMessage(
           "error",
-          formatApiError(error, "Unable to start James background job"),
+          formatApiError(error, `Unable to start ${CURRENT_ORCHESTRATOR.name} background job`),
         ),
       ]);
     } finally {
@@ -885,7 +886,7 @@ export default function James() {
 
   const cancelJob = async (jobId: string) => {
     await readJson<{ status: JamesJobStatus }>(
-      await apiFetch(`/api/james/jobs/${jobId}/cancel`, {
+      await apiFetch(`${CURRENT_ORCHESTRATOR.apiBasePath}/jobs/${jobId}/cancel`, {
         method: "POST",
         headers: authHeaders(),
       }),
@@ -931,7 +932,7 @@ export default function James() {
     <div className="mission-app-bg flex h-full min-h-0 flex-col overflow-hidden text-[13px] leading-[1.5] sm:text-sm">
       <header className="sticky top-0 z-20 shrink-0 border-b border-white/10 bg-background/65 px-3 py-3 backdrop-blur-xl">
         <div className="mb-3">
-          <h1 className="mission-page-title">{jamesIdentity.name}</h1>
+          <h1 className="mission-page-title">{CURRENT_ORCHESTRATOR.name}</h1>
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <span className="sr-only">Orchestrator console with current assigned agent</span>
@@ -944,12 +945,12 @@ export default function James() {
               fallbackClassName="text-current"
             />
             <span>Orchestrator</span>
-            <span className="text-muted-foreground">Agent: {jamesIdentity.name}</span>
+            <span className="text-muted-foreground">Agent: {CURRENT_ORCHESTRATOR.name}</span>
             <span aria-hidden="true">{jamesStatus.indicator}</span>
             <span>{jamesStatus.label}</span>
           </Badge>
           <span className="rounded-md border border-border bg-muted/30 px-2 py-1 font-mono text-[12px] text-muted-foreground">
-            Current agent: {jamesIdentity.name}
+            Current agent: {CURRENT_ORCHESTRATOR.name}
           </span>
           <span className="rounded-md border border-border bg-muted/30 px-2 py-1 font-mono text-[12px] text-muted-foreground">
             Permission mode: {projectContext.environment}
@@ -1000,7 +1001,7 @@ export default function James() {
 
       <section
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
-        aria-label="Orchestrator chat with James"
+        aria-label={`Orchestrator chat with ${CURRENT_ORCHESTRATOR.name}`}
       >
         <div className="shrink-0 space-y-2 border-b border-border/70 bg-background/95 p-2 backdrop-blur sm:p-3">
           <Textarea
@@ -1073,7 +1074,7 @@ export default function James() {
                           fallbackClassName="text-current"
                         />
                         <span>
-                          {isError ? "James Error" : jamesIdentity.name} ·{" "}
+                          {isError ? `${CURRENT_ORCHESTRATOR.name} Error` : CURRENT_ORCHESTRATOR.name} ·{" "}
                           {formatMessageTime(chatMessage.timestamp)}
                         </span>
                       </div>
@@ -1105,7 +1106,7 @@ export default function James() {
                     fallbackClassName="text-current"
                   />
                   <span>
-                    {jamesIdentity.name} is thinking
+                    {CURRENT_ORCHESTRATOR.name} is thinking
                     <span className="inline-flex w-5 animate-pulse">...</span>
                   </span>
                 </div>

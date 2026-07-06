@@ -14,6 +14,7 @@ import {
   UpdateAgentResponse,
 } from "@workspace/api-zod";
 import { serializeDates } from "../utils/serialize.js";
+import { OPERATIONAL_AGENTS } from "../config-operational-agents.js";
 
 const router: IRouter = Router();
 
@@ -28,10 +29,20 @@ function maskAgentForResponse(agent: typeof agentsTable.$inferSelect) {
   return { ...rest, apiKeyHint: maskApiKey(apiKey) };
 }
 
+function mergeConfiguredAgents(agents: ReturnType<typeof maskAgentForResponse>[]) {
+  const configuredNames = new Set(agents.map((agent) => agent.name.toLowerCase()));
+  return [
+    ...OPERATIONAL_AGENTS.filter(
+      (configuredAgent) => !configuredNames.has(configuredAgent.name.toLowerCase()),
+    ),
+    ...agents,
+  ];
+}
+
 router.get("/agents", async (_req, res): Promise<void> => {
   const agents = await db.select().from(agentsTable).orderBy(agentsTable.id);
   const masked = agents.map(maskAgentForResponse);
-  res.json(ListAgentsResponse.parse(serializeDates(masked)));
+  res.json(ListAgentsResponse.parse(serializeDates(mergeConfiguredAgents(masked))));
 });
 
 router.post("/agents", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
