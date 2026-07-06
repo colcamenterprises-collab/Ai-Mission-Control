@@ -11,7 +11,9 @@ import {
   Play,
   Plus,
   ShieldCheck,
+  Sparkles,
   Trash2,
+  UsersRound,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +28,44 @@ const SAFETY_GATED_REASON = "Coming next / safety gated";
 const ADMIN_TOKEN_STORAGE_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
 const MVP_FALLBACK_ADMIN_TOKEN = "change-this-later";
 const DEFAULT_DIAGNOSTICS_TASK_ID = "20";
+
+const AGENT_ROLES = [
+  {
+    name: "James",
+    role: "Orchestrator",
+    brief: "Plans, routes, coordinates, and reports before any future action.",
+  },
+  {
+    name: "Scout",
+    role: "Research",
+    brief: "Gathers source-backed context and returns structured briefs.",
+  },
+  {
+    name: "Scribe",
+    role: "Documentation/content",
+    brief: "Turns validated work into docs, notes, and content drafts.",
+  },
+  {
+    name: "Reach",
+    role: "Marketing/outreach",
+    brief:
+      "Prepares campaign and audience outreach materials from approved briefs.",
+  },
+  {
+    name: "Dev/Codex",
+    role: "Build agent",
+    brief: "Implements scoped build tasks after an explicit plan is approved.",
+  },
+] as const;
+
+const OPERATING_RULES = [
+  "Show plan before action.",
+  "Give progress updates on multi-step tasks.",
+  "Never go silent during long tasks.",
+  "Delegate with structured briefs, not raw chat.",
+  "Report failures clearly.",
+  "Never fabricate results.",
+] as const;
 
 type WorktreeRepository = {
   id: string;
@@ -345,6 +385,17 @@ export default function Workspaces() {
     <div className="workspaces-shell h-full overflow-y-auto">
       <div className="workspaces-canvas space-y-4">
         <header className="workspaces-page-header">
+          <div className="workspace-status-strip" aria-label="Workspace status">
+            <span className="workspace-status-pill">
+              <span className="status-dot" /> All systems operational
+            </span>
+            <span className="workspace-status-pill">
+              Active agent: James / Orchestrator
+            </span>
+            <span className="workspace-status-pill">
+              Session: live telemetry
+            </span>
+          </div>
           <div className="mb-2 flex items-center gap-2">
             <Boxes className="h-5 w-5 text-primary" />
             <h1 className="font-mono text-2xl font-semibold uppercase tracking-tight">
@@ -362,6 +413,51 @@ export default function Workspaces() {
             <p className="workspace-eyebrow">Live worktree telemetry</p>
             <h2>Workspace Command Centre</h2>
             <p>Live repository, branch, worktree and diagnostics telemetry.</p>
+          </div>
+
+          <div
+            className="agent-concept-panel"
+            aria-labelledby="agent-concept-title"
+          >
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="workspace-eyebrow">Future agent structure</p>
+                <h2
+                  id="agent-concept-title"
+                  className="workspace-section-heading"
+                >
+                  Orchestrator / sub-agent pattern
+                </h2>
+              </div>
+              <Badge variant="secondary" className="gap-1">
+                <Sparkles className="h-3 w-3" /> Concept only
+              </Badge>
+            </div>
+            <div className="grid gap-2 md:grid-cols-5">
+              {AGENT_ROLES.map((agent) => (
+                <div key={agent.name} className="agent-role-card">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-semibold text-foreground">
+                      {agent.name}
+                    </span>
+                    <span className="agent-role-chip">{agent.role}</span>
+                  </div>
+                  <p>{agent.brief}</p>
+                </div>
+              ))}
+            </div>
+            <div className="operating-rules mt-2">
+              <div className="flex items-center gap-2 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-muted-foreground">
+                <UsersRound className="h-3.5 w-3.5" /> Operating rules
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {OPERATING_RULES.map((rule) => (
+                  <span key={rule} className="operating-rule-pill">
+                    {rule}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
           <div className="memory-burst" aria-hidden="true">
             <div className="burst-line line-one" />
@@ -400,7 +496,7 @@ export default function Workspaces() {
 
         <section className="workspace-panel overflow-hidden">
           <div className="workspace-panel-header flex items-center justify-between px-4 py-2.5">
-            <h2 className="workspace-section-title">Repository selector</h2>
+            <h2 className="workspace-section-title">Repositories</h2>
             {(repositoriesQuery.isLoading || diagnosticsQuery.isFetching) && (
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             )}
@@ -421,7 +517,9 @@ export default function Workspaces() {
                       type="button"
                       onClick={() => setSelectedRepoId(repo.id)}
                       className={`repository-pill w-full p-2.5 text-left ${
-                        selectedRepoId === repo.id ? "repository-pill-active" : ""
+                        selectedRepoId === repo.id
+                          ? "repository-pill-active"
+                          : ""
                       }`}
                     >
                       <div className="info-line flex items-center justify-between gap-3">
@@ -465,7 +563,9 @@ export default function Workspaces() {
                 icon={ShieldCheck}
                 label="Protection"
                 value={
-                  selectedRepository?.productionProtected ? "Protected" : "Allowed"
+                  selectedRepository?.productionProtected
+                    ? "Protected"
+                    : "Allowed"
                 }
               />
               <InfoLine
@@ -568,10 +668,16 @@ export default function Workspaces() {
           <div className="grid gap-3 p-3 lg:grid-cols-[1fr_auto] lg:items-start">
             <div className="grid gap-2 md:grid-cols-2">
               <p className="diagnostic-note text-xs text-muted-foreground">
-                Creation: {creation?.enabled ? "Safety flag still required." : creation?.reason}
+                Creation:{" "}
+                {creation?.enabled
+                  ? "Safety flag still required."
+                  : creation?.reason}
               </p>
               <p className="diagnostic-note text-xs text-muted-foreground">
-                Cleanup: {cleanup?.enabled ? "Safety flag still required." : cleanup?.reason}
+                Cleanup:{" "}
+                {cleanup?.enabled
+                  ? "Safety flag still required."
+                  : cleanup?.reason}
               </p>
               <p className="diagnostic-note text-xs text-muted-foreground md:col-span-2">
                 Repository root: {selectedRepository?.rootPath ?? "unknown"}
@@ -602,7 +708,9 @@ function Metric({ title, value }: { title: string; value: string }) {
       <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
         {title}
       </p>
-      <p className="mt-2 truncate text-xl font-light">{value}</p>
+      <p className="mt-2 truncate text-base font-light" title={value}>
+        {value}
+      </p>
     </div>
   );
 }
@@ -632,8 +740,8 @@ function WorkspaceCard({ workspace }: { workspace: OrcaWorkspace }) {
   const cleanStatus = statusLabel(workspace);
 
   return (
-    <article className="workspace-card p-4">
-      <div className="mb-4 flex items-start justify-between gap-3">
+    <article className="workspace-card p-3">
+      <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="truncate font-mono text-sm font-semibold">
@@ -648,7 +756,10 @@ function WorkspaceCard({ workspace }: { workspace: OrcaWorkspace }) {
               <Badge variant="secondary">Archived</Badge>
             )}
           </div>
-          <p className="mt-2 truncate font-mono text-xs text-muted-foreground">
+          <p
+            className="mt-1 truncate font-mono text-[0.68rem] text-muted-foreground"
+            title={workspace.path}
+          >
             {workspace.path}
           </p>
         </div>
@@ -659,7 +770,7 @@ function WorkspaceCard({ workspace }: { workspace: OrcaWorkspace }) {
         </span>
       </div>
 
-      <div className="workspace-card-meta space-y-2 p-3 text-sm">
+      <div className="workspace-card-meta space-y-1.5 p-2.5 text-xs">
         <InfoLine
           icon={GitBranch}
           label="Branch"
@@ -673,7 +784,7 @@ function WorkspaceCard({ workspace }: { workspace: OrcaWorkspace }) {
         <InfoLine icon={Boxes} label="Kind" value={workspace.workspaceKind} />
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <DisabledActionButton label="Open in James" icon={Play} />
         <DisabledActionButton label="Launch Codex" icon={Hammer} />
         <DisabledActionButton label="Archive" icon={Archive} />
@@ -699,7 +810,9 @@ function InfoLine({
         <Icon className="h-3.5 w-3.5" />
         {label}
       </span>
-      <span className="truncate font-mono text-xs">{value}</span>
+      <span className="truncate font-mono text-[0.68rem]" title={value}>
+        {value}
+      </span>
     </div>
   );
 }

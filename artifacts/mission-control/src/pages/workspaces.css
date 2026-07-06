@@ -463,13 +463,14 @@
   overflow-wrap: anywhere;
 }
 
-
 .workspaces-page-header {
   padding-top: 0.15rem;
 }
 
 .workspace-section-title {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -502,4 +503,98 @@
   .workspaces-canvas {
     padding: 0.75rem;
   }
+}
+
+.workspace-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+  margin-bottom: 0.65rem;
+}
+
+.workspace-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.46);
+  color: rgba(203, 213, 225, 0.78);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 0.64rem;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  padding: 0.42rem 0.6rem;
+  text-transform: uppercase;
+}
+
+.status-dot {
+  width: 0.42rem;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: rgb(52, 211, 153);
+  box-shadow: 0 0 14px rgba(52, 211, 153, 0.85);
+}
+
+.agent-concept-panel {
+  position: relative;
+  z-index: 4;
+  width: min(100%, 58rem);
+  margin-top: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 0.75rem;
+  background: rgba(2, 6, 23, 0.52);
+  padding: 0.75rem;
+  backdrop-filter: blur(18px);
+}
+
+.workspace-section-heading {
+  margin-top: 0.2rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.agent-role-card {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 0.65rem;
+  background: linear-gradient(
+    145deg,
+    rgba(15, 23, 42, 0.62),
+    rgba(15, 23, 42, 0.28)
+  );
+  padding: 0.55rem;
+}
+
+.agent-role-card p {
+  margin-top: 0.45rem;
+  color: rgba(203, 213, 225, 0.68);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.agent-role-chip,
+.operating-rule-pill {
+  border: 1px solid rgba(103, 232, 249, 0.18);
+  border-radius: 999px;
+  background: rgba(8, 47, 73, 0.24);
+  color: rgba(165, 243, 252, 0.82);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  padding: 0.18rem 0.38rem;
+  text-transform: uppercase;
+}
+
+.operating-rule-pill {
+  border-color: rgba(167, 139, 250, 0.18);
+  background: rgba(88, 28, 135, 0.18);
+  color: rgba(221, 214, 254, 0.78);
+  font-size: 0.6rem;
 }
