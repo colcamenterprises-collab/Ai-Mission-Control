@@ -111,7 +111,8 @@ type AdminToken = {
   value: string;
 };
 
-const ADMIN_TOKEN_STORAGE_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
+const ADMIN_TOKEN_STORAGE_KEY = "mission_control_admin_token";
+const LEGACY_ADMIN_TOKEN_STORAGE_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
 const CHAT_HISTORY_STORAGE_KEY = "mission-control:james-chat-history";
 const PROJECT_CONTEXT_STORAGE_KEY = "mission-control:james-project-context";
 const MVP_FALLBACK_ADMIN_TOKEN = "change-this-later";
@@ -327,7 +328,9 @@ function createContextMessage(
 }
 
 function readAdminToken(): AdminToken {
-  const storedToken = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)?.trim();
+  const storedToken =
+    localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)?.trim() ||
+    localStorage.getItem(LEGACY_ADMIN_TOKEN_STORAGE_KEY)?.trim();
   if (storedToken) {
     return { source: "localStorage", value: storedToken };
   }

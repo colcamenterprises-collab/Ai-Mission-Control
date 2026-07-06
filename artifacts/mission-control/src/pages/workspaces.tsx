@@ -25,7 +25,8 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL?.trim() ?? "").replace(
   "",
 );
 const SAFETY_GATED_REASON = "Coming next / safety gated";
-const ADMIN_TOKEN_STORAGE_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
+const ADMIN_TOKEN_STORAGE_KEY = "mission_control_admin_token";
+const LEGACY_ADMIN_TOKEN_STORAGE_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
 const MVP_FALLBACK_ADMIN_TOKEN = "change-this-later";
 const DEFAULT_DIAGNOSTICS_TASK_ID = "20";
 
@@ -174,7 +175,9 @@ function apiUrl(path: string): string {
 }
 
 function readAdminToken(): AdminToken {
-  const storedToken = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)?.trim();
+  const storedToken =
+    localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)?.trim() ||
+    localStorage.getItem(LEGACY_ADMIN_TOKEN_STORAGE_KEY)?.trim();
   if (storedToken) return { source: "localStorage", value: storedToken };
 
   const envToken = import.meta.env.VITE_MISSION_CONTROL_ADMIN_TOKEN?.trim();
@@ -353,7 +356,7 @@ export default function Workspaces() {
     ],
     queryFn: () =>
       fetchJson<WorktreeDiagnosticsResponse>(
-        `/api/worktrees/diagnostics?repo=${encodeURIComponent(
+        `/api/worktrees/diagnostics?repoId=${encodeURIComponent(
           diagnosticsRepoId,
         )}&taskId=${DEFAULT_DIAGNOSTICS_TASK_ID}`,
       ),
