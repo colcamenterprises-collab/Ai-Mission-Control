@@ -1002,6 +1002,45 @@ export default function James() {
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
         aria-label="Orchestrator chat with James"
       >
+        <div className="shrink-0 space-y-2 border-b border-border/70 bg-background/95 p-2 backdrop-blur sm:p-3">
+          <Textarea
+            id="james-message"
+            ref={messageInputRef}
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            onKeyDown={handleMessageKeyDown}
+            placeholder="Ask the current Orchestrator what you need done..."
+            className="max-h-36 min-h-[4rem] resize-none text-[13px] leading-[1.5]"
+            disabled={isSending}
+          />
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[12px] text-muted-foreground">
+              Enter sends. Shift+Enter adds a new line.
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={runBackgroundJob}
+                disabled={isSending || !message.trim()}
+                size="sm"
+                className="h-8"
+              >
+                Run as Background Job
+              </Button>
+              <Button
+                onClick={sendMessage}
+                disabled={isSending || !message.trim()}
+                size="sm"
+                className="h-8"
+              >
+                <Send className="mr-2 h-4 w-4" />
+                {isSending ? "Sending..." : "Send"}
+              </Button>
+            </div>
+          </div>
+        </div>
+
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain bg-muted/20 p-2 [-webkit-overflow-scrolling:touch] sm:p-3">
           <div className="space-y-2">
             {chatHistory.length === 0 ? (
@@ -1076,44 +1115,6 @@ export default function James() {
           </div>
         </div>
 
-        <div className="sticky bottom-0 z-10 shrink-0 space-y-2 border-t border-border/70 bg-background/95 p-2 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur sm:p-3 sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <Textarea
-            id="james-message"
-            ref={messageInputRef}
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            onKeyDown={handleMessageKeyDown}
-            placeholder="Ask the current Orchestrator what you need done..."
-            className="max-h-36 min-h-[4rem] resize-none text-[13px] leading-[1.5]"
-            disabled={isSending}
-          />
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-[12px] text-muted-foreground">
-              Enter sends. Shift+Enter adds a new line.
-            </p>
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={runBackgroundJob}
-                disabled={isSending || !message.trim()}
-                size="sm"
-                className="h-8"
-              >
-                Run as Background Job
-              </Button>
-              <Button
-                onClick={sendMessage}
-                disabled={isSending || !message.trim()}
-                size="sm"
-                className="h-8"
-              >
-                <Send className="mr-2 h-4 w-4" />
-                {isSending ? "Sending..." : "Send"}
-              </Button>
-            </div>
-          </div>
-        </div>
       </section>
     </div>
   );
