@@ -615,16 +615,16 @@
 
 .mission-title-lockup {
   display: flex;
-  align-items: center;
-  gap: clamp(0.7rem, 1.6vw, 1rem);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.65rem;
 }
 
 .customli-logo {
-  width: clamp(2.2rem, 5vw, 4rem);
+  width: clamp(2.75rem, 4vw, 3.5rem);
   height: auto;
   flex: 0 0 auto;
-  color: rgb(129, 140, 248);
-  filter: drop-shadow(0 0 14px rgba(99, 102, 241, 0.44));
+  display: block;
 }
 
 .quick-launch-button {

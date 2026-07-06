@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import customliLogo from "@/assets/customli-logo.svg";
 import { Skeleton } from "@/components/ui/skeleton";
 import "./workspaces.css";
 
@@ -69,13 +70,7 @@ export default function Dashboard() {
 }
 
 function CustomliLogo() {
-  return (
-    <svg className="customli-logo" viewBox="0 0 228 198" aria-label="Customli logo" role="img">
-      <path d="M84 31 31 84c-31 31-31 81 0 112s81 31 112 0l22-22" fill="none" stroke="currentColor" strokeWidth="23" strokeLinecap="round" />
-      <path d="M144 167 197 114c31-31 31-81 0-112s-81-31-112 0L63 24" fill="none" stroke="currentColor" strokeWidth="23" strokeLinecap="round" />
-      <path d="M57 58 171 172M171 26 57 140" fill="none" stroke="currentColor" strokeWidth="23" strokeLinecap="round" />
-    </svg>
-  );
+  return <img className="customli-logo" src={customliLogo} alt="Customli logo" />;
 }
 
 function HomeMetric({ title, value, icon: Icon, loading, detail, tone }: { title: string; value: string; icon: typeof CheckCircle2; loading?: boolean; detail?: string; tone?: "good" | "warning" }) {
