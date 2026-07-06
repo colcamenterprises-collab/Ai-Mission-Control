@@ -197,11 +197,11 @@ function formatApiError(error: unknown, fallback: string): string {
   }
 
   if (error.code === "network") {
-    return `Network error while contacting James API${API_BASE_URL ? ` at ${API_BASE_URL}` : ""}: ${error.message}`;
+    return `Network error while contacting Orchestrator API${API_BASE_URL ? ` at ${API_BASE_URL}` : ""}: ${error.message}`;
   }
 
   if (error.code === "timeout") {
-    return `Timed out contacting James API after retrying: ${error.message}`;
+    return `Timed out contacting Orchestrator API after retrying: ${error.message}`;
   }
 
   if (error.status === 401 || error.status === 403) {
@@ -209,7 +209,7 @@ function formatApiError(error: unknown, fallback: string): string {
   }
 
   if (error.status) {
-    return `James API error (${error.status}): ${error.message}`;
+    return `Orchestrator API error (${error.status}): ${error.message}`;
   }
 
   return error.message || fallback;
@@ -357,7 +357,7 @@ async function readJson<T>(response: Response): Promise<T> {
       data = JSON.parse(text);
     } catch (error) {
       throw new ApiRequestError({
-        message: `Invalid JSON from James API: ${
+        message: `Invalid JSON from Orchestrator API: ${
           error instanceof Error ? error.message : "Unable to parse response"
         }`,
         status: response.status,
@@ -935,10 +935,14 @@ export default function James() {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-[13px] leading-[1.5] sm:text-sm">
-      <header className="sticky top-0 z-20 shrink-0 border-b border-border/70 bg-background/95 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/85 sm:px-3">
+    <div className="mission-app-bg flex h-full min-h-0 flex-col overflow-hidden text-[13px] leading-[1.5] sm:text-sm">
+      <header className="sticky top-0 z-20 shrink-0 border-b border-white/10 bg-background/65 px-3 py-3 backdrop-blur-xl">
+        <div className="mb-3">
+          <p className="workspace-eyebrow">Current Orchestrator</p>
+          <h1 className="text-3xl font-medium leading-none tracking-[-0.06em]">{jamesIdentity.name}</h1>
+        </div>
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span className="sr-only">Orchestrator chat with James</span>
+          <span className="sr-only">Orchestrator console with current assigned agent</span>
           <Badge
             variant={jamesStatusVariant}
             className="h-8 shrink-0 gap-1.5 px-2 text-[12px] font-medium"
@@ -953,7 +957,7 @@ export default function James() {
             <span>{jamesStatus.label}</span>
           </Badge>
           <span className="rounded-md border border-border bg-muted/30 px-2 py-1 font-mono text-[12px] text-muted-foreground">
-            Current orchestrator agent: {jamesIdentity.name}
+            Current agent: {jamesIdentity.name}
           </span>
           <span className="rounded-md border border-border bg-muted/30 px-2 py-1 font-mono text-[12px] text-muted-foreground">
             Permission mode: {projectContext.environment}
@@ -1161,7 +1165,7 @@ export default function James() {
           <div className="mt-2 space-y-2">
             {chatHistory.length === 0 ? (
               <p className="px-1 text-[13px] text-muted-foreground sm:text-sm">
-                No messages yet. Send a message to start a chat with James, the current Orchestrator agent.
+                No messages yet. Send a message to start a chat with the current Orchestrator agent.
               </p>
             ) : null}
 
@@ -1238,7 +1242,7 @@ export default function James() {
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             onKeyDown={handleMessageKeyDown}
-            placeholder="Ask the Orchestrator (James) what you need done..."
+            placeholder="Ask the current Orchestrator what you need done..."
             className="max-h-36 min-h-[4rem] resize-none text-[13px] leading-[1.5]"
             disabled={isSending}
           />

@@ -359,7 +359,7 @@ export default function Workspaces() {
           <div className="mb-2 flex items-center gap-2">
             <Boxes className="h-5 w-5 text-primary" />
             <h1 className="font-mono text-2xl font-semibold uppercase tracking-tight">
-              Workspaces
+              Repositories
             </h1>
           </div>
           <p className="max-w-3xl text-sm text-muted-foreground">
@@ -368,17 +368,8 @@ export default function Workspaces() {
           </p>
         </header>
 
-        <section className="workspace-hero">
-          <div className="workspace-hero-copy">
-            <p className="workspace-eyebrow">Live worktree telemetry</p>
-            <h2>Workspace Command Centre</h2>
-            <p>Live repository, branch, worktree and diagnostics telemetry.</p>
-          </div>
-
-        </section>
-
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Metric title="Workspace count" value={String(workspaces.length)} />
+          <Metric title="Worktree count" value={String(workspaces.length)} />
           <Metric
             title="Main workspace"
             value={
@@ -478,7 +469,7 @@ export default function Workspaces() {
 
         <section className="workspace-panel overflow-hidden">
           <div className="workspace-panel-header flex items-center justify-between px-4 py-2.5">
-            <h2 className="workspace-section-title">Workspace cards</h2>
+            <h2 className="workspace-section-title">Worktrees</h2>
             {workspacesQuery.isLoading && (
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             )}
