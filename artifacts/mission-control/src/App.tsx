@@ -14,6 +14,7 @@ import Team from "@/pages/team";
 import Contacts from "@/pages/contacts";
 import Settings from "@/pages/settings";
 import James from "@/pages/james";
+import Workspaces from "@/pages/workspaces";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -39,6 +40,7 @@ function Router() {
         <Route path="/contacts" component={Contacts} />
         <Route path="/settings" component={Settings} />
         <Route path="/james" component={James} />
+        <Route path="/workspaces" component={Workspaces} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

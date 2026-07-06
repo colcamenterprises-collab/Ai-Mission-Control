@@ -31,6 +31,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/team", label: "Team", icon: Users },
     { href: "/contacts", label: "Contacts", icon: UsersRound },
     { href: "/james", label: "James", avatar: jamesIdentity.avatar },
+    { href: "/workspaces", label: "Workspaces", icon: Boxes },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 
