@@ -74,11 +74,7 @@ const GIT_TIMEOUT_MS = 30_000;
 const SOURCE_STATUS_FILE = ".skill-source-status.json";
 const IMPORTED_LIBRARY_DIR = path.join("library", "imported");
 
-const DEFAULT_EXTERNAL_SKILL_SOURCE_REGISTRY: ExternalSkillSourceRegistryItem[] = [
-  { id: "github-anthropics-skills", type: "github", sourceUrl: "https://github.com/anthropics/skills", sourceRepo: "anthropics/skills", repoOwner: "anthropics", repoName: "skills", targetSkillName: null },
-  { id: "github-vercel-agent-skills", type: "github", sourceUrl: "https://github.com/vercel-labs/agent-skills", sourceRepo: "vercel-labs/agent-skills", repoOwner: "vercel-labs", repoName: "agent-skills", targetSkillName: null },
-  { id: "github-garrytan-ghrain", type: "github", sourceUrl: "https://github.com/garrytan/ghrain", sourceRepo: "garrytan/ghrain", repoOwner: "garrytan", repoName: "ghrain", targetSkillName: null },
-];
+const DEFAULT_EXTERNAL_SKILL_SOURCE_REGISTRY: ExternalSkillSourceRegistryItem[] = [];
 
 function findWorkspaceSkillsRoot(start: string): string { let current = path.resolve(start); while (true) { const candidate = path.join(current, "skills"); if (existsSync(candidate)) return candidate; const parent = path.dirname(current); if (parent === current) return path.resolve(start, "skills"); current = parent; } }
 function getSkillsRoot(): string { if (process.env.MISSION_CONTROL_SKILLS_DIR) return path.resolve(process.env.MISSION_CONTROL_SKILLS_DIR); if (existsSync(DEFAULT_SKILLS_ROOT)) return DEFAULT_SKILLS_ROOT; return findWorkspaceSkillsRoot(process.cwd()); }
