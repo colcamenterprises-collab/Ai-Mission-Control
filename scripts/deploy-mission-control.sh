@@ -283,9 +283,42 @@ fi
 base_url="http://127.0.0.1:${PORT}"
 admin_token="${MISSION_CONTROL_ADMIN_TOKEN:-${VITE_MISSION_CONTROL_ADMIN_TOKEN:-}}"
 
-curl_verify "${base_url}/api/healthz"
+health_ok=0
+for attempt in $(seq 1 30); do
+  if curl -fsS "${base_url}/api/healthz" >/dev/null 2>&1; then
+    echo "API health check passed on attempt ${attempt}/30"
+    health_ok=1
+    break
+  fi
+
+  echo "Waiting for API health check... attempt ${attempt}/30"
+  sleep 1
+done
+
+if [[ "${health_ok}" != "1" ]]; then
+  echo "ERROR: API health check failed after 30 seconds." >&2
+  sudo journalctl -u "${SERVICE_NAME}" -n "${LOG_LINES}" --no-pager || true
+  exit 1
+fi
+
 if [[ -n "${admin_token}" ]]; then
-  curl_verify "${base_url}/api/skills" -H "Authorization: Bearer ${admin_token}"
+  skills_ok=0
+  for attempt in $(seq 1 30); do
+    if curl -fsS -H "Authorization: Bearer ${admin_token}" "${base_url}/api/skills" >/dev/null 2>&1; then
+      echo "Authenticated skills check passed on attempt ${attempt}/30"
+      skills_ok=1
+      break
+    fi
+
+    echo "Waiting for authenticated skills check... attempt ${attempt}/30"
+    sleep 1
+  done
+
+  if [[ "${skills_ok}" != "1" ]]; then
+    echo "ERROR: authenticated skills verification failed after 30 seconds." >&2
+    sudo journalctl -u "${SERVICE_NAME}" -n "${LOG_LINES}" --no-pager || true
+    exit 1
+  fi
 else
   echo "WARNING: admin token unavailable; skipping authenticated route curl verification."
 fi
