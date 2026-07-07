@@ -42,7 +42,8 @@ try {
   let listed = await service.listSkills();
   assert.equal(listed.skills.length, 1, 'local skill scan detects SKILL.md');
   assert.equal(listed.skills[0].path, 'coding/SKILL.md', 'local skill path is readable, not base64');
-  assert.equal(listed.sources[0].sourceLabel, 'coding/SKILL.md', 'local source label is readable');
+  assert.equal(listed.skills[0].source.localStatus, 'local', 'custom local skill is marked local');
+  assert.equal(listed.origins.length, 0, 'custom local skills are not reported as import origins');
 
   const goodRepo = await makeRepo('good-repo', true);
   process.env.MISSION_CONTROL_EXTERNAL_SKILL_SOURCES = JSON.stringify([{ id: 'good', type: 'github', sourceUrl: `file://${goodRepo}`, sourceRepo: 'local/good', repoOwner: 'local', repoName: 'good', targetSkillName: null }]);
@@ -52,7 +53,12 @@ try {
   assert.equal(good?.branch, 'main', 'external repo branch is populated');
   assert.match(good?.commitHash ?? '', /^[0-9a-f]{40}$/i, 'external repo commit is populated');
   assert.equal(good?.skillCount, 1, 'external repo skill count is populated');
-  assert.ok(synced.skills.some(s => s.source.sourceRepo === 'local/good'), 'external skill is imported into agent registry');
+  const imported = synced.skills.find(s => s.source.sourceRepo === 'local/good');
+  assert.ok(imported, 'external skill is imported into agent registry');
+  assert.equal(imported.source.localStatus, 'imported', 'imported skill is marked imported');
+  assert.equal(imported.path, 'library/imported/local/good/nested/SKILL.md', 'imported skill is copied into local library');
+  assert.equal(imported.source.originPath, 'nested/SKILL.md', 'origin path metadata is persisted');
+  assert.equal(imported.source.importedCommitSha, good?.commitHash, 'imported commit metadata is persisted');
 
   const emptyRepo = await makeRepo('empty-repo', false);
   process.env.MISSION_CONTROL_EXTERNAL_SKILL_SOURCES = JSON.stringify([{ id: 'empty', type: 'github', sourceUrl: `file://${emptyRepo}`, sourceRepo: 'local/empty', repoOwner: 'local', repoName: 'empty', targetSkillName: null }]);
@@ -67,6 +73,11 @@ try {
   const missing = synced.sources.find(s => s.sourceRepo === 'local/missing');
   assert.ok(['not_found', 'error'].includes(missing?.status ?? ''), 'unavailable external repo gets a failure status');
   assert.ok(missing?.error, 'unavailable external repo stores real git error');
+  listed = await service.listSkills();
+  assert.ok(listed.skills.some(s => s.source.sourceRepo === 'local/good'), 'previously imported local skill remains available when another origin is unavailable');
+  const docs = await service.readSkillsForDelegation({ names: ['Remote Skill'] });
+  assert.equal(docs.length, 1, 'agent registry reads imported local SKILL.md files');
+  assert.match(service.formatSkillsForPrompt(docs), /Local Path: library\/imported\/local\/good\/nested\/SKILL.md/, 'prompt formatting uses local path');
 
   console.log('skills service tests passed');
 } finally {
