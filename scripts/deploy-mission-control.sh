@@ -118,6 +118,14 @@ ensure_runtime_env() {
     fi
   fi
 
+  if [[ -z "${DATABASE_URL:-}" ]]; then
+    DATABASE_URL="$(get_service_environment_value DATABASE_URL || true)"
+    if [[ -n "${DATABASE_URL}" ]]; then
+      export DATABASE_URL
+      echo "Loaded DATABASE_URL from ${SERVICE_NAME} systemd environment."
+    fi
+  fi
+
   PORT="${PORT:-3000}"
   BASE_PATH="${BASE_PATH:-/}"
   export PORT BASE_PATH
@@ -214,6 +222,10 @@ run_pnpm run typecheck
 step_name="running skills test"
 log "Running skills test"
 run_pnpm run test:skills
+
+step_name="ensuring operational database schema"
+log "Ensuring operational database schema"
+run_pnpm run db:ensure-operational-schema
 
 step_name="running smoke check"
 log "Running smoke check if available"
