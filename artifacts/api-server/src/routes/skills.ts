@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { listSkills, readSkill } from "../services/skills.js";
+import { listSkills, readSkill, syncSkills } from "../services/skills.js";
 
 const router: IRouter = Router();
 
@@ -12,6 +12,11 @@ router.get("/skills", async (req, res): Promise<void> => {
     name: optionalString(req.query.name),
     category: optionalString(req.query.category),
   });
+  res.json(result);
+});
+
+router.post("/skills/sync", async (_req, res): Promise<void> => {
+  const result = await syncSkills();
   res.json(result);
 });
 

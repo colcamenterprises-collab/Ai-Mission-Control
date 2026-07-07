@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type SkillSourceMetadata = {
   sourceUrl: string | null;
@@ -8,6 +8,7 @@ export type SkillSourceMetadata = {
   branch: string | null;
   commitHash: string | null;
   filePath: string | null;
+  sourceLabel: string | null;
   installedDate: string | null;
   lastSyncTime: string | null;
   enabled: boolean;
@@ -35,9 +36,11 @@ export type SkillSourceStatus = {
   repoName: string | null;
   branch: string | null;
   commitHash: string | null;
-  status: "available" | "unavailable";
+  status: "available" | "syncing" | "unavailable" | "auth_required" | "not_found" | "no_skills_found" | "error";
   lastSyncTime: string | null;
   error: string | null;
+  skillCount: number;
+  sourceLabel: string;
 };
 
 export type ListSkillsResponse = { skills: SkillMetadata[]; sources: SkillSourceStatus[] };
@@ -66,6 +69,7 @@ function sourceMetadataFrom(raw: unknown, fallbackPath: string): SkillSourceMeta
     branch: nullableString(source.branch),
     commitHash: nullableString(source.commitHash),
     filePath: nullableString(source.filePath) ?? fallbackPath,
+    sourceLabel: nullableString(source.sourceLabel) ?? nullableString(source.filePath) ?? fallbackPath,
     installedDate: nullableString(source.installedDate),
     lastSyncTime: nullableString(source.lastSyncTime),
     enabled: typeof source.enabled === "boolean" ? source.enabled : true,
@@ -99,9 +103,11 @@ function sourceStatusFrom(raw: unknown, index: number): SkillSourceStatus | null
     repoName: nullableString(raw.repoName),
     branch: nullableString(raw.branch),
     commitHash: nullableString(raw.commitHash),
-    status: raw.status === "unavailable" ? "unavailable" : "available",
+    status: ["available", "syncing", "unavailable", "auth_required", "not_found", "no_skills_found", "error"].includes(String(raw.status)) ? raw.status as SkillSourceStatus["status"] : "error",
     lastSyncTime: nullableString(raw.lastSyncTime),
     error: nullableString(raw.error),
+    skillCount: typeof raw.skillCount === "number" ? raw.skillCount : 0,
+    sourceLabel: requiredString(raw.sourceLabel, sourceRepo ?? id),
   };
 }
 
@@ -129,8 +135,8 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function apiFetch<T>(url: string): Promise<T> {
-  const response = await fetch(`/api${url}`, { headers: authHeaders() });
+async function apiFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(`/api${url}`, { ...init, headers: { ...authHeaders(), ...(init.headers ?? {}) } });
   if (!response.ok) throw new Error(`Request failed with HTTP ${response.status}`);
   return response.json() as Promise<T>;
 }
@@ -151,5 +157,16 @@ export function useGetSkill(id: string | null) {
     queryKey: ["skills", id],
     queryFn: async () => skillDocumentFrom(await apiFetch<unknown>(`/skills/${id}`)),
     enabled: Boolean(id),
+  });
+}
+
+
+export function useSyncSkills() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => listSkillsResponseFrom(await apiFetch<unknown>("/skills/sync", { method: "POST" })),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["skills"] });
+    },
   });
 }

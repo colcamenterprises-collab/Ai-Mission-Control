@@ -1,6 +1,12 @@
 import path from "node:path";
 import { existsSync } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+
+export type SkillSourceSyncStatus = "available" | "syncing" | "unavailable" | "auth_required" | "not_found" | "no_skills_found" | "error";
 
 export type SkillSourceMetadata = {
   sourceUrl: string | null;
@@ -10,6 +16,7 @@ export type SkillSourceMetadata = {
   branch: string | null;
   commitHash: string | null;
   filePath: string | null;
+  sourceLabel: string | null;
   installedDate: string | null;
   lastSyncTime: string | null;
   enabled: boolean;
@@ -24,9 +31,7 @@ export type SkillMetadata = {
   source: SkillSourceMetadata;
 };
 
-export type SkillDocument = SkillMetadata & {
-  content: string;
-};
+export type SkillDocument = SkillMetadata & { content: string };
 
 export type SkillSourceStatus = {
   id: string;
@@ -37,307 +42,79 @@ export type SkillSourceStatus = {
   repoName: string | null;
   branch: string | null;
   commitHash: string | null;
-  status: "available" | "unavailable";
+  status: SkillSourceSyncStatus;
   lastSyncTime: string | null;
   error: string | null;
+  skillCount: number;
+  sourceLabel: string;
 };
 
-export type SkillListResult = {
-  skills: SkillMetadata[];
-  sources: SkillSourceStatus[];
-};
+export type SkillListResult = { skills: SkillMetadata[]; sources: SkillSourceStatus[] };
+export type SkillSyncResult = { sources: SkillSourceStatus[]; skills: SkillMetadata[] };
 
-type SkillInstallMetadata = Partial<SkillSourceMetadata> & {
-  name?: string;
-  category?: string;
-};
+type SkillInstallMetadata = Partial<SkillSourceMetadata> & { name?: string; category?: string; syncStatus?: SkillSourceSyncStatus; error?: string | null; skillCount?: number };
+type ExternalSkillSourceRegistryItem = { id: string; type: "github"; sourceUrl: string; sourceRepo: string; repoOwner: string; repoName: string; targetSkillName: string | null };
 
-type ExternalSkillSourceRegistryItem = {
-  id: string;
-  type: "github";
-  sourceUrl: string;
-  sourceRepo: string;
-  repoOwner: string;
-  repoName: string;
-  targetSkillName: string | null;
-};
+type PersistedSourceStatus = SkillSourceStatus;
 
 const DEFAULT_SKILLS_ROOT = "/opt/apps/ai-mission-control/skills";
 const MAX_SKILL_BYTES = 256_000;
-const EXTERNAL_SOURCE_UNAVAILABLE = "External skill source unavailable or not found.";
+const GIT_TIMEOUT_MS = 30_000;
+const SOURCE_STATUS_FILE = ".skill-source-status.json";
 
-const EXTERNAL_SKILL_SOURCE_REGISTRY: ExternalSkillSourceRegistryItem[] = [
-  {
-    id: "github-anthropics-skills-frontend-design",
-    type: "github",
-    sourceUrl: "https://github.com/anthropics/skills",
-    sourceRepo: "anthropics/skills",
-    repoOwner: "anthropics",
-    repoName: "skills",
-    targetSkillName: "frontend-design",
-  },
-  {
-    id: "github-vercel-agent-skills-web-design-guidelines",
-    type: "github",
-    sourceUrl: "https://github.com/vercel-labs/agent-skills",
-    sourceRepo: "vercel-labs/agent-skills",
-    repoOwner: "vercel-labs",
-    repoName: "agent-skills",
-    targetSkillName: "web-design-guidelines",
-  },
-  {
-    id: "github-garrytan-gbrain",
-    type: "github",
-    sourceUrl: "https://github.com/garrytan/gbrain",
-    sourceRepo: "garrytan/gbrain",
-    repoOwner: "garrytan",
-    repoName: "gbrain",
-    targetSkillName: null,
-  },
-  {
-    id: "github-garrytan-gstack",
-    type: "github",
-    sourceUrl: "https://github.com/garrytan/gstack",
-    sourceRepo: "garrytan/gstack",
-    repoOwner: "garrytan",
-    repoName: "gstack",
-    targetSkillName: null,
-  },
+const DEFAULT_EXTERNAL_SKILL_SOURCE_REGISTRY: ExternalSkillSourceRegistryItem[] = [
+  { id: "github-anthropics-skills", type: "github", sourceUrl: "https://github.com/anthropics/skills", sourceRepo: "anthropics/skills", repoOwner: "anthropics", repoName: "skills", targetSkillName: null },
+  { id: "github-vercel-agent-skills", type: "github", sourceUrl: "https://github.com/vercel-labs/agent-skills", sourceRepo: "vercel-labs/agent-skills", repoOwner: "vercel-labs", repoName: "agent-skills", targetSkillName: null },
+  { id: "github-garrytan-ghrain", type: "github", sourceUrl: "https://github.com/garrytan/ghrain", sourceRepo: "garrytan/ghrain", repoOwner: "garrytan", repoName: "ghrain", targetSkillName: null },
 ];
 
-function findWorkspaceSkillsRoot(start: string): string {
-  let current = path.resolve(start);
-  while (true) {
-    const candidate = path.join(current, "skills");
-    if (existsSync(candidate)) return candidate;
-    const parent = path.dirname(current);
-    if (parent === current) return path.resolve(start, "skills");
-    current = parent;
-  }
+function findWorkspaceSkillsRoot(start: string): string { let current = path.resolve(start); while (true) { const candidate = path.join(current, "skills"); if (existsSync(candidate)) return candidate; const parent = path.dirname(current); if (parent === current) return path.resolve(start, "skills"); current = parent; } }
+function getSkillsRoot(): string { if (process.env.MISSION_CONTROL_SKILLS_DIR) return path.resolve(process.env.MISSION_CONTROL_SKILLS_DIR); if (existsSync(DEFAULT_SKILLS_ROOT)) return DEFAULT_SKILLS_ROOT; return findWorkspaceSkillsRoot(process.cwd()); }
+function getCacheRoot(root = getSkillsRoot()): string { return process.env.MISSION_CONTROL_SKILLS_CACHE_DIR ? path.resolve(process.env.MISSION_CONTROL_SKILLS_CACHE_DIR) : path.join(root, ".cache", "skill-sources"); }
+function encodeSkillId(relativePath: string): string { return Buffer.from(relativePath, "utf8").toString("base64url"); }
+function decodeSkillId(id: string): string { return Buffer.from(id, "base64url").toString("utf8"); }
+function sourceKey(source: Pick<SkillSourceStatus, "sourceRepo" | "id">): string { return source.sourceRepo ?? source.id; }
+function repoUrl(source: ExternalSkillSourceRegistryItem): string { return source.sourceUrl.endsWith(".git") || source.sourceUrl.startsWith("file://") ? source.sourceUrl : `https://github.com/${source.sourceRepo}.git`; }
+function sanitizeSegment(value: string): string { return value.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "source"; }
+
+function parseFrontmatter(content: string): Record<string, string> { if (!content.startsWith("---\n")) return {}; const end = content.indexOf("\n---", 4); if (end === -1) return {}; const entries: Record<string, string> = {}; for (const line of content.slice(4, end).split("\n")) { const match = line.match(/^([A-Za-z][A-Za-z0-9_-]*):\s*(.+?)\s*$/); if (match) entries[match[1].toLowerCase()] = match[2].replace(/^[']|[']$/g, "").replace(/^[\"]|[\"]$/g, ""); } return entries; }
+function normalizeSkillName(filePath: string, frontmatter: Record<string, string>, metadata: SkillInstallMetadata): string { return metadata.name ?? frontmatter.name ?? path.basename(path.dirname(filePath)) ?? path.basename(filePath, path.extname(filePath)); }
+function normalizeCategory(frontmatter: Record<string, string>, metadata: SkillInstallMetadata): string { return metadata.category ?? frontmatter.category ?? "UNMAPPED"; }
+function defaultSourceMetadata(relativePath: string): SkillSourceMetadata { return { sourceUrl: null, sourceRepo: null, repoOwner: null, repoName: null, branch: null, commitHash: null, filePath: relativePath, sourceLabel: relativePath, installedDate: null, lastSyncTime: null, enabled: true }; }
+async function readInstallMetadata(skillDir: string, relativePath: string): Promise<SkillInstallMetadata> { try { return JSON.parse(await readFile(path.join(skillDir, "metadata.json"), "utf8")) as SkillInstallMetadata; } catch (error: unknown) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return defaultSourceMetadata(relativePath); throw error; } }
+function normalizeSourceMetadata(metadata: SkillInstallMetadata, relativePath: string): SkillSourceMetadata { return { sourceUrl: metadata.sourceUrl ?? null, sourceRepo: metadata.sourceRepo ?? null, repoOwner: metadata.repoOwner ?? null, repoName: metadata.repoName ?? null, branch: metadata.branch ?? null, commitHash: metadata.commitHash ?? null, filePath: metadata.filePath ?? relativePath, sourceLabel: metadata.sourceLabel ?? metadata.filePath ?? relativePath, installedDate: metadata.installedDate ?? null, lastSyncTime: metadata.lastSyncTime ?? null, enabled: metadata.enabled ?? true }; }
+
+async function discoverSkillFiles(dir: string, root: string, output: string[]): Promise<void> { let entries: import("node:fs").Dirent[]; try { entries = await readdir(dir, { withFileTypes: true }); } catch (error: unknown) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; } for (const entry of entries) { if (entry.name.startsWith(".")) continue; const fullPath = path.join(dir, entry.name); if (entry.isDirectory()) await discoverSkillFiles(fullPath, root, output); else if (entry.isFile() && entry.name.toLowerCase() === "skill.md") { const relativePath = path.relative(root, fullPath); if (!relativePath.startsWith("..") && !path.isAbsolute(relativePath)) output.push(fullPath); } } }
+async function readMetadata(filePath: string, root: string): Promise<SkillMetadata> { const fileStat = await stat(filePath); if (fileStat.size > MAX_SKILL_BYTES) throw new Error(`Skill file exceeds ${MAX_SKILL_BYTES} bytes: ${filePath}`); const content = await readFile(filePath, "utf8"); const frontmatter = parseFrontmatter(content); const relativePath = path.relative(root, filePath); const installMetadata = await readInstallMetadata(path.dirname(filePath), relativePath); const source = normalizeSourceMetadata(installMetadata, relativePath); return { id: encodeSkillId(relativePath), name: normalizeSkillName(filePath, frontmatter, installMetadata), path: relativePath, category: normalizeCategory(frontmatter, installMetadata), lastUpdated: fileStat.mtime.toISOString(), source }; }
+
+async function readPersistedStatuses(root = getSkillsRoot()): Promise<Map<string, PersistedSourceStatus>> { try { const rows = JSON.parse(await readFile(path.join(root, SOURCE_STATUS_FILE), "utf8")) as PersistedSourceStatus[]; return new Map(rows.map(row => [sourceKey(row), row])); } catch (error: unknown) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return new Map(); throw error; } }
+async function writePersistedStatuses(statuses: SkillSourceStatus[], root = getSkillsRoot()): Promise<void> { await mkdir(root, { recursive: true }); await writeFile(path.join(root, SOURCE_STATUS_FILE), `${JSON.stringify(statuses, null, 2)}\n`, "utf8"); }
+
+function sourceStatuses(skills: SkillMetadata[], persisted = new Map<string, PersistedSourceStatus>()): SkillSourceStatus[] { const counts = new Map<string, number>(); const skillBySource = new Map<string, SkillMetadata>(); for (const skill of skills) { const key = skill.source.sourceRepo ?? skill.id; counts.set(key, (counts.get(key) ?? 0) + 1); skillBySource.set(key, skill); } const statuses: SkillSourceStatus[] = [];
+  for (const skill of skills) { const key = skill.source.sourceRepo ?? skill.id; if (statuses.some(s => sourceKey(s) === key)) continue; const saved = persisted.get(key); statuses.push({ id: key, type: skill.source.sourceRepo ? "github" : "local", sourceUrl: skill.source.sourceUrl, sourceRepo: skill.source.sourceRepo, repoOwner: skill.source.repoOwner, repoName: skill.source.repoName, branch: skill.source.branch, commitHash: skill.source.commitHash, status: saved?.status ?? (skill.source.enabled ? "available" : "unavailable"), lastSyncTime: skill.source.lastSyncTime ?? saved?.lastSyncTime ?? null, error: saved?.error ?? null, skillCount: counts.get(key) ?? 1, sourceLabel: skill.source.sourceLabel ?? skill.source.filePath ?? skill.path }); }
+  for (const source of externalSkillSourceRegistry()) { if (skillBySource.has(source.sourceRepo)) continue; const saved = persisted.get(source.sourceRepo); statuses.push(saved ?? { id: source.id, type: source.type, sourceUrl: source.sourceUrl, sourceRepo: source.sourceRepo, repoOwner: source.repoOwner, repoName: source.repoName, branch: null, commitHash: null, status: "unavailable", lastSyncTime: null, error: "Repository has not been synced yet.", skillCount: 0, sourceLabel: source.sourceRepo }); }
+  return statuses; }
+
+function filterSkills(skills: SkillMetadata[], filters: { name?: string | null; category?: string | null }): SkillMetadata[] { const name = filters.name?.trim().toLowerCase(); const category = filters.category?.trim().toLowerCase(); return skills.filter(skill => (skill.source.enabled) && (!name || skill.name.toLowerCase() === name) && (!category || skill.category.toLowerCase() === category)); }
+
+function externalSkillSourceRegistry(): ExternalSkillSourceRegistryItem[] {
+  const raw = process.env.MISSION_CONTROL_EXTERNAL_SKILL_SOURCES;
+  if (!raw) return DEFAULT_EXTERNAL_SKILL_SOURCE_REGISTRY;
+  const parsed = JSON.parse(raw) as ExternalSkillSourceRegistryItem[];
+  return parsed.map((source) => ({ ...source, type: "github", sourceRepo: source.sourceRepo || `${source.repoOwner}/${source.repoName}` }));
 }
 
-function getSkillsRoot(): string {
-  if (process.env.MISSION_CONTROL_SKILLS_DIR) {
-    return path.resolve(process.env.MISSION_CONTROL_SKILLS_DIR);
-  }
-  if (existsSync(DEFAULT_SKILLS_ROOT)) {
-    return DEFAULT_SKILLS_ROOT;
-  }
-  return findWorkspaceSkillsRoot(process.cwd());
-}
+function gitEnv(): NodeJS.ProcessEnv { const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: "0" }; delete env.GITHUB_TOKEN; return env; }
+function gitArgs(args: string[]): string[] { const token = process.env.GITHUB_TOKEN?.trim(); return token ? ["-c", `http.https://github.com/.extraheader=AUTHORIZATION: bearer ${token}`, ...args] : args; }
+async function runGit(args: string[], cwd?: string): Promise<string> { try { const { stdout } = await execFileAsync("git", gitArgs(args), { cwd, env: gitEnv(), timeout: GIT_TIMEOUT_MS, maxBuffer: 5_000_000 }); return stdout.trim(); } catch (error: unknown) { const err = error as NodeJS.ErrnoException & { stderr?: string; stdout?: string; signal?: string; killed?: boolean }; const output = `${err.stderr ?? ""}\n${err.stdout ?? ""}`.trim(); if (err.code === "ENOENT") throw new Error("git binary is not installed or is not on PATH."); if (err.killed || err.signal === "SIGTERM") throw new Error("Git operation timed out."); throw new Error(output || err.message); } }
+function classifyGitError(message: string): { status: SkillSourceSyncStatus; error: string } { const text = message.toLowerCase(); if (text.includes("authentication failed") || text.includes("could not read username") || text.includes("permission denied") || text.includes("access denied")) return { status: "auth_required", error: message }; if (text.includes("repository not found") || text.includes("not found")) return { status: "not_found", error: message }; if (text.includes("could not resolve host") || text.includes("name or service not known") || text.includes("network is unreachable") || text.includes("connect tunnel failed") || text.includes("proxy")) return { status: "unavailable", error: message }; if (text.includes("timed out")) return { status: "unavailable", error: message }; return { status: "error", error: message }; }
+async function syncOneExternalSource(source: ExternalSkillSourceRegistryItem, root: string, syncTime: string): Promise<SkillSourceStatus> { const cacheDir = path.join(getCacheRoot(root), sanitizeSegment(source.sourceRepo)); const targetRoot = path.join(root, "external", sanitizeSegment(source.repoOwner), sanitizeSegment(source.repoName)); try { await runGit(["ls-remote", "--symref", repoUrl(source), "HEAD"]); await mkdir(path.dirname(cacheDir), { recursive: true }); if (existsSync(path.join(cacheDir, ".git"))) await runGit(["fetch", "--prune", "origin"], cacheDir); else { await rm(cacheDir, { recursive: true, force: true }); await runGit(["clone", "--no-tags", repoUrl(source), cacheDir]); } const branch = (await runGit(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], cacheDir)).replace(/^origin\//, ""); await runGit(["checkout", "--force", branch], cacheDir); await runGit(["reset", "--hard", `origin/${branch}`], cacheDir); const commitHash = await runGit(["rev-parse", "HEAD"], cacheDir); const found: string[] = []; await discoverSkillFiles(cacheDir, cacheDir, found); await rm(targetRoot, { recursive: true, force: true }); if (!found.length) return { id: source.id, type: source.type, sourceUrl: source.sourceUrl, sourceRepo: source.sourceRepo, repoOwner: source.repoOwner, repoName: source.repoName, branch, commitHash, status: "no_skills_found", lastSyncTime: syncTime, error: "Repository is reachable but contains no SKILL.md files.", skillCount: 0, sourceLabel: source.sourceRepo };
+    for (const file of found.sort()) { const relative = path.relative(cacheDir, file); const content = await readFile(file, "utf8"); if (Buffer.byteLength(content, "utf8") > MAX_SKILL_BYTES) continue; const targetDir = path.join(targetRoot, path.dirname(relative)); await mkdir(targetDir, { recursive: true }); await writeFile(path.join(targetDir, "SKILL.md"), content, "utf8"); const metadata: SkillInstallMetadata = { sourceUrl: source.sourceUrl, sourceRepo: source.sourceRepo, repoOwner: source.repoOwner, repoName: source.repoName, branch, commitHash, filePath: relative, sourceLabel: relative, installedDate: syncTime, lastSyncTime: syncTime, enabled: true, syncStatus: "available", error: null, skillCount: found.length }; await writeFile(path.join(targetDir, "metadata.json"), `${JSON.stringify(metadata, null, 2)}\n`, "utf8"); }
+    return { id: source.id, type: source.type, sourceUrl: source.sourceUrl, sourceRepo: source.sourceRepo, repoOwner: source.repoOwner, repoName: source.repoName, branch, commitHash, status: "available", lastSyncTime: syncTime, error: null, skillCount: found.length, sourceLabel: source.sourceRepo };
+  } catch (error: unknown) { const classified = classifyGitError(error instanceof Error ? error.message : String(error)); return { id: source.id, type: source.type, sourceUrl: source.sourceUrl, sourceRepo: source.sourceRepo, repoOwner: source.repoOwner, repoName: source.repoName, branch: null, commitHash: null, status: classified.status, lastSyncTime: syncTime, error: classified.error, skillCount: 0, sourceLabel: source.sourceRepo }; } }
 
-function encodeSkillId(relativePath: string): string {
-  return Buffer.from(relativePath, "utf8").toString("base64url");
-}
-
-function decodeSkillId(id: string): string {
-  return Buffer.from(id, "base64url").toString("utf8");
-}
-
-function parseFrontmatter(content: string): Record<string, string> {
-  if (!content.startsWith("---\n")) return {};
-  const end = content.indexOf("\n---", 4);
-  if (end === -1) return {};
-  const body = content.slice(4, end);
-  const entries: Record<string, string> = {};
-  for (const line of body.split("\n")) {
-    const match = line.match(/^([A-Za-z][A-Za-z0-9_-]*):\s*(.+?)\s*$/);
-    if (!match) continue;
-    entries[match[1].toLowerCase()] = match[2].replace(/^['\"]|['\"]$/g, "");
-  }
-  return entries;
-}
-
-function normalizeSkillName(filePath: string, frontmatter: Record<string, string>, metadata: SkillInstallMetadata): string {
-  if (metadata.name) return metadata.name;
-  if (frontmatter.name) return frontmatter.name;
-  const parent = path.basename(path.dirname(filePath));
-  if (parent && parent !== ".") return parent;
-  return path.basename(filePath, path.extname(filePath));
-}
-
-function normalizeCategory(frontmatter: Record<string, string>, metadata: SkillInstallMetadata): string {
-  if (metadata.category) return metadata.category;
-  if (frontmatter.category) return frontmatter.category;
-  return "UNMAPPED";
-}
-
-function defaultSourceMetadata(relativePath: string): SkillSourceMetadata {
-  return {
-    sourceUrl: null,
-    sourceRepo: null,
-    repoOwner: null,
-    repoName: null,
-    branch: null,
-    commitHash: null,
-    filePath: relativePath,
-    installedDate: null,
-    lastSyncTime: null,
-    enabled: true,
-  };
-}
-
-async function readInstallMetadata(skillDir: string, relativePath: string): Promise<SkillInstallMetadata> {
-  try {
-    const raw = await readFile(path.join(skillDir, "metadata.json"), "utf8");
-    return JSON.parse(raw) as SkillInstallMetadata;
-  } catch (error: unknown) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return defaultSourceMetadata(relativePath);
-    throw error;
-  }
-}
-
-function normalizeSourceMetadata(metadata: SkillInstallMetadata, relativePath: string): SkillSourceMetadata {
-  return {
-    sourceUrl: metadata.sourceUrl ?? null,
-    sourceRepo: metadata.sourceRepo ?? null,
-    repoOwner: metadata.repoOwner ?? null,
-    repoName: metadata.repoName ?? null,
-    branch: metadata.branch ?? null,
-    commitHash: metadata.commitHash ?? null,
-    filePath: metadata.filePath ?? relativePath,
-    installedDate: metadata.installedDate ?? null,
-    lastSyncTime: metadata.lastSyncTime ?? null,
-    enabled: metadata.enabled ?? true,
-  };
-}
-
-async function discoverSkillFiles(dir: string, root: string, output: string[]): Promise<void> {
-  let entries: import("node:fs").Dirent[];
-  try {
-    entries = await readdir(dir, { withFileTypes: true });
-  } catch (error: unknown) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-    throw error;
-  }
-
-  for (const entry of entries) {
-    if (entry.name.startsWith(".")) continue;
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      await discoverSkillFiles(fullPath, root, output);
-      continue;
-    }
-    if (entry.isFile() && entry.name.toLowerCase() === "skill.md") {
-      const relativePath = path.relative(root, fullPath);
-      if (!relativePath.startsWith("..") && !path.isAbsolute(relativePath)) output.push(fullPath);
-    }
-  }
-}
-
-async function readMetadata(filePath: string, root: string): Promise<SkillMetadata> {
-  const fileStat = await stat(filePath);
-  if (fileStat.size > MAX_SKILL_BYTES) {
-    throw new Error(`Skill file exceeds ${MAX_SKILL_BYTES} bytes: ${filePath}`);
-  }
-  const content = await readFile(filePath, "utf8");
-  const frontmatter = parseFrontmatter(content);
-  const relativePath = path.relative(root, filePath);
-  const installMetadata = await readInstallMetadata(path.dirname(filePath), relativePath);
-  const source = normalizeSourceMetadata(installMetadata, relativePath);
-  return {
-    id: encodeSkillId(relativePath),
-    name: normalizeSkillName(filePath, frontmatter, installMetadata),
-    path: filePath,
-    category: normalizeCategory(frontmatter, installMetadata),
-    lastUpdated: fileStat.mtime.toISOString(),
-    source,
-  };
-}
-
-function sourceStatuses(skills: SkillMetadata[]): SkillSourceStatus[] {
-  const installedBySource = new Map(skills.filter(skill => skill.source.sourceRepo).map(skill => [skill.source.sourceRepo, skill]));
-  const installedSources = skills.map((skill): SkillSourceStatus => ({
-    id: skill.source.sourceRepo ?? skill.id,
-    type: skill.source.sourceRepo ? "github" : "local",
-    sourceUrl: skill.source.sourceUrl,
-    sourceRepo: skill.source.sourceRepo,
-    repoOwner: skill.source.repoOwner,
-    repoName: skill.source.repoName,
-    branch: skill.source.branch,
-    commitHash: skill.source.commitHash,
-    status: skill.source.enabled ? "available" : "unavailable",
-    lastSyncTime: skill.source.lastSyncTime,
-    error: skill.source.enabled ? null : EXTERNAL_SOURCE_UNAVAILABLE,
-  }));
-  const missingRegistrySources = EXTERNAL_SKILL_SOURCE_REGISTRY
-    .filter(source => !installedBySource.has(source.sourceRepo))
-    .map((source): SkillSourceStatus => ({
-      id: source.id,
-      type: source.type,
-      sourceUrl: source.sourceUrl,
-      sourceRepo: source.sourceRepo,
-      repoOwner: source.repoOwner,
-      repoName: source.repoName,
-      branch: null,
-      commitHash: null,
-      status: "unavailable",
-      lastSyncTime: null,
-      error: EXTERNAL_SOURCE_UNAVAILABLE,
-    }));
-  const unique = new Map<string, SkillSourceStatus>();
-  for (const source of [...installedSources, ...missingRegistrySources]) {
-    unique.set(source.sourceRepo ?? source.id, source);
-  }
-  return [...unique.values()];
-}
-
-function filterSkills(skills: SkillMetadata[], filters: { name?: string | null; category?: string | null }): SkillMetadata[] {
-  const name = filters.name?.trim().toLowerCase();
-  const category = filters.category?.trim().toLowerCase();
-  return skills.filter(skill => {
-    if (!skill.source.enabled) return false;
-    if (name && skill.name.toLowerCase() !== name) return false;
-    if (category && skill.category.toLowerCase() !== category) return false;
-    return true;
-  });
-}
-
-export async function listSkills(filters: { name?: string | null; category?: string | null } = {}): Promise<SkillListResult> {
-  const root = getSkillsRoot();
-  const files: string[] = [];
-  await discoverSkillFiles(root, root, files);
-  const skills = await Promise.all(files.sort().map(file => readMetadata(file, root)));
-  return {
-    skills: filterSkills(skills, filters),
-    sources: sourceStatuses(skills),
-  };
-}
-
-export async function readSkill(id: string): Promise<SkillDocument | null> {
-  const root = getSkillsRoot();
-  const relativePath = decodeSkillId(id);
-  const filePath = path.resolve(root, relativePath);
-  if (!filePath.startsWith(root + path.sep) && filePath !== root) return null;
-  if (path.basename(filePath).toLowerCase() !== "skill.md") return null;
-  try {
-    const metadata = await readMetadata(filePath, root);
-    if (!metadata.source.enabled) return null;
-    const content = await readFile(filePath, "utf8");
-    return { ...metadata, content };
-  } catch (error: unknown) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw error;
-  }
-}
-
-export async function readSkillsForDelegation(filters: { names?: string[]; categories?: string[] }): Promise<SkillDocument[]> {
-  const result = await listSkills();
-  const names = new Set((filters.names ?? []).map(value => value.toLowerCase()));
-  const categories = new Set((filters.categories ?? []).map(value => value.toLowerCase()));
-  const selected = result.skills.filter(skill =>
-    names.has(skill.name.toLowerCase()) || categories.has(skill.category.toLowerCase()),
-  );
-  return Promise.all(selected.map(skill => readSkill(skill.id))).then(docs => docs.filter((doc): doc is SkillDocument => Boolean(doc)));
-}
-
-export function formatSkillsForPrompt(skills: SkillDocument[]): string {
-  if (!skills.length) return "";
-  return skills.map(skill => [
-    `## Skill: ${skill.name}`,
-    `Path: ${skill.path}`,
-    `Category: ${skill.category}`,
-    `Source Repo: ${skill.source.sourceRepo ?? "local"}`,
-    skill.content,
-  ].join("\n")).join("\n\n---\n\n");
-}
+export async function listSkills(filters: { name?: string | null; category?: string | null } = {}): Promise<SkillListResult> { const root = getSkillsRoot(); const files: string[] = []; await discoverSkillFiles(root, root, files); const skills = await Promise.all(files.sort().map(file => readMetadata(file, root))); const persisted = await readPersistedStatuses(root); return { skills: filterSkills(skills, filters), sources: sourceStatuses(skills, persisted) }; }
+export async function syncSkills(): Promise<SkillSyncResult> { const root = getSkillsRoot(); await mkdir(root, { recursive: true }); const syncTime = new Date().toISOString(); const statuses = await Promise.all(externalSkillSourceRegistry().map(source => syncOneExternalSource(source, root, syncTime))); await writePersistedStatuses(statuses, root); return listSkills(); }
+export async function readSkill(id: string): Promise<SkillDocument | null> { const root = getSkillsRoot(); const relativePath = decodeSkillId(id); const filePath = path.resolve(root, relativePath); if (!filePath.startsWith(root + path.sep) && filePath !== root) return null; if (path.basename(filePath).toLowerCase() !== "skill.md") return null; try { const metadata = await readMetadata(filePath, root); if (!metadata.source.enabled) return null; return { ...metadata, content: await readFile(filePath, "utf8") }; } catch (error: unknown) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return null; throw error; } }
+export async function readSkillsForDelegation(filters: { names?: string[]; categories?: string[] }): Promise<SkillDocument[]> { const result = await listSkills(); const names = new Set((filters.names ?? []).map(value => value.toLowerCase())); const categories = new Set((filters.categories ?? []).map(value => value.toLowerCase())); const selected = result.skills.filter(skill => names.has(skill.name.toLowerCase()) || categories.has(skill.category.toLowerCase())); return Promise.all(selected.map(skill => readSkill(skill.id))).then(docs => docs.filter((doc): doc is SkillDocument => Boolean(doc))); }
+export function formatSkillsForPrompt(skills: SkillDocument[]): string { if (!skills.length) return ""; return skills.map(skill => [`## Skill: ${skill.name}`, `Path: ${skill.path}`, `Category: ${skill.category}`, `Source Repo: ${skill.source.sourceRepo ?? "local"}`, skill.content].join("\n")).join("\n\n---\n\n"); }
