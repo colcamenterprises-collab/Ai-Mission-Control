@@ -57,6 +57,38 @@ if (sendJamesMessage) {
   });
 }
 
+function formatSmokeBody(text, contentType) {
+  const trimmed = text.trim();
+  if (!trimmed) return "<empty response body>";
+
+  if (contentType.includes("application/json")) {
+    try {
+      return JSON.stringify(JSON.parse(trimmed), null, 2);
+    } catch {
+      return trimmed.slice(0, 1000);
+    }
+  }
+
+  if (contentType.includes("text/html") || /^<!doctype html/i.test(trimmed) || /^<html[\s>]/i.test(trimmed)) {
+    const title = trimmed.match(/<title[^>]*>(.*?)<\/title>/is)?.[1]?.replace(/\s+/g, " ").trim();
+    const plainText = trimmed
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&")
+      .replace(/\s+/g, " ")
+      .trim();
+    return [title ? `HTML title: ${title}` : null, plainText ? `HTML text: ${plainText.slice(0, 1000)}` : null]
+      .filter(Boolean)
+      .join("\n") || "HTML response body was not readable as text";
+  }
+
+  return trimmed.slice(0, 1000);
+}
+
 let failures = 0;
 
 for (const check of checks) {
@@ -76,12 +108,13 @@ for (const check of checks) {
   try {
     const response = await fetch(url, { ...(check.init ?? {}), headers });
     const text = await response.text();
+    const contentType = response.headers.get("content-type") ?? "";
     const acceptedStatuses = check.acceptedStatuses ?? new Set([200]);
 
     if (!acceptedStatuses.has(response.status)) {
       failures += 1;
       console.log(
-        `FAIL ${check.name}: HTTP ${response.status} ${response.statusText} ${text.slice(0, 300)}`,
+        `FAIL ${check.name}: HTTP ${response.status} ${response.statusText}\n${formatSmokeBody(text, contentType)}`,
       );
       continue;
     }
