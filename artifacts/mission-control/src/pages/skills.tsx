@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { BookOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useGetSkill, useListSkills, type SkillMetadata, type SkillSourceStatus } from "@/lib/skills-api";
+import { useGetSkill, useListSkills, useSyncSkills, type SkillMetadata, type SkillSourceStatus } from "@/lib/skills-api";
 import "./workspaces.css";
 
 function formatDate(value: string | null): string {
@@ -18,16 +18,19 @@ function SourceStatusTable({ sources }: { sources: SkillSourceStatus[] }) {
     <div className="mb-4 overflow-hidden rounded-lg border border-border">
       <table className="w-full text-left text-xs">
         <thead className="bg-secondary/50 font-mono uppercase text-muted-foreground">
-          <tr><th className="p-2">Source</th><th className="p-2">Branch</th><th className="p-2">Commit</th><th className="p-2">Status</th><th className="p-2">Last sync</th></tr>
+          <tr><th className="p-2">Source</th><th className="p-2">Type</th><th className="p-2">Branch</th><th className="p-2">Commit</th><th className="p-2">Status</th><th className="p-2">Last sync</th><th className="p-2">Skill count</th><th className="p-2">Details</th></tr>
         </thead>
         <tbody>
           {sources.map((source) => (
             <tr key={source.id} className="border-t border-border">
-              <td className="p-2 font-mono">{source.sourceRepo ?? source.sourceUrl ?? source.id}</td>
+              <td className="p-2 font-mono">{source.sourceLabel || source.sourceRepo || source.sourceUrl || source.id}</td>
+              <td className="p-2 font-mono text-muted-foreground">{source.type === "github" ? "external" : "local"}</td>
               <td className="p-2 font-mono text-muted-foreground">{source.branch ?? "NULL"}</td>
               <td className="p-2 font-mono text-muted-foreground">{source.commitHash ? source.commitHash.slice(0, 12) : "NULL"}</td>
-              <td className="p-2">{source.error ?? source.status}</td>
+              <td className="p-2 font-mono">{source.status}</td>
               <td className="p-2 font-mono text-muted-foreground">{source.lastSyncTime ? formatDate(source.lastSyncTime) : "NULL"}</td>
+              <td className="p-2 font-mono text-muted-foreground">{source.skillCount}</td>
+              <td className="max-w-xs truncate p-2 text-muted-foreground" title={source.error ?? undefined}>{source.error ?? "OK"}</td>
             </tr>
           ))}
         </tbody>
@@ -54,7 +57,7 @@ function SkillList({ skills, selectedId, onSelect }: { skills: SkillMetadata[]; 
           </div>
           <p className="mt-2 truncate font-mono text-[11px] text-muted-foreground">{skill.path}</p>
           <p className="mt-1 font-mono text-[11px] text-muted-foreground">Updated: {formatDate(skill.lastUpdated)}</p>
-          <p className="mt-1 font-mono text-[11px] text-muted-foreground">Source: {skill.source.sourceRepo ?? skill.source.sourceUrl ?? "local"}</p>
+          <p className="mt-1 font-mono text-[11px] text-muted-foreground">Source: {skill.source.sourceLabel ?? skill.source.filePath ?? skill.path}</p>
         </button>
       ))}
     </div>
@@ -72,6 +75,7 @@ function MarkdownPreview({ content }: { content: string }) {
 export default function Skills() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { data, isLoading, error } = useListSkills();
+  const syncSkills = useSyncSkills();
   const skills = data?.skills ?? [];
   const sources = data?.sources ?? [];
   const selectedSkillId = selectedId ?? skills[0]?.id ?? null;
@@ -91,8 +95,12 @@ export default function Skills() {
           <div className="workspace-panel p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="dashboard-section-title flex items-center gap-2"><BookOpen className="h-4 w-4" /> Skill list</h2>
-              <Badge variant="outline" className="font-mono text-[10px]">{skills.length}</Badge>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => syncSkills.mutate()} disabled={syncSkills.isPending} className="rounded-md border border-border px-3 py-1 font-mono text-[10px] uppercase text-muted-foreground hover:border-primary/40 disabled:opacity-60">{syncSkills.isPending ? "Syncing..." : "Sync skills"}</button>
+                <Badge variant="outline" className="font-mono text-[10px]">{skills.length}</Badge>
+              </div>
             </div>
+            {syncSkills.error && <p className="mb-3 text-xs text-red-400">Failed to sync skills: {syncSkills.error instanceof Error ? syncSkills.error.message : "Unknown error"}</p>}
             {isLoading ? (
               <Skeleton className="h-40 w-full" />
             ) : error ? (
@@ -109,7 +117,7 @@ export default function Skills() {
             <div className="mb-4">
               <p className="workspace-eyebrow">Skill detail</p>
               <h2 className="dashboard-section-title mt-1">{selected?.name ?? "No skill selected"}</h2>
-              {selected && <p className="mt-2 font-mono text-xs text-muted-foreground">{selected.source.sourceRepo ?? selected.source.sourceUrl ?? "local"} · {selected.source.branch ?? "NULL"} · {selected.source.commitHash ?? "NULL"} · {selected.source.filePath ?? selected.path}</p>}
+              {selected && <p className="mt-2 font-mono text-xs text-muted-foreground">{selected.source.sourceRepo ?? "local"} · {selected.source.branch ?? "NULL"} · {selected.source.commitHash ?? "NULL"} · {selected.source.sourceLabel ?? selected.source.filePath ?? selected.path}</p>}
             </div>
             {detail.isLoading ? (
               <Skeleton className="h-96 w-full" />
