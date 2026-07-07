@@ -23,8 +23,11 @@ export type SkillSourceMetadata = {
 export type SkillMetadata = {
   id: string;
   name: string;
+  title: string;
+  description: string | null;
   path: string;
   category: string;
+  status: string | null;
   lastUpdated: string;
   source: SkillSourceMetadata;
 };
@@ -95,8 +98,11 @@ function skillFrom(raw: unknown, index: number): SkillMetadata | null {
   return {
     id,
     name: requiredString(raw.name, id),
+    title: requiredString(raw.title, requiredString(raw.name, id)),
+    description: nullableString(raw.description),
     path,
     category: requiredString(raw.category, "UNMAPPED"),
+    status: nullableString(raw.status),
     lastUpdated: requiredString(raw.lastUpdated, ""),
     source: sourceMetadataFrom(raw.source, path),
   };

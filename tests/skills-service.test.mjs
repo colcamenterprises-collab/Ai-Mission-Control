@@ -38,11 +38,22 @@ const service = await import(bundledService);
 try {
   await mkdir(path.join(process.env.MISSION_CONTROL_SKILLS_DIR, 'coding'), { recursive: true });
   await writeFile(path.join(process.env.MISSION_CONTROL_SKILLS_DIR, 'coding', 'SKILL.md'), '---\nname: Coding\ncategory: local\n---\nLocal.\n');
+  await mkdir(path.join(process.env.MISSION_CONTROL_SKILLS_DIR, 'library', 'customli', 'llm-wiki'), { recursive: true });
+  await writeFile(path.join(process.env.MISSION_CONTROL_SKILLS_DIR, 'library', 'customli', 'llm-wiki', 'SKILL.md'), '---\ntitle: LLM Wiki\ndescription: Local wiki maintenance.\ncategory: knowledge-management\nstatus: local\n---\nLocal wiki.\n');
   process.env.MISSION_CONTROL_EXTERNAL_SKILL_SOURCES = '[]';
   let listed = await service.listSkills();
-  assert.equal(listed.skills.length, 1, 'local skill scan detects SKILL.md');
-  assert.equal(listed.skills[0].path, 'coding/SKILL.md', 'local skill path is readable, not base64');
-  assert.equal(listed.skills[0].source.localStatus, 'local', 'custom local skill is marked local');
+  assert.equal(listed.skills.length, 2, 'local skill scan detects root and library SKILL.md files');
+  const coding = listed.skills.find(s => s.name === 'Coding');
+  assert.ok(coding, 'root local skill remains discoverable');
+  assert.equal(coding.path, 'coding/SKILL.md', 'local skill path is readable, not base64');
+  assert.equal(coding.source.localStatus, 'local', 'custom local skill is marked local');
+  const llmWiki = listed.skills.find(s => s.name === 'LLM Wiki');
+  assert.ok(llmWiki, 'nested library local skill is discoverable');
+  assert.equal(llmWiki.path, 'library/customli/llm-wiki/SKILL.md', 'nested library skill preserves local path metadata');
+  assert.equal(llmWiki.source.localStatus, 'local', 'nested library skill is marked local, not imported');
+  assert.equal(llmWiki.description, 'Local wiki maintenance.', 'frontmatter description is parsed');
+  assert.equal(llmWiki.category, 'knowledge-management', 'frontmatter category is parsed');
+  assert.equal(llmWiki.status, 'local', 'frontmatter status is parsed');
   assert.equal(listed.origins.length, 0, 'custom local skills are not reported as import origins');
 
   const goodRepo = await makeRepo('good-repo', true);
