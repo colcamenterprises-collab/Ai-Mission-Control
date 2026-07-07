@@ -135,6 +135,15 @@ Recommended next patch: add an API contract maintenance doc.
 
 Recommended next patch: capture sanitized nginx route details from production into deployment documentation if allowed.
 
+
+### 16. Goose runtime support is an opportunity, but not yet implemented
+
+- Goose appears suitable as an optional pluggable agent runtime for research, code, repo, MCP, and workflow execution.
+- It should not replace Mission Control or Hermes; it should sit behind the same generic runtime adapter concepts as Hermes, Codex, Gemini, OpenCore, and future agents.
+- Primary risks are unrestricted shell/file access, MCP extension side effects, shared user-level config/secrets, Goose-owned scheduling bypassing Mission Control audit, and sensitive diagnostics/session exports.
+
+Recommended next patch: add a disabled-by-default Goose adapter skeleton with runtime config types, read-only health checks, permission profile validation, extension allowlist validation, task-envelope rendering, and secret redaction tests. Do not install Goose, enable execution, alter Hermes/auth, or change production service runtime. See `docs/integrations/GOOSE_AGENT_RUNTIME_AUDIT.md`.
+
 ## Recommended next implementation patch
 
 Implement only after host verification:
