@@ -108,19 +108,27 @@ Recommended next patch: replace hardcoded UI values with API-backed data only af
 
 ## Lower-priority gaps
 
-### 13. OpenAPI/client regeneration flow is not documented here
+### 13. Repository intelligence layer is not modeled yet
+
+- Repositories currently expose configured repo/worktree metadata and diagnostics, but not code intelligence, symbol search, dependency graphs, blast-radius analysis, affected-test suggestions, or generated implementation briefs.
+- CodeGraph was audited as a candidate local-first repo intelligence/indexing provider in `docs/integrations/CODEGRAPH_REPO_INTELLIGENCE_AUDIT.md`.
+- Recommendation: support CodeGraph later through a generic, disabled-by-default Repo Intelligence Provider abstraction. CodeGraph should supplement repository/worktree management, task briefs, QA planning, and PR review; it should not replace Git truth, CI, human review, auth, Hermes, or Mission Control runtime.
+
+Recommended next patch: add only provider-interface scaffolding and read-only CodeGraph install/version/status detection behind a disabled-by-default configuration flag. Do not install CodeGraph, initialize repositories, write MCP config, or grant agent query access until repository-scoped permissions and audit logging exist.
+
+### 14. OpenAPI/client regeneration flow is not documented here
 
 - API specs and generated clients exist.
 - The command sequence for regenerating them is not part of the deployment runbook.
 
 Recommended next patch: add an API contract maintenance doc.
 
-### 14. No Docker/PM2 config, but operators may still ask about them
+### 15. No Docker/PM2 config, but operators may still ask about them
 
 - Repo contains no Docker or PM2 deployment artifacts.
 - Runbook should continue to state that systemd/Node is the current runtime unless host evidence changes.
 
-### 15. Nginx route ownership unclear
+### 16. Nginx route ownership unclear
 
 - CORS allows `https://mission.customli.io`.
 - Actual nginx routing is host state, not repo state.
