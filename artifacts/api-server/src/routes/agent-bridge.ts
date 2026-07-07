@@ -22,8 +22,43 @@ import {
   RegenerateAgentTokenParams,
   AckAgentCommandParams,
 } from "@workspace/api-zod";
+import { formatSkillsForPrompt, listSkills, readSkill, readSkillsForDelegation } from "../services/skills.js";
+import { getAssignedSkillNamesForAgent } from "../config-operational-agents.js";
 
 const router: IRouter = Router();
+
+
+/* ─── GET /agent/skills ─────────────────────────────────────────
+   Authenticated agents can discover shared SKILL.md documents by
+   exact name or category and then read selected skill documents.
+──────────────────────────────────────────────────────────────── */
+router.get("/agent/skills", createRateLimit("agent-skills", 60, 60_000), async (req, res): Promise<void> => {
+  const agent = await getAgentFromBearer(req.headers.authorization);
+  if (!agent) {
+    res.status(401).json({ error: "Invalid or missing bearer token" });
+    return;
+  }
+
+  const name = typeof req.query.name === "string" ? req.query.name : null;
+  const category = typeof req.query.category === "string" ? req.query.category : null;
+  const result = await listSkills({ name, category });
+  res.json({ agentId: agent.id, ...result });
+});
+
+router.get("/agent/skills/:id", createRateLimit("agent-skills", 60, 60_000), async (req, res): Promise<void> => {
+  const agent = await getAgentFromBearer(req.headers.authorization);
+  if (!agent) {
+    res.status(401).json({ error: "Invalid or missing bearer token" });
+    return;
+  }
+
+  const skill = await readSkill(String(req.params.id));
+  if (!skill) {
+    res.status(404).json({ error: "Skill not found" });
+    return;
+  }
+  res.json({ agentId: agent.id, skill });
+});
 
 /* ─── POST /agent/ping ────────────────────────────────────────
    Heartbeat from any agent (local, Docker, hosted).
@@ -239,6 +274,10 @@ router.post("/agents/:id/dispatch", createRateLimit("admin-dispatch", 20, 60_000
   }
 
   const { instructions, taskId, context } = parsed.data;
+  const assignedSkillNames = getAssignedSkillNamesForAgent(agent.name);
+  const assignedSkills = await readSkillsForDelegation({ names: assignedSkillNames });
+  const skillsContext = formatSkillsForPrompt(assignedSkills);
+  const contextWithSkills = [context ?? null, skillsContext ? `Relevant assigned skills:\n\n${skillsContext}` : null].filter(Boolean).join("\n\n");
 
   // Step 1 — queue the command unconditionally
   const [command] = await db
@@ -246,7 +285,7 @@ router.post("/agents/:id/dispatch", createRateLimit("admin-dispatch", 20, 60_000
     .values({
       agentId: agent.id,
       instructions,
-      context: context ?? null,
+      context: contextWithSkills || null,
       taskId: taskId ?? null,
     })
     .returning();
@@ -270,7 +309,7 @@ router.post("/agents/:id/dispatch", createRateLimit("admin-dispatch", 20, 60_000
           commandId: command.id,
           instructions,
           taskId: taskId ?? null,
-          context: context ?? null,
+          context: contextWithSkills || null,
           source: "mission-control",
           timestamp: new Date().toISOString(),
         }),

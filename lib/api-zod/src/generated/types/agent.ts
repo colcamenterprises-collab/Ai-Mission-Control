@@ -36,4 +36,5 @@ export interface Agent {
   inboundToken?: string | null;
   /** @nullable */
   lastPing?: string | null;
+  assignedSkills?: string[];
 }
