@@ -44,6 +44,11 @@ resolve_pnpm_cmd() {
     exit 1
   fi
 
+  if [[ "${PNPM_CMD}" == /* ]]; then
+    PNPM_BIN_DIR="$(dirname "${PNPM_CMD}")"
+    export PATH="${PNPM_BIN_DIR}:${PATH}"
+  fi
+
   echo "Resolved pnpm command: ${PNPM_CMD}"
 }
 
