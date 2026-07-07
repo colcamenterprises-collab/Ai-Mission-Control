@@ -72,6 +72,30 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
       created_at timestamptz NOT NULL DEFAULT now()
     );
 
+    CREATE TABLE IF NOT EXISTS content (
+      id serial PRIMARY KEY,
+      title text NOT NULL,
+      platform text NOT NULL,
+      stage text NOT NULL DEFAULT 'idea',
+      assigned_day text,
+      script text,
+      draft_link text,
+      notes text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS events (
+      id serial PRIMARY KEY,
+      title text NOT NULL,
+      description text,
+      category text NOT NULL,
+      start_date text NOT NULL,
+      end_date text,
+      all_day boolean NOT NULL DEFAULT false,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS description text;
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assignee text;
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority text DEFAULT 'medium';
@@ -112,6 +136,24 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
     ALTER TABLE contacts ADD COLUMN IF NOT EXISTS notes text;
     ALTER TABLE contacts ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
 
+    ALTER TABLE content ADD COLUMN IF NOT EXISTS title text;
+    ALTER TABLE content ADD COLUMN IF NOT EXISTS platform text;
+    ALTER TABLE content ADD COLUMN IF NOT EXISTS stage text DEFAULT 'idea';
+    ALTER TABLE content ADD COLUMN IF NOT EXISTS assigned_day text;
+    ALTER TABLE content ADD COLUMN IF NOT EXISTS script text;
+    ALTER TABLE content ADD COLUMN IF NOT EXISTS draft_link text;
+    ALTER TABLE content ADD COLUMN IF NOT EXISTS notes text;
+    ALTER TABLE content ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+    ALTER TABLE content ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS title text;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS description text;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS category text DEFAULT 'UNMAPPED';
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS start_date text;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS end_date text;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS all_day boolean DEFAULT false;
+    ALTER TABLE events ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+
     UPDATE tasks SET assignee = 'UNMAPPED' WHERE assignee IS NULL;
     UPDATE tasks SET priority = 'medium' WHERE priority IS NULL;
     UPDATE tasks SET status = 'backlog' WHERE status IS NULL;
@@ -138,6 +180,18 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
     UPDATE contacts SET category = 'UNMAPPED' WHERE category IS NULL;
     UPDATE contacts SET created_at = now() WHERE created_at IS NULL;
 
+    UPDATE content SET title = 'UNMAPPED' WHERE title IS NULL;
+    UPDATE content SET platform = 'UNMAPPED' WHERE platform IS NULL;
+    UPDATE content SET stage = 'idea' WHERE stage IS NULL;
+    UPDATE content SET created_at = now() WHERE created_at IS NULL;
+    UPDATE content SET updated_at = created_at WHERE updated_at IS NULL;
+
+    UPDATE events SET title = 'UNMAPPED' WHERE title IS NULL;
+    UPDATE events SET category = 'UNMAPPED' WHERE category IS NULL;
+    UPDATE events SET start_date = 'UNMAPPED' WHERE start_date IS NULL;
+    UPDATE events SET all_day = false WHERE all_day IS NULL;
+    UPDATE events SET created_at = now() WHERE created_at IS NULL;
+
     ALTER TABLE tasks ALTER COLUMN assignee SET NOT NULL;
     ALTER TABLE tasks ALTER COLUMN priority SET NOT NULL;
     ALTER TABLE tasks ALTER COLUMN status SET NOT NULL;
@@ -163,5 +217,20 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
 
     ALTER TABLE contacts ALTER COLUMN category SET NOT NULL;
     ALTER TABLE contacts ALTER COLUMN created_at SET NOT NULL;
+
+    ALTER TABLE content ALTER COLUMN title SET NOT NULL;
+    ALTER TABLE content ALTER COLUMN platform SET NOT NULL;
+    ALTER TABLE content ALTER COLUMN stage SET NOT NULL;
+    ALTER TABLE content ALTER COLUMN created_at SET NOT NULL;
+    ALTER TABLE content ALTER COLUMN updated_at SET NOT NULL;
+
+    ALTER TABLE events ALTER COLUMN title SET NOT NULL;
+    ALTER TABLE events ALTER COLUMN category SET NOT NULL;
+    ALTER TABLE events ALTER COLUMN start_date SET NOT NULL;
+    ALTER TABLE events ALTER COLUMN all_day SET NOT NULL;
+    ALTER TABLE events ALTER COLUMN created_at SET NOT NULL;
+
+    CREATE INDEX IF NOT EXISTS content_created_at_idx ON content (created_at);
+    CREATE INDEX IF NOT EXISTS events_start_date_idx ON events (start_date);
   `);
 }
