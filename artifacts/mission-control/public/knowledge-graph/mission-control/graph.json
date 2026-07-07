@@ -1,0 +1,22 @@
+{
+  "nodes": [
+    {"id":"mission-control","label":"Mission Control"},
+    {"id":"local-skills","label":"Local Skills"},
+    {"id":"llm-wiki","label":"LLM Wiki"},
+    {"id":"graphify","label":"Graphify"},
+    {"id":"dashboard","label":"Dashboard"},
+    {"id":"agents","label":"Agents"},
+    {"id":"repo-intelligence","label":"Repo Intelligence"}
+  ],
+  "edges": [
+    {"source":"mission-control","target":"agents"},
+    {"source":"mission-control","target":"local-skills"},
+    {"source":"local-skills","target":"llm-wiki"},
+    {"source":"local-skills","target":"graphify"},
+    {"source":"graphify","target":"dashboard"},
+    {"source":"llm-wiki","target":"repo-intelligence"},
+    {"source":"repo-intelligence","target":"agents"},
+    {"source":"dashboard","target":"mission-control"},
+    {"source":"graphify","target":"repo-intelligence"}
+  ]
+}

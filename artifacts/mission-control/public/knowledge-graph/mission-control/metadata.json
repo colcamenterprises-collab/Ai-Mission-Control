@@ -1,0 +1,12 @@
+{
+  "title": "Mission Control Knowledge Graph",
+  "status": "placeholder",
+  "nodeCount": 7,
+  "edgeCount": 9,
+  "communityCount": 3,
+  "topNodes": ["Mission Control", "Local Skills", "LLM Wiki", "Graphify"],
+  "surprises": [
+    "Skills and wiki maintenance should share local markdown conventions.",
+    "Dashboard graph artifacts should be local static outputs, not live external dependencies."
+  ]
+}
