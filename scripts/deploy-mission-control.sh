@@ -91,7 +91,6 @@ ensure_runtime_env() {
   if [[ -z "${PORT:-}" ]]; then
     PORT="$(get_service_environment_value PORT || true)"
     if [[ -n "${PORT}" ]]; then
-      export PORT
       echo "Loaded PORT from ${SERVICE_NAME} systemd environment."
     fi
   fi
@@ -115,10 +114,15 @@ ensure_runtime_env() {
   if [[ -z "${BASE_PATH:-}" ]]; then
     BASE_PATH="$(get_service_environment_value BASE_PATH || true)"
     if [[ -n "${BASE_PATH}" ]]; then
-      export BASE_PATH
       echo "Loaded BASE_PATH from ${SERVICE_NAME} systemd environment."
     fi
   fi
+
+  PORT="${PORT:-3000}"
+  BASE_PATH="${BASE_PATH:-/}"
+  export PORT BASE_PATH
+  echo "Resolved PORT: ${PORT}"
+  echo "Resolved BASE_PATH: ${BASE_PATH}"
 }
 
 run_smoke_if_available() {
