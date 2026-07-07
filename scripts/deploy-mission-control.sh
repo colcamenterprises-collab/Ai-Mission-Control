@@ -158,6 +158,33 @@ curl_verify() {
   echo "Verified ${url}"
 }
 
+load_dotenv_if_available() {
+  local env_file="${repo_root}/.env"
+  if [[ ! -f "${env_file}" ]]; then
+    echo "No .env file found; continuing with existing environment and systemd fallbacks."
+    echo "DATABASE_URL missing"
+    echo "smoke admin token missing"
+    return 0
+  fi
+
+  set -a
+  # shellcheck disable=SC1090
+  . "${env_file}"
+  set +a
+
+  if [[ -n "${DATABASE_URL:-}" ]]; then
+    echo "DATABASE_URL present"
+  else
+    echo "DATABASE_URL missing"
+  fi
+
+  if [[ -n "${MISSION_CONTROL_ADMIN_TOKEN:-${VITE_MISSION_CONTROL_ADMIN_TOKEN:-}}" ]]; then
+    echo "smoke admin token present"
+  else
+    echo "smoke admin token missing"
+  fi
+}
+
 step_name="checking prerequisites"
 log "Checking prerequisites"
 require_command git
@@ -176,6 +203,10 @@ echo "Resolved repo root: ${repo_root}"
 if [[ "${repo_root}" != "${EXPECTED_REPO_ROOT}" ]]; then
   echo "WARNING: expected production repo root is ${EXPECTED_REPO_ROOT}; using resolved checkout ${repo_root}."
 fi
+
+step_name="loading .env"
+log "Loading .env if available"
+load_dotenv_if_available
 
 step_name="showing current branch and commit"
 current_branch="$(git branch --show-current)"

@@ -26,6 +26,8 @@ const requiredColumns = {
     "last_ping",
   ],
   contacts: ["handle", "timezone", "category", "compensation", "notes", "created_at"],
+  content: ["title", "platform", "stage", "assigned_day", "script", "draft_link", "notes", "created_at", "updated_at"],
+  events: ["title", "description", "category", "start_date", "end_date", "all_day", "created_at"],
 };
 
 for (const [table, columns] of Object.entries(requiredColumns)) {
@@ -38,6 +40,9 @@ for (const [table, columns] of Object.entries(requiredColumns)) {
     );
   }
 }
+
+assert.match(ensureSource, /CREATE INDEX IF NOT EXISTS content_created_at_idx ON content \(created_at\)/);
+assert.match(ensureSource, /CREATE INDEX IF NOT EXISTS events_start_date_idx ON events \(start_date\)/);
 
 assert.match(deploySource, /run_pnpm run db:ensure-operational-schema/);
 assert.ok(
