@@ -9,6 +9,12 @@ export type SkillSourceMetadata = {
   commitHash: string | null;
   filePath: string | null;
   sourceLabel: string | null;
+  originPath: string | null;
+  importedAt: string | null;
+  importedCommitSha: string | null;
+  importedBranch: string | null;
+  licenseNote: string | null;
+  localStatus: "local" | "imported";
   installedDate: string | null;
   lastSyncTime: string | null;
   enabled: boolean;
@@ -36,14 +42,14 @@ export type SkillSourceStatus = {
   repoName: string | null;
   branch: string | null;
   commitHash: string | null;
-  status: "available" | "syncing" | "unavailable" | "auth_required" | "not_found" | "no_skills_found" | "error";
+  status: "available" | "syncing" | "unavailable" | "auth_required" | "not_found" | "no_skills_found" | "conflict" | "error";
   lastSyncTime: string | null;
   error: string | null;
   skillCount: number;
   sourceLabel: string;
 };
 
-export type ListSkillsResponse = { skills: SkillMetadata[]; sources: SkillSourceStatus[] };
+export type ListSkillsResponse = { skills: SkillMetadata[]; origins: SkillSourceStatus[]; sources: SkillSourceStatus[] };
 
 type RawRecord = Record<string, unknown>;
 
@@ -70,6 +76,12 @@ function sourceMetadataFrom(raw: unknown, fallbackPath: string): SkillSourceMeta
     commitHash: nullableString(source.commitHash),
     filePath: nullableString(source.filePath) ?? fallbackPath,
     sourceLabel: nullableString(source.sourceLabel) ?? nullableString(source.filePath) ?? fallbackPath,
+    originPath: nullableString(source.originPath),
+    importedAt: nullableString(source.importedAt),
+    importedCommitSha: nullableString(source.importedCommitSha),
+    importedBranch: nullableString(source.importedBranch),
+    licenseNote: nullableString(source.licenseNote),
+    localStatus: source.localStatus === "imported" ? "imported" : "local",
     installedDate: nullableString(source.installedDate),
     lastSyncTime: nullableString(source.lastSyncTime),
     enabled: typeof source.enabled === "boolean" ? source.enabled : true,
@@ -103,7 +115,7 @@ function sourceStatusFrom(raw: unknown, index: number): SkillSourceStatus | null
     repoName: nullableString(raw.repoName),
     branch: nullableString(raw.branch),
     commitHash: nullableString(raw.commitHash),
-    status: ["available", "syncing", "unavailable", "auth_required", "not_found", "no_skills_found", "error"].includes(String(raw.status)) ? raw.status as SkillSourceStatus["status"] : "error",
+    status: ["available", "syncing", "unavailable", "auth_required", "not_found", "no_skills_found", "conflict", "error"].includes(String(raw.status)) ? raw.status as SkillSourceStatus["status"] : "error",
     lastSyncTime: nullableString(raw.lastSyncTime),
     error: nullableString(raw.error),
     skillCount: typeof raw.skillCount === "number" ? raw.skillCount : 0,
@@ -124,10 +136,11 @@ function listSkillsResponseFrom(raw: unknown): ListSkillsResponse {
   const skills = (Array.isArray(body.skills) ? body.skills : [])
     .map(skillFrom)
     .filter((skill): skill is SkillMetadata => Boolean(skill));
-  const sources = (Array.isArray(body.sources) ? body.sources : [])
+  const originRows = Array.isArray(body.origins) ? body.origins : (Array.isArray(body.sources) ? body.sources : []);
+  const sources = originRows
     .map(sourceStatusFrom)
     .filter((source): source is SkillSourceStatus => Boolean(source));
-  return { skills, sources };
+  return { skills, origins: sources, sources };
 }
 
 function authHeaders(): HeadersInit {
