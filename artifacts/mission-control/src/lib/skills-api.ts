@@ -40,7 +40,89 @@ export type SkillSourceStatus = {
   error: string | null;
 };
 
-type ListSkillsResponse = { skills: SkillMetadata[]; sources: SkillSourceStatus[] };
+export type ListSkillsResponse = { skills: SkillMetadata[]; sources: SkillSourceStatus[] };
+
+type RawRecord = Record<string, unknown>;
+
+function isRecord(value: unknown): value is RawRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function nullableString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function requiredString(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+function sourceMetadataFrom(raw: unknown, fallbackPath: string): SkillSourceMetadata {
+  const source = isRecord(raw) ? raw : {};
+  return {
+    sourceUrl: nullableString(source.sourceUrl),
+    sourceRepo: nullableString(source.sourceRepo),
+    repoOwner: nullableString(source.repoOwner),
+    repoName: nullableString(source.repoName),
+    branch: nullableString(source.branch),
+    commitHash: nullableString(source.commitHash),
+    filePath: nullableString(source.filePath) ?? fallbackPath,
+    installedDate: nullableString(source.installedDate),
+    lastSyncTime: nullableString(source.lastSyncTime),
+    enabled: typeof source.enabled === "boolean" ? source.enabled : true,
+  };
+}
+
+function skillFrom(raw: unknown, index: number): SkillMetadata | null {
+  if (!isRecord(raw)) return null;
+  const path = requiredString(raw.path, "UNMAPPED");
+  const id = requiredString(raw.id, path !== "UNMAPPED" ? path : `skill-${index}`);
+  return {
+    id,
+    name: requiredString(raw.name, id),
+    path,
+    category: requiredString(raw.category, "UNMAPPED"),
+    lastUpdated: requiredString(raw.lastUpdated, ""),
+    source: sourceMetadataFrom(raw.source, path),
+  };
+}
+
+function sourceStatusFrom(raw: unknown, index: number): SkillSourceStatus | null {
+  if (!isRecord(raw)) return null;
+  const sourceRepo = nullableString(raw.sourceRepo);
+  const id = requiredString(raw.id, sourceRepo ?? `source-${index}`);
+  return {
+    id,
+    type: raw.type === "github" ? "github" : "local",
+    sourceUrl: nullableString(raw.sourceUrl),
+    sourceRepo,
+    repoOwner: nullableString(raw.repoOwner),
+    repoName: nullableString(raw.repoName),
+    branch: nullableString(raw.branch),
+    commitHash: nullableString(raw.commitHash),
+    status: raw.status === "unavailable" ? "unavailable" : "available",
+    lastSyncTime: nullableString(raw.lastSyncTime),
+    error: nullableString(raw.error),
+  };
+}
+
+function skillDocumentFrom(raw: unknown): SkillDocument {
+  const skill = skillFrom(raw, 0);
+  if (!skill || !isRecord(raw) || typeof raw.content !== "string") {
+    throw new Error("Skill detail response did not include a valid skill document.");
+  }
+  return { ...skill, content: raw.content };
+}
+
+function listSkillsResponseFrom(raw: unknown): ListSkillsResponse {
+  const body = isRecord(raw) ? raw : {};
+  const skills = (Array.isArray(body.skills) ? body.skills : [])
+    .map(skillFrom)
+    .filter((skill): skill is SkillMetadata => Boolean(skill));
+  const sources = (Array.isArray(body.sources) ? body.sources : [])
+    .map(sourceStatusFrom)
+    .filter((source): source is SkillSourceStatus => Boolean(source));
+  return { skills, sources };
+}
 
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem("mission_control_admin_token");
@@ -60,14 +142,14 @@ export function useListSkills(filters: { name?: string; category?: string } = {}
   const query = params.toString();
   return useQuery({
     queryKey: ["skills", filters],
-    queryFn: () => apiFetch<ListSkillsResponse>(`/skills${query ? `?${query}` : ""}`),
+    queryFn: async () => listSkillsResponseFrom(await apiFetch<unknown>(`/skills${query ? `?${query}` : ""}`)),
   });
 }
 
 export function useGetSkill(id: string | null) {
   return useQuery({
     queryKey: ["skills", id],
-    queryFn: () => apiFetch<SkillDocument>(`/skills/${id}`),
+    queryFn: async () => skillDocumentFrom(await apiFetch<unknown>(`/skills/${id}`)),
     enabled: Boolean(id),
   });
 }

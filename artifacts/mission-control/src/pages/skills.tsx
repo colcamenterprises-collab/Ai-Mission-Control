@@ -5,8 +5,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useGetSkill, useListSkills, type SkillMetadata, type SkillSourceStatus } from "@/lib/skills-api";
 import "./workspaces.css";
 
-function formatDate(value: string): string {
-  return new Date(value).toLocaleString();
+function formatDate(value: string | null): string {
+  if (!value) return "NULL";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
 }
 
 function SourceStatusTable({ sources }: { sources: SkillSourceStatus[] }) {
@@ -90,7 +93,16 @@ export default function Skills() {
               <h2 className="dashboard-section-title flex items-center gap-2"><BookOpen className="h-4 w-4" /> Skill list</h2>
               <Badge variant="outline" className="font-mono text-[10px]">{skills.length}</Badge>
             </div>
-            {isLoading ? <Skeleton className="h-40 w-full" /> : error ? <p className="text-xs text-red-400">Failed to load skills.</p> : <><SourceStatusTable sources={sources} /><SkillList skills={skills} selectedId={selectedSkillId} onSelect={setSelectedId} /></>}
+            {isLoading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : error ? (
+              <p className="text-xs text-red-400">Failed to load skills: {error instanceof Error ? error.message : "Unknown error"}</p>
+            ) : (
+              <>
+                <SourceStatusTable sources={sources} />
+                <SkillList skills={skills} selectedId={selectedSkillId} onSelect={setSelectedId} />
+              </>
+            )}
           </div>
 
           <div className="workspace-panel p-4">
@@ -99,7 +111,15 @@ export default function Skills() {
               <h2 className="dashboard-section-title mt-1">{selected?.name ?? "No skill selected"}</h2>
               {selected && <p className="mt-2 font-mono text-xs text-muted-foreground">{selected.source.sourceRepo ?? selected.source.sourceUrl ?? "local"} · {selected.source.branch ?? "NULL"} · {selected.source.commitHash ?? "NULL"} · {selected.source.filePath ?? selected.path}</p>}
             </div>
-            {detail.isLoading ? <Skeleton className="h-96 w-full" /> : detail.data ? <MarkdownPreview content={detail.data.content} /> : <p className="text-xs text-muted-foreground">Select a skill to preview its Markdown.</p>}
+            {detail.isLoading ? (
+              <Skeleton className="h-96 w-full" />
+            ) : detail.error ? (
+              <p className="text-xs text-red-400">Failed to load skill detail: {detail.error instanceof Error ? detail.error.message : "Unknown error"}</p>
+            ) : detail.data ? (
+              <MarkdownPreview content={detail.data.content} />
+            ) : (
+              <p className="text-xs text-muted-foreground">Select a skill to preview its Markdown.</p>
+            )}
           </div>
         </section>
       </div>
