@@ -47,6 +47,38 @@ export default function Dashboard() {
           <HomeMetric title="Daily Token Usage" value="0" detail="All agents; token backend not connected" icon={Zap} />
         </div>
 
+
+        <section className="workspace-panel p-4">
+          <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="font-mono text-xs uppercase tracking-[0.22em] text-cyan-300/80">Visual Intelligence</p>
+              <h2 className="dashboard-section-title mt-1">Knowledge Graph</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Permanent local graph panel for Mission Control. Future Graphify runs will replace this placeholder with repository, wiki, docs and diagram intelligence.
+              </p>
+            </div>
+            <div className="rounded-lg border border-cyan-400/30 px-3 py-2 text-right font-mono text-xs uppercase text-cyan-100">
+              <div>Status: Local Artifact</div>
+              <div>No External Dependency</div>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-cyan-400/20 bg-black/30">
+            <iframe
+              title="Mission Control Knowledge Graph"
+              src="/knowledge-graph/mission-control/graph.html"
+              className="h-[360px] w-full border-0"
+            />
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-3 text-xs font-mono uppercase">
+            <a className="text-cyan-300 hover:text-cyan-100" href="/knowledge-graph/mission-control/graph.html" target="_blank" rel="noreferrer">Open Graph</a>
+            <a className="text-cyan-300 hover:text-cyan-100" href="/knowledge-graph/mission-control/GRAPH_REPORT.md" target="_blank" rel="noreferrer">Open Report</a>
+            <a className="text-cyan-300 hover:text-cyan-100" href="/knowledge-graph/mission-control/graph.json" target="_blank" rel="noreferrer">Open JSON</a>
+          </div>
+        </section>
+
+
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.8fr_1.2fr]">
           <section className="workspace-panel p-4">
             <h2 className="dashboard-section-title mb-3 flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Recent activity</h2>
