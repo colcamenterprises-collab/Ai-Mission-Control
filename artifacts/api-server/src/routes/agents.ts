@@ -14,7 +14,7 @@ import {
   UpdateAgentResponse,
 } from "@workspace/api-zod";
 import { serializeDates } from "../utils/serialize.js";
-import { OPERATIONAL_AGENTS } from "../config-operational-agents.js";
+import { OPERATIONAL_AGENTS, getAssignedSkillNamesForAgent } from "../config-operational-agents.js";
 
 const router: IRouter = Router();
 
@@ -26,7 +26,7 @@ function maskApiKey(apiKey: string | null | undefined): string | null {
 
 function maskAgentForResponse(agent: typeof agentsTable.$inferSelect) {
   const { apiKey, ...rest } = agent;
-  return { ...rest, apiKeyHint: maskApiKey(apiKey) };
+  return { ...rest, apiKeyHint: maskApiKey(apiKey), assignedSkills: getAssignedSkillNamesForAgent(agent.name) };
 }
 
 function mergeConfiguredAgents(agents: ReturnType<typeof maskAgentForResponse>[]) {

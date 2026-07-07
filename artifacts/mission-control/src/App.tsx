@@ -11,6 +11,7 @@ import Calendar from "@/pages/calendar";
 import Memory from "@/pages/memory";
 import Workspaces from "@/pages/workspaces";
 import Team from "@/pages/team";
+import Skills from "@/pages/skills";
 import Contacts from "@/pages/contacts";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
@@ -36,6 +37,7 @@ function Router() {
         <Route path="/memory" component={Memory} />
         <Route path="/workspaces" component={Workspaces} />
         <Route path="/team" component={Team} />
+        <Route path="/skills" component={Skills} />
         <Route path="/contacts" component={Contacts} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />

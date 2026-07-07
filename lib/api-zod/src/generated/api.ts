@@ -618,6 +618,7 @@ export const ListAgentsResponseItem = zod.object({
   endpoint: zod.string().nullish(),
   inboundToken: zod.string().nullish(),
   lastPing: zod.string().nullish(),
+  assignedSkills: zod.array(zod.string()).optional(),
 });
 export const ListAgentsResponse = zod.array(ListAgentsResponseItem);
 

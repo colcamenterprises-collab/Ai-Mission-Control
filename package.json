@@ -7,7 +7,8 @@
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
-    "smoke:operational": "node scripts/smoke-operational.mjs"
+    "smoke:operational": "node scripts/smoke-operational.mjs",
+    "sync:skills": "node scripts/sync-external-skills.mjs"
   },
   "private": true,
   "devDependencies": {

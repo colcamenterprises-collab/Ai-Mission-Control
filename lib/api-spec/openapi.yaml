@@ -19,6 +19,7 @@ tags:
   - name: integrations
   - name: tools
   - name: agent-bridge
+  - name: skills
 
 paths:
   /healthz:
@@ -548,6 +549,94 @@ paths:
       responses:
         "204":
           description: Deleted
+
+
+  # ─── SKILLS ──────────────────────────────────────────────────
+  /skills:
+    get:
+      operationId: listSkills
+      tags: [skills]
+      summary: List available SKILL.md documents
+      parameters:
+        - name: name
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Skills
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListSkillsResponse"
+
+  /skills/{id}:
+    get:
+      operationId: getSkill
+      tags: [skills]
+      summary: Read a selected SKILL.md document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Skill document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillDocument"
+
+  /agent/skills:
+    get:
+      operationId: listAgentSkills
+      tags: [agent-bridge, skills]
+      summary: Authenticated agent lists skills by exact name or category
+      parameters:
+        - name: name
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Skills available to the requesting agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentSkillsResponse"
+        "401":
+          description: Invalid or missing token
+
+  /agent/skills/{id}:
+    get:
+      operationId: getAgentSkill
+      tags: [agent-bridge, skills]
+      summary: Authenticated agent reads a selected SKILL.md document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Skill document available to the requesting agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentSkillResponse"
+        "401":
+          description: Invalid or missing token
 
   # ─── AGENTS ───────────────────────────────────────────────────
   /agents:
@@ -1503,6 +1592,10 @@ components:
           type: ["string", "null"]
         lastPing:
           type: ["string", "null"]
+        assignedSkills:
+          type: array
+          items:
+            type: string
       required:
         - id
         - name
@@ -1515,6 +1608,123 @@ components:
         - tasksCompleted
         - successRate
         - isPluggedIn
+
+    SkillMetadata:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        path:
+          type: string
+        category:
+          type: string
+        lastUpdated:
+          type: string
+        source:
+          $ref: "#/components/schemas/SkillSourceMetadata"
+      required: [id, name, path, category, lastUpdated, source]
+
+    SkillSourceMetadata:
+      type: object
+      properties:
+        sourceUrl:
+          type: ["string", "null"]
+        sourceRepo:
+          type: ["string", "null"]
+        repoOwner:
+          type: ["string", "null"]
+        repoName:
+          type: ["string", "null"]
+        branch:
+          type: ["string", "null"]
+        commitHash:
+          type: ["string", "null"]
+        filePath:
+          type: ["string", "null"]
+        installedDate:
+          type: ["string", "null"]
+        lastSyncTime:
+          type: ["string", "null"]
+        enabled:
+          type: boolean
+      required: [sourceUrl, sourceRepo, repoOwner, repoName, branch, commitHash, filePath, installedDate, lastSyncTime, enabled]
+
+    SkillSourceStatus:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [local, github]
+        sourceUrl:
+          type: ["string", "null"]
+        sourceRepo:
+          type: ["string", "null"]
+        repoOwner:
+          type: ["string", "null"]
+        repoName:
+          type: ["string", "null"]
+        branch:
+          type: ["string", "null"]
+        commitHash:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [available, unavailable]
+        lastSyncTime:
+          type: ["string", "null"]
+        error:
+          type: ["string", "null"]
+      required: [id, type, sourceUrl, sourceRepo, repoOwner, repoName, branch, commitHash, status, lastSyncTime, error]
+
+    SkillDocument:
+      allOf:
+        - $ref: "#/components/schemas/SkillMetadata"
+        - type: object
+          properties:
+            content:
+              type: string
+          required: [content]
+
+    ListSkillsResponse:
+      type: object
+      properties:
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillMetadata"
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillSourceStatus"
+      required: [skills, sources]
+
+    AgentSkillsResponse:
+      type: object
+      properties:
+        agentId:
+          type: integer
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillMetadata"
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillSourceStatus"
+      required: [agentId, skills, sources]
+
+    AgentSkillResponse:
+      type: object
+      properties:
+        agentId:
+          type: integer
+        skill:
+          $ref: "#/components/schemas/SkillDocument"
+      required: [agentId, skill]
 
     CreateAgentBody:
       type: object

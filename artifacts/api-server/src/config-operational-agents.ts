@@ -2,6 +2,7 @@ import type { agentsTable } from "@workspace/db";
 
 type PublicAgent = Omit<typeof agentsTable.$inferSelect, "apiKey" | "createdAt"> & {
   apiKeyHint: null;
+  assignedSkills: string[];
 };
 
 export const OPERATIONAL_AGENTS: PublicAgent[] = [
@@ -25,6 +26,7 @@ export const OPERATIONAL_AGENTS: PublicAgent[] = [
     inboundToken: null,
     lastPing: null,
     apiKeyHint: null,
+    assignedSkills: ["orchestration"],
   },
   {
     id: -2,
@@ -46,6 +48,7 @@ export const OPERATIONAL_AGENTS: PublicAgent[] = [
     inboundToken: null,
     lastPing: null,
     apiKeyHint: null,
+    assignedSkills: [],
   },
   {
     id: -3,
@@ -67,6 +70,7 @@ export const OPERATIONAL_AGENTS: PublicAgent[] = [
     inboundToken: null,
     lastPing: null,
     apiKeyHint: null,
+    assignedSkills: [],
   },
   {
     id: -4,
@@ -88,6 +92,7 @@ export const OPERATIONAL_AGENTS: PublicAgent[] = [
     inboundToken: null,
     lastPing: null,
     apiKeyHint: null,
+    assignedSkills: [],
   },
   {
     id: -5,
@@ -109,6 +114,7 @@ export const OPERATIONAL_AGENTS: PublicAgent[] = [
     inboundToken: null,
     lastPing: null,
     apiKeyHint: null,
+    assignedSkills: [],
   },
   {
     id: -6,
@@ -130,7 +136,23 @@ export const OPERATIONAL_AGENTS: PublicAgent[] = [
     inboundToken: null,
     lastPing: null,
     apiKeyHint: null,
+    assignedSkills: [],
   },
 ];
 
 export const CURRENT_ORCHESTRATOR_NAME = "James";
+
+
+const CONFIGURED_AGENT_SKILLS: Record<string, string[]> = {
+  james: ["orchestration"],
+  "dev/codex": ["coding"],
+  codex: ["coding"],
+  gemini: [],
+  claude: [],
+  openclaw: [],
+  "openclaw / bob": [],
+};
+
+export function getAssignedSkillNamesForAgent(agentName: string): string[] {
+  return CONFIGURED_AGENT_SKILLS[agentName.toLowerCase()] ?? [];
+}

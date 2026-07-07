@@ -44,14 +44,15 @@ type CoreAgent = {
   status: string;
   currentTask: string;
   permissions: string;
+  assignedSkills: string[];
 };
 
 const CORE_AGENT_TEAM: CoreAgent[] = [
-  { name: "James", role: "Orchestrator", status: "Online", currentTask: "Review user-created tasks and coordinate delegation", permissions: "Read Only / Safety gated" },
-  { name: "OpenClaw / OpenCore", role: "Build Agent / Coding Agent", status: "Configurable", currentTask: "Awaiting delegated build task", permissions: "Configurable by repository and environment" },
-  { name: "Scout", role: "Research", status: "Offline", currentTask: "No active research job", permissions: "Read-only research context" },
-  { name: "Scribe", role: "Documentation / Content", status: "Offline", currentTask: "No active documentation job", permissions: "Content and memory drafting" },
-  { name: "Reach", role: "Marketing / Outreach", status: "Offline", currentTask: "No active outreach job", permissions: "Contacts/content review required" },
+  { name: "James", role: "Orchestrator", status: "Online", currentTask: "Review user-created tasks and coordinate delegation", permissions: "Read Only / Safety gated", assignedSkills: ["orchestration"] },
+  { name: "OpenClaw / OpenCore", role: "Build Agent / Coding Agent", status: "Configurable", currentTask: "Awaiting delegated build task", permissions: "Configurable by repository and environment", assignedSkills: ["coding"] },
+  { name: "Scout", role: "Research", status: "Offline", currentTask: "No active research job", permissions: "Read-only research context", assignedSkills: [] },
+  { name: "Scribe", role: "Documentation / Content", status: "Offline", currentTask: "No active documentation job", permissions: "Content and memory drafting", assignedSkills: [] },
+  { name: "Reach", role: "Marketing / Outreach", status: "Offline", currentTask: "No active outreach job", permissions: "Contacts/content review required", assignedSkills: [] },
 ];
 
 const CURRENT_ORCHESTRATOR_AGENT = CORE_AGENT_TEAM.find((agent) => agent.role === "Orchestrator") ?? CORE_AGENT_TEAM[0];
@@ -75,6 +76,7 @@ function CoreAgentCard({ agent }: { agent: CoreAgent }) {
       <div className="space-y-2 text-xs">
         <div className="diagnostic-row"><span className="font-mono uppercase tracking-wider text-muted-foreground">Current task</span><span className="text-right">{agent.currentTask}</span></div>
         <div className="diagnostic-row"><span className="font-mono uppercase tracking-wider text-muted-foreground">Permissions / mode</span><span className="text-right">{agent.permissions}</span></div>
+        <div className="diagnostic-row"><span className="font-mono uppercase tracking-wider text-muted-foreground">Assigned skills</span><span className="text-right">{agent.assignedSkills.length ? agent.assignedSkills.join(", ") : "UNMAPPED"}</span></div>
       </div>
     </article>
   );
@@ -902,6 +904,11 @@ export default function Team() {
                         ) : (
                           <p className="text-xs text-muted-foreground/50 font-mono">Idle</p>
                         )}
+                        {agent.assignedSkills?.length ? (
+                          <p className="mt-2 text-[10px] font-mono text-muted-foreground">Skills: {agent.assignedSkills.join(", ")}</p>
+                        ) : (
+                          <p className="mt-2 text-[10px] font-mono text-muted-foreground">Skills: UNMAPPED</p>
+                        )}
                         <div className="flex items-center justify-between mt-2">
                           <p className="text-xs text-muted-foreground/50 font-mono">{agent.lastActive}</p>
                           {agent.isPluggedIn && agent.endpoint && (
@@ -1023,6 +1030,11 @@ export default function Team() {
                   <p className="mt-1 text-muted-foreground leading-relaxed">{selectedAgent.responsibilities}</p>
                 </div>
               )}
+
+              <div>
+                <label className="text-xs text-muted-foreground font-mono uppercase">Assigned Skills</label>
+                <p className="mt-2 text-xs font-mono text-muted-foreground">{selectedAgent.assignedSkills?.length ? selectedAgent.assignedSkills.join(", ") : "UNMAPPED"}</p>
+              </div>
 
               <div>
                 <label className="text-xs text-muted-foreground font-mono uppercase">Assigned Apps</label>
