@@ -14,6 +14,7 @@ import agentBridgeRouter from "./agent-bridge";
 import jamesRouter from "./james";
 import worktreesRouter from "./worktrees";
 import skillsRouter from "./skills";
+import orchestratorRouter from "./orchestrator";
 import { requireAdminAuth } from "../lib/auth.js";
 
 const router: IRouter = Router();
@@ -29,6 +30,7 @@ router.use(dashboardRouter);
 router.use(jamesRouter);
 router.use(worktreesRouter);
 router.use(skillsRouter);
+router.use(orchestratorRouter);
 router.use(tasksRouter);
 router.use(contentRouter);
 router.use(eventsRouter);
