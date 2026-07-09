@@ -24,6 +24,8 @@ run() {
 }
 
 redact_line() {
+  # Keep this deliberately simple and shell-safe. It redacts common KEY=value
+  # secrets without trying to parse every possible JSON/YAML shape.
   sed -E \
     -e 's#(DATABASE_URL=)[^[:space:]]+#\1[REDACTED]#g' \
     -e 's#(MISSION_CONTROL_ADMIN_TOKEN=)[^[:space:]]+#\1[REDACTED]#g' \
@@ -32,9 +34,7 @@ redact_line() {
     -e 's#(GITHUB_TOKEN=)[^[:space:]]+#\1[REDACTED]#g' \
     -e 's#(OPENAI_API_KEY=)[^[:space:]]+#\1[REDACTED]#g' \
     -e 's#(ANTHROPIC_API_KEY=)[^[:space:]]+#\1[REDACTED]#g' \
-    -e 's#(api[_-]?key["'"']?[[:space:]]*[:=][[:space:]]*)[^,[:space:]}]+#\1[REDACTED]#Ig' \
-    -e 's#(token["'"']?[[:space:]]*[:=][[:space:]]*)[^,[:space:]}]+#\1[REDACTED]#Ig' \
-    -e 's#(password["'"']?[[:space:]]*[:=][[:space:]]*)[^,[:space:]}]+#\1[REDACTED]#Ig'
+    -e 's#([A-Za-z0-9_]*(TOKEN|SECRET|PASSWORD|API_KEY)[A-Za-z0-9_]*=)[^[:space:]]+#\1[REDACTED]#g'
 }
 
 print_env_presence() {
