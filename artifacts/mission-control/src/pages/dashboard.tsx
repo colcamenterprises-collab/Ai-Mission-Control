@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { OrchestratorIntakePanel } from "@/components/orchestrator-intake-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import "./workspaces.css";
 
@@ -37,6 +38,8 @@ export default function Dashboard() {
             </div>
           </div>
         </section>
+
+        <OrchestratorIntakePanel />
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
           <HomeMetric title="Agents Online" value="1" detail="James online by default" icon={Users} tone="good" />
