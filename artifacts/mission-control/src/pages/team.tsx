@@ -8,7 +8,7 @@ import {
   getListAgentsQueryKey,
   type Agent,
 } from "@workspace/api-client-react";
-import { Bot, CheckCircle2, Copy, KeyRound, Plus, RefreshCw, Trash2, Users } from "lucide-react";
+import { Bot, CheckCircle2, Copy, KeyRound, Plus, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -16,10 +16,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import "./workspaces.css";
+import "./agent-directory.css";
 
 const DEPARTMENTS: Agent["department"][] = ["Developers", "Writers", "Researchers", "Operators"];
 
-const CORE_AGENT_TEAM: Array<Pick<Agent, "id" | "name" | "role" | "department" | "status" | "avatarInitials" | "isLead" | "isPluggedIn" | "lastActive" | "tasksCompleted" | "successRate">> = [
+type DirectoryAgent = Pick<Agent, "id" | "name" | "role" | "department" | "status" | "avatarInitials" | "isLead" | "isPluggedIn" | "lastActive" | "tasksCompleted" | "successRate"> & { lastPing?: string | null };
+
+const CORE_AGENT_TEAM: DirectoryAgent[] = [
   { id: -1, name: "James", role: "Orchestrator", department: "Operators", status: "active", avatarInitials: "JA", isLead: true, isPluggedIn: true, lastActive: "default", tasksCompleted: 0, successRate: 100 },
   { id: -2, name: "Dev", role: "Build Agent", department: "Developers", status: "idle", avatarInitials: "DV", isLead: false, isPluggedIn: false, lastActive: "standby", tasksCompleted: 0, successRate: 0 },
   { id: -3, name: "Scout", role: "Research", department: "Researchers", status: "idle", avatarInitials: "SC", isLead: false, isPluggedIn: false, lastActive: "standby", tasksCompleted: 0, successRate: 0 },
@@ -27,13 +30,13 @@ const CORE_AGENT_TEAM: Array<Pick<Agent, "id" | "name" | "role" | "department" |
   { id: -5, name: "Reach", role: "Marketing", department: "Operators", status: "idle", avatarInitials: "RE", isLead: false, isPluggedIn: false, lastActive: "standby", tasksCompleted: 0, successRate: 0 },
 ];
 
-function isOnline(agent: Agent | Pick<Agent, "status" | "lastPing">): boolean {
+function isOnline(agent: { status: Agent["status"]; lastPing?: string | null }): boolean {
   if (agent.status === "active") return true;
   if (!agent.lastPing) return false;
   return Date.now() - new Date(agent.lastPing).getTime() < 120_000;
 }
 
-function statusLabel(agent: Agent | Pick<Agent, "status" | "lastPing">) {
+function statusLabel(agent: { status: Agent["status"]; lastPing?: string | null }) {
   if (isOnline(agent)) return "Online";
   if (agent.status === "pending") return "Pending";
   if (agent.status === "error") return "Issue";
@@ -53,7 +56,7 @@ function AgentPortrait({ initials, online }: { initials: string; online: boolean
   );
 }
 
-function AgentDirectoryCard({ agent, onOpen }: { agent: Agent | typeof CORE_AGENT_TEAM[number]; onOpen?: () => void }) {
+function AgentDirectoryCard({ agent, onOpen }: { agent: DirectoryAgent; onOpen?: () => void }) {
   const online = isOnline(agent);
   return (
     <button type="button" className="agent-directory-card" onClick={onOpen}>
@@ -241,7 +244,7 @@ export default function Team() {
   const { data: agents = [], isLoading } = useListAgents();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListAgentsQueryKey() });
 
-  const visibleAgents = agents.length ? agents : CORE_AGENT_TEAM;
+  const visibleAgents: DirectoryAgent[] = agents.length ? agents : CORE_AGENT_TEAM;
   const onlineCount = visibleAgents.filter((agent) => isOnline(agent)).length;
 
   return (
