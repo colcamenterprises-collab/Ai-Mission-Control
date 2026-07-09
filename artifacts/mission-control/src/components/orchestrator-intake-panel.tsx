@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Bot, CheckCircle2, Loader2, Send, Sparkles } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { CheckCircle2, Loader2, Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,7 +43,6 @@ const PROJECTS = [
 ];
 
 const PRIORITIES = ["low", "medium", "high", "critical"];
-const REQUESTED_AGENTS = ["auto", "James", "Dev/Codex", "Scout", "Scribe", "Reach"];
 const PRIMARY_TOKEN_STORAGE_KEY = "mission_control_admin_token";
 const LEGACY_TOKEN_STORAGE_KEY = "missionControlAdminToken";
 
@@ -67,7 +65,7 @@ function saveToken(token: string) {
 
 function errorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
-  return "Unable to submit orchestrator task.";
+  return "Unable to submit task.";
 }
 
 async function readError(response: Response) {
@@ -77,7 +75,7 @@ async function readError(response: Response) {
     const json = JSON.parse(text) as { error?: string; message?: string };
     return json.error ?? json.message ?? text;
   } catch {
-    return text.length > 240 ? `${text.slice(0, 237)}...` : text;
+    return text.length > 180 ? `${text.slice(0, 177)}...` : text;
   }
 }
 
@@ -88,7 +86,6 @@ export function OrchestratorIntakePanel() {
     description: "",
     project: "Mission Control",
     priority: "high",
-    requestedAgent: "auto",
     adminToken: getSavedToken(),
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -121,7 +118,6 @@ export function OrchestratorIntakePanel() {
           description: form.description.trim(),
           project: form.project,
           priority: form.priority,
-          requestedAgent: form.requestedAgent === "auto" ? undefined : form.requestedAgent,
         }),
       });
 
@@ -129,7 +125,7 @@ export function OrchestratorIntakePanel() {
 
       const payload = (await response.json()) as IntakeResponse;
       setResult(payload);
-      setForm((current) => ({ ...current, title: "", description: "", requestedAgent: "auto", adminToken }));
+      setForm((current) => ({ ...current, title: "", description: "", adminToken }));
       queryClient.invalidateQueries();
     } catch (submitError) {
       setError(errorMessage(submitError));
@@ -141,51 +137,40 @@ export function OrchestratorIntakePanel() {
   const disabled = isSubmitting || !form.title.trim() || !form.description.trim();
 
   return (
-    <section className="workspace-panel overflow-hidden p-4 md:p-5">
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+    <section className="workspace-panel orchestrator-intake p-4 md:p-5">
+      <div className="intake-head">
         <div>
-          <div className="mb-2 flex items-center gap-2">
-            <Badge className="bg-primary/15 text-primary hover:bg-primary/15">Orchestrator MVP</Badge>
-            <span className="font-mono text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Task intake</span>
-          </div>
-          <h2 className="dashboard-section-title flex items-center gap-2 text-lg md:text-xl">
-            <Bot className="h-4 w-4" /> Add Orchestrator Task
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Submit a task once. Mission Control reviews it, recommends the right agent, creates the task, and queues the agent command.
-          </p>
+          <span className="dashboard-topline"><Sparkles className="h-3.5 w-3.5" /> Orchestrator</span>
+          <h2>New task</h2>
         </div>
-        <div className="rounded-xl border border-border bg-background/50 px-3 py-2 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2 font-mono uppercase tracking-wider text-foreground"><Sparkles className="h-3.5 w-3.5" /> Flow</div>
-          <div className="mt-1">Receive → Review → Recommend → Allocate</div>
-        </div>
+        <div className="intake-flow"><span /> receive <span /> route <span /> queue</div>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="intake-grid">
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="font-mono text-xs uppercase text-muted-foreground">Title</Label>
+            <Label>Title</Label>
             <Input
               value={form.title}
               onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-              placeholder="Example: Review HHA mobile layout"
+              placeholder="What needs to happen?"
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="font-mono text-xs uppercase text-muted-foreground">Task brief</Label>
+            <Label>Brief</Label>
             <Textarea
               value={form.description}
               onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-              placeholder="Explain the outcome, constraints, access limits, safety rules, and what the agent should report back."
-              rows={5}
+              placeholder="Outcome, constraints, access limits, deliverable."
+              rows={4}
             />
           </div>
         </div>
 
-        <div className="space-y-3 rounded-2xl border border-border bg-background/40 p-3">
+        <div className="intake-side">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="font-mono text-xs uppercase text-muted-foreground">Project</Label>
+              <Label>Project</Label>
               <Select value={form.project} onValueChange={(value) => setForm((current) => ({ ...current, project: value }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -194,7 +179,7 @@ export function OrchestratorIntakePanel() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="font-mono text-xs uppercase text-muted-foreground">Priority</Label>
+              <Label>Priority</Label>
               <Select value={form.priority} onValueChange={(value) => setForm((current) => ({ ...current, priority: value }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -204,32 +189,19 @@ export function OrchestratorIntakePanel() {
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="font-mono text-xs uppercase text-muted-foreground">Requested agent</Label>
-            <Select value={form.requestedAgent} onValueChange={(value) => setForm((current) => ({ ...current, requestedAgent: value }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {REQUESTED_AGENTS.map((agent) => (
-                  <SelectItem key={agent} value={agent}>{agent === "auto" ? "Auto — Orchestrator decides" : agent}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="font-mono text-xs uppercase text-muted-foreground">Admin token</Label>
+          <details className="advanced-token">
+            <summary>Access token</summary>
             <Input
               type="password"
               value={form.adminToken}
               onChange={(event) => setForm((current) => ({ ...current, adminToken: event.target.value }))}
-              placeholder="Paste the actual token value only"
+              placeholder="Saved in Settings"
             />
-            <p className="text-[11px] text-muted-foreground">No $ sign, no quotes, no MISSION_CONTROL_ADMIN_TOKEN=. Saved locally in this browser.</p>
-          </div>
+          </details>
 
           <Button className="w-full gap-2" disabled={disabled} onClick={submit}>
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {isSubmitting ? "Submitting" : "Submit to Orchestrator"}
+            {isSubmitting ? "Sending" : "Send to Orchestrator"}
           </Button>
         </div>
       </div>
@@ -241,22 +213,10 @@ export function OrchestratorIntakePanel() {
       )}
 
       {result?.accepted && result.task && result.orchestratorReview && result.allocation && (
-        <div className="mt-4 grid gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm md:grid-cols-3">
-          <div>
-            <div className="mb-1 flex items-center gap-2 font-mono text-xs uppercase text-emerald-300"><CheckCircle2 className="h-3.5 w-3.5" /> Accepted</div>
-            <p className="font-medium">Task #{result.task.id}</p>
-            <p className="text-muted-foreground">{result.task.title}</p>
-          </div>
-          <div>
-            <div className="mb-1 font-mono text-xs uppercase text-muted-foreground">Recommended agent</div>
-            <p className="font-medium">{result.orchestratorReview.recommendedAgent}</p>
-            <p className="text-muted-foreground">{result.orchestratorReview.reason}</p>
-          </div>
-          <div>
-            <div className="mb-1 font-mono text-xs uppercase text-muted-foreground">Queued command</div>
-            <p className="font-medium">Command #{result.allocation.commandId}</p>
-            <p className="text-muted-foreground">{result.allocation.delivery.replaceAll("_", " ")}</p>
-          </div>
+        <div className="accepted-card">
+          <div><CheckCircle2 className="h-4 w-4" /><span>Accepted</span><strong>Task #{result.task.id}</strong></div>
+          <div><span>Agent</span><strong>{result.orchestratorReview.recommendedAgent}</strong></div>
+          <div><span>Command</span><strong>#{result.allocation.commandId}</strong></div>
         </div>
       )}
     </section>
