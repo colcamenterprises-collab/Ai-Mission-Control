@@ -16,6 +16,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
+import { CustomliLogo } from "@/components/customli-logo";
 import { useTheme } from "@/lib/theme";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -25,11 +26,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/tasks", label: "Tasks", icon: CheckSquare },
-    { href: "/team", label: "Team", icon: Users },
+    { href: "/tasks", label: "Tasks + Chat", icon: CheckSquare },
+    { href: "/team", label: "Agents", icon: Users },
     { href: "/memory", label: "Memory", icon: Activity },
     { href: "/skills", label: "Skills", icon: BookOpen },
-    { href: "/workspaces", label: "Repositories", icon: Boxes },
+    { href: "/workspaces", label: "Repos", icon: Boxes },
     { href: "/content", label: "Content", icon: PenTool },
     { href: "/calendar", label: "Calendar", icon: CalendarDays },
     { href: "/contacts", label: "Contacts", icon: UsersRound },
@@ -48,24 +49,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
         className={`${isCollapsed ? "w-[4.25rem]" : "w-44 md:w-48"} relative z-10 border-r border-white/10 bg-sidebar/80 backdrop-blur-xl flex-shrink-0 flex flex-col transition-[width] duration-200`}
       >
         <div
-          className={`h-12 flex items-center border-b border-border gap-2 ${isCollapsed ? "justify-center px-2" : "px-3"}`}
+          className={`mission-sidebar-top ${isCollapsed ? "justify-center px-2" : "px-3"}`}
         >
-          <Activity className="w-4 h-4 text-primary flex-shrink-0" />
-          {!isCollapsed && (
-            <span className="font-mono font-bold tracking-tight text-[0.7rem] uppercase flex-1 truncate">
-              MISSION CONTROL
-            </span>
-          )}
+          <CustomliLogo compact={isCollapsed} />
+          {!isCollapsed && <div className="flex-1" />}
           <button
             onClick={toggle}
             aria-label="Toggle theme"
-            className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors flex-shrink-0"
+            className="theme-pill"
           >
-            {theme === "dark" ? (
-              <Sun className="w-4 h-4" />
-            ) : (
-              <Moon className="w-4 h-4" />
-            )}
+            <span className={`theme-pill-thumb ${theme === "dark" ? "translate-x-5" : "translate-x-0"}`} />
+            <Sun className={`theme-pill-icon theme-pill-sun ${theme === "dark" ? "opacity-40" : "opacity-100"}`} />
+            <Moon className={`theme-pill-icon theme-pill-moon ${theme === "dark" ? "opacity-100" : "opacity-40"}`} />
           </button>
         </div>
         <nav className="flex-1 overflow-y-auto py-2">
