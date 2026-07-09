@@ -1,94 +1,174 @@
-import { useGetDashboardSummary } from "@workspace/api-client-react";
 import {
+  useGetDashboardSummary,
+  useListAgents,
+  useListMemories,
+  useListTasks,
+} from "@workspace/api-client-react";
+import type { LucideIcon } from "lucide-react";
+import {
+  Activity,
+  ArrowRight,
+  Brain,
   Calendar as CalendarIcon,
   CheckCircle2,
-  Clock,
-  FileText,
+  GitBranch,
   ListTodo,
+  MessageSquare,
   Radio,
-  ShieldCheck,
-  Terminal,
+  Settings,
   Users,
   Zap,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { OrchestratorIntakePanel } from "@/components/orchestrator-intake-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import "./workspaces.css";
 
+const TASK_STAGES = ["backlog", "ready", "running", "blocked", "review", "done"] as const;
+
 export default function Dashboard() {
   const { data: summary, isLoading: isSummaryLoading } = useGetDashboardSummary();
+  const { data: tasks = [], isLoading: isTasksLoading } = useListTasks();
+  const { data: agents = [] } = useListAgents();
+  const { data: memories = [] } = useListMemories();
+
+  const totalTasks = tasks.length || (summary?.activeTaskCount ?? 0) + (summary?.pendingTaskCount ?? 0);
+  const runningTasks = tasks.filter((task) => task.status === "running" || task.status === "in_progress").length;
+  const reviewTasks = tasks.filter((task) => task.status === "review").length;
+  const blockedTasks = tasks.filter((task) => task.status === "blocked").length;
+  const activeAgents = summary?.activeAgentCount ?? agents.filter((agent) => agent.status === "active").length;
+  const installedAgents = agents.length || activeAgents || 1;
+
+  const stageCounts = TASK_STAGES.map((stage) => ({
+    stage,
+    count: tasks.filter((task) => task.status === stage || (stage === "running" && task.status === "in_progress")).length,
+  }));
+
+  const latestTasks = [...tasks]
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 4);
 
   return (
     <div className="workspaces-shell h-full overflow-y-auto">
-      <div className="workspaces-canvas space-y-5">
-        <section className="workspace-hero mission-home-hero">
-          <div className="workspace-hero-copy max-w-3xl">
-            <div className="mission-title-lockup">
-              <h1>Mission Control Dashboard</h1>
+      <div className="workspaces-canvas space-y-4">
+        <section className="dashboard-command-grid">
+          <div className="workspace-panel dashboard-command-card">
+            <div className="dashboard-topline">
+              <span className="status-dot status-dot-live" />
+              Live command view
             </div>
-            <p>
-              Summary home for the AI agent team, task flow, memory, repositories, content calendar, contacts, and operating status.
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <Button asChild size="sm" className="quick-launch-button gap-2"><Link href="/tasks"><ListTodo className="h-3.5 w-3.5" />Launch Tasks</Link></Button>
-              <Button asChild size="sm" className="quick-launch-button gap-2"><Link href="/workspaces"><Terminal className="h-3.5 w-3.5" />Repositories</Link></Button>
-              <Button asChild size="sm" className="quick-launch-button gap-2"><Link href="/team"><Users className="h-3.5 w-3.5" />Agent Team</Link></Button>
+            <h1 className="mission-page-title">Mission Control</h1>
+            <div className="dashboard-action-strip">
+              <QuickLink href="/tasks" icon={ListTodo} label="Tasks + Chat" />
+              <QuickLink href="/team" icon={Users} label="Agents" />
+              <QuickLink href="/memory" icon={Brain} label="Memory" />
+              <QuickLink href="/skills" icon={Zap} label="Skills" />
+            </div>
+          </div>
+
+          <div className="workspace-panel dashboard-orbit-card" aria-label="Mission Control status visual">
+            <div className="orbit-visual">
+              <span className="orbit-ring orbit-ring-one" />
+              <span className="orbit-ring orbit-ring-two" />
+              <span className="orbit-core-dot" />
+            </div>
+            <div className="orbit-stats">
+              <VisualStat label="tasks" value={String(totalTasks)} loading={isSummaryLoading || isTasksLoading} />
+              <VisualStat label="agents" value={String(installedAgents)} />
+              <VisualStat label="memory" value={String(memories.length)} />
             </div>
           </div>
         </section>
 
-        <OrchestratorIntakePanel />
+        <section className="dashboard-kpi-grid">
+          <MetricTile title="Active" value={String(summary?.activeTaskCount ?? runningTasks)} icon={Activity} loading={isSummaryLoading} tone="cyan" />
+          <MetricTile title="Review" value={String(reviewTasks)} icon={CheckCircle2} loading={isTasksLoading} tone="violet" />
+          <MetricTile title="Blocked" value={String(blockedTasks)} icon={Radio} loading={isTasksLoading} tone="amber" />
+          <MetricTile title="Events" value={String(summary?.upcomingEventCount ?? 0)} icon={CalendarIcon} loading={isSummaryLoading} tone="green" />
+        </section>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
-          <HomeMetric title="Agents Online" value="1" detail="James online by default" icon={Users} tone="good" />
-          <HomeMetric title="Current Orchestrator" value="James" detail="Role assignment: Orchestrator" icon={Radio} tone="good" />
-          <HomeMetric title="Active Tasks" value={String(summary?.activeTaskCount ?? 0)} icon={ListTodo} loading={isSummaryLoading} />
-          <HomeMetric title="Pending Tasks" value={String(summary?.pendingTaskCount ?? 0)} icon={Clock} loading={isSummaryLoading} tone="warning" />
-          <HomeMetric title="Upcoming Events" value={String(summary?.upcomingEventCount ?? 0)} icon={CalendarIcon} loading={isSummaryLoading} />
-          <HomeMetric title="Daily Token Usage" value="0" detail="All agents; token backend not connected" icon={Zap} />
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-          <section className="workspace-panel p-4">
-            <h2 className="dashboard-section-title mb-3 flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Recent activity</h2>
-            <InfoRow label="Task intake" value="User-created tasks route to Orchestrator review" />
-            <InfoRow label="Delegation" value="Orchestrator assigns by agent role/capability" />
-            <InfoRow label="Approvals" value="Reports and handoffs remain attached to tasks" />
-          </section>
-          <section className="workspace-panel p-4">
-            <h2 className="dashboard-section-title mb-3 flex items-center gap-2"><Zap className="h-4 w-4" /> Quick Launch</h2>
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              <QuickLink href="/content" icon={FileText} label="Content" />
-              <QuickLink href="/calendar" icon={CalendarIcon} label="Calendar" />
-              <QuickLink href="/team" icon={Users} label="Team" />
-              <QuickLink href="/settings" icon={ShieldCheck} label="Settings" />
+        <section className="dashboard-visual-grid">
+          <div className="workspace-panel visual-panel visual-panel-large">
+            <PanelHeader icon={GitBranch} title="Work Flow" action="Open" href="/tasks" />
+            <div className="stage-map">
+              {stageCounts.map((item) => (
+                <div className="stage-row" key={item.stage}>
+                  <span>{item.stage.replace("_", " ")}</span>
+                  <div className="stage-track"><span style={{ width: `${Math.min(100, item.count * 24)}%` }} /></div>
+                  <strong>{item.count}</strong>
+                </div>
+              ))}
             </div>
-          </section>
-        </div>
+          </div>
+
+          <div className="workspace-panel visual-panel">
+            <PanelHeader icon={Brain} title="Memory" action="View" href="/memory" />
+            <div className="memory-node-map" aria-hidden="true">
+              {Array.from({ length: 18 }).map((_, index) => (
+                <span key={index} style={{ "--i": index } as React.CSSProperties} />
+              ))}
+            </div>
+            <div className="visual-count-row"><span>stored</span><strong>{memories.length}</strong></div>
+          </div>
+
+          <div className="workspace-panel visual-panel">
+            <PanelHeader icon={Users} title="Agents" action="Manage" href="/team" />
+            <div className="agent-cluster">
+              {Array.from({ length: Math.max(1, Math.min(6, installedAgents)) }).map((_, index) => (
+                <span key={index} className={index < activeAgents ? "agent-node agent-node-live" : "agent-node"} />
+              ))}
+            </div>
+            <div className="visual-count-row"><span>installed</span><strong>{installedAgents}</strong></div>
+          </div>
+
+          <div className="workspace-panel visual-panel visual-panel-large">
+            <PanelHeader icon={MessageSquare} title="Current Work" action="Tasks" href="/tasks" />
+            <div className="compact-task-list">
+              {latestTasks.length === 0 ? (
+                <div className="empty-visual-state">No active work</div>
+              ) : latestTasks.map((task) => (
+                <Link href="/tasks" className="compact-task" key={task.id}>
+                  <span className={`status-dot status-dot-${task.status}`} />
+                  <span>{task.title}</span>
+                  <strong>{task.assignee}</strong>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
 }
 
-function HomeMetric({ title, value, icon: Icon, loading, detail, tone }: { title: string; value: string; icon: typeof CheckCircle2; loading?: boolean; detail?: string; tone?: "good" | "warning" }) {
+function VisualStat({ label, value, loading }: { label: string; value: string; loading?: boolean }) {
   return (
-    <div className="workspace-stat p-4">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">{title}</p>
-        <Icon className={`h-4 w-4 ${tone === "good" ? "text-emerald-300" : tone === "warning" ? "text-yellow-400" : "text-primary"}`} />
-      </div>
-      {loading ? <Skeleton className="h-8 w-20" /> : <p className="truncate text-3xl font-light tracking-tight">{value}</p>}
-      {detail ? <p className="mt-2 text-xs text-muted-foreground">{detail}</p> : null}
+    <div>
+      {loading ? <Skeleton className="h-7 w-12" /> : <strong>{value}</strong>}
+      <span>{label}</span>
     </div>
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return <div className="diagnostic-row mb-2 text-xs"><span className="font-mono uppercase tracking-wider text-muted-foreground">{label}</span><span className="truncate text-right" title={value}>{value}</span></div>;
+function MetricTile({ title, value, icon: Icon, loading, tone }: { title: string; value: string; icon: LucideIcon; loading?: boolean; tone: "cyan" | "violet" | "amber" | "green" }) {
+  return (
+    <div className={`workspace-stat metric-tile metric-tile-${tone}`}>
+      <Icon className="h-4 w-4" />
+      <span>{title}</span>
+      {loading ? <Skeleton className="h-8 w-14" /> : <strong>{value}</strong>}
+    </div>
+  );
 }
 
-function QuickLink({ href, icon: Icon, label }: { href: string; icon: typeof CheckCircle2; label: string }) {
-  return <Button asChild size="sm" className="quick-launch-button justify-start gap-2"><Link href={href}><Icon className="h-3.5 w-3.5" />{label}</Link></Button>;
+function PanelHeader({ icon: Icon, title, action, href }: { icon: LucideIcon; title: string; action: string; href: string }) {
+  return (
+    <div className="visual-panel-header">
+      <div><Icon className="h-4 w-4" /><span>{title}</span></div>
+      <Button asChild size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs"><Link href={href}>{action}<ArrowRight className="h-3 w-3" /></Link></Button>
+    </div>
+  );
+}
+
+function QuickLink({ href, icon: Icon, label }: { href: string; icon: LucideIcon; label: string }) {
+  return <Button asChild size="sm" className="quick-launch-button gap-2"><Link href={href}><Icon className="h-3.5 w-3.5" />{label}</Link></Button>;
 }
