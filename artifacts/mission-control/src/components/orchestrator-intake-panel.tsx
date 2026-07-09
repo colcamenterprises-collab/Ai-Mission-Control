@@ -45,11 +45,24 @@ const PROJECTS = [
 
 const PRIORITIES = ["low", "medium", "high", "critical"];
 const REQUESTED_AGENTS = ["auto", "James", "Dev/Codex", "Scout", "Scribe", "Reach"];
-const TOKEN_STORAGE_KEY = "missionControlAdminToken";
+const PRIMARY_TOKEN_STORAGE_KEY = "mission_control_admin_token";
+const LEGACY_TOKEN_STORAGE_KEY = "missionControlAdminToken";
 
 function getSavedToken() {
   if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(TOKEN_STORAGE_KEY) ?? "";
+  return window.localStorage.getItem(PRIMARY_TOKEN_STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_TOKEN_STORAGE_KEY) ?? "";
+}
+
+function saveToken(token: string) {
+  if (typeof window === "undefined") return;
+  const cleaned = token.trim();
+  if (!cleaned) {
+    window.localStorage.removeItem(PRIMARY_TOKEN_STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
+    return;
+  }
+  window.localStorage.setItem(PRIMARY_TOKEN_STORAGE_KEY, cleaned);
+  window.localStorage.setItem(LEGACY_TOKEN_STORAGE_KEY, cleaned);
 }
 
 function errorMessage(error: unknown) {
@@ -89,16 +102,16 @@ export function OrchestratorIntakePanel() {
 
     try {
       const adminToken = form.adminToken.trim();
-      if (typeof window !== "undefined") {
-        if (adminToken) window.localStorage.setItem(TOKEN_STORAGE_KEY, adminToken);
-        else window.localStorage.removeItem(TOKEN_STORAGE_KEY);
-      }
+      saveToken(adminToken);
 
       const headers: Record<string, string> = {
         Accept: "application/json",
         "Content-Type": "application/json",
       };
-      if (adminToken) headers.Authorization = `Bearer ${adminToken}`;
+      if (adminToken) {
+        headers.Authorization = `Bearer ${adminToken}`;
+        headers["x-admin-token"] = adminToken;
+      }
 
       const response = await fetch("/api/orchestrator/intake", {
         method: "POST",
@@ -116,7 +129,7 @@ export function OrchestratorIntakePanel() {
 
       const payload = (await response.json()) as IntakeResponse;
       setResult(payload);
-      setForm((current) => ({ ...current, title: "", description: "", requestedAgent: "auto" }));
+      setForm((current) => ({ ...current, title: "", description: "", requestedAgent: "auto", adminToken }));
       queryClient.invalidateQueries();
     } catch (submitError) {
       setError(errorMessage(submitError));
@@ -209,9 +222,9 @@ export function OrchestratorIntakePanel() {
               type="password"
               value={form.adminToken}
               onChange={(event) => setForm((current) => ({ ...current, adminToken: event.target.value }))}
-              placeholder="Only needed if browser API calls are not already authenticated"
+              placeholder="Paste the actual token value only"
             />
-            <p className="text-[11px] text-muted-foreground">Saved locally in this browser only. Leave as-is once set.</p>
+            <p className="text-[11px] text-muted-foreground">No $ sign, no quotes, no MISSION_CONTROL_ADMIN_TOKEN=. Saved locally in this browser.</p>
           </div>
 
           <Button className="w-full gap-2" disabled={disabled} onClick={submit}>
