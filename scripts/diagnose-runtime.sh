@@ -13,6 +13,7 @@ set -u
 SERVICE_NAME="${MISSION_CONTROL_SERVICE_NAME:-ai-mission-control-api.service}"
 REPO_DIR="${MISSION_CONTROL_REPO_DIR:-/opt/apps/ai-mission-control}"
 PUBLIC_ORIGIN="${MISSION_CONTROL_PUBLIC_ORIGIN:-https://mission.customli.io}"
+HEALTH_PORTS="${MISSION_CONTROL_DIAG_PORTS:-4100 3000 4000 5000 5173 8080 8787 9000}"
 
 section() {
   printf '\n\033[1;36m== %s ==\033[0m\n' "$1"
@@ -53,6 +54,7 @@ echo "User: $(id -un 2>/dev/null || echo unknown)"
 echo "Repo dir: $REPO_DIR"
 echo "Service: $SERVICE_NAME"
 echo "Public origin: $PUBLIC_ORIGIN"
+echo "Health ports: $HEALTH_PORTS"
 
 section "Repository state"
 if [ -d "$REPO_DIR/.git" ]; then
@@ -95,7 +97,7 @@ if command -v systemctl >/dev/null 2>&1; then
   systemctl cat "$SERVICE_NAME" --no-pager 2>&1 | redact_line || true
   echo "\n$ systemctl show selected properties"
   systemctl show "$SERVICE_NAME" \
-    --property=Id,LoadState,ActiveState,SubState,UnitFileState,ExecStart,WorkingDirectory,EnvironmentFiles,FragmentPath,DropInPaths,User,Group,Restart,RestartUSec \
+    --property=Id,LoadState,ActiveState,SubState,UnitFileState,ExecStart,WorkingDirectory,EnvironmentFiles,FragmentPath,DropInPaths,User,Group,Restart,RestartUSec,Environment \
     --no-pager 2>&1 | redact_line || true
 else
   echo "systemctl not available"
@@ -126,7 +128,7 @@ fi
 
 section "Port/process diagnostics"
 run ss -ltnp
-run pgrep -af "node|dist/index.mjs|ai-mission-control|mission-control"
+run pgrep -af "node|dist/index.mjs|dist/index.js|ai-mission-control|mission-control"
 
 section "Local health checks"
 PORT_VALUE="${PORT:-}"
@@ -135,26 +137,34 @@ if [ -z "$PORT_VALUE" ] && command -v systemctl >/dev/null 2>&1; then
 fi
 
 if [ -n "$PORT_VALUE" ]; then
-  echo "Detected PORT=$PORT_VALUE"
+  echo "Detected PORT=$PORT_VALUE from environment/systemd"
   run curl -fsS "http://127.0.0.1:${PORT_VALUE}/api/healthz"
-  if [ -n "${MISSION_CONTROL_ADMIN_TOKEN:-}" ]; then
-    run curl -fsS -H "Authorization: Bearer ${MISSION_CONTROL_ADMIN_TOKEN}" "http://127.0.0.1:${PORT_VALUE}/api/skills"
-  else
-    echo "Skipping authenticated local /api/skills check: MISSION_CONTROL_ADMIN_TOKEN not set in current shell."
-  fi
 else
-  echo "PORT not detected. Skipping local HTTP checks."
+  echo "PORT not detected from environment/systemd. Trying known candidate ports."
+fi
+
+for port in $HEALTH_PORTS; do
+  echo "--- health candidate port $port"
+  curl -fsS "http://127.0.0.1:${port}/api/healthz" 2>/dev/null || true
+  echo
+ done
+
+if [ -n "${MISSION_CONTROL_ADMIN_TOKEN:-}" ] && [ -n "$PORT_VALUE" ]; then
+  run curl -fsS -H "Authorization: Bearer ${MISSION_CONTROL_ADMIN_TOKEN}" "http://127.0.0.1:${PORT_VALUE}/api/skills"
+else
+  echo "Skipping authenticated local /api/skills check: token or detected port not available in current shell."
 fi
 
 section "Public route checks"
 run curl -I -L --max-time 15 "$PUBLIC_ORIGIN/api/healthz"
+run curl -fsS -L --max-time 15 "$PUBLIC_ORIGIN/api/healthz"
 run curl -I -L --max-time 15 "$PUBLIC_ORIGIN/"
 
 section "Nginx route diagnostics"
 if command -v nginx >/dev/null 2>&1; then
   run nginx -t
-  echo "\n$ nginx -T mission/customli snippet"
-  nginx -T 2>&1 | sed -n '/mission\.customli\.io/,+90p' | redact_line || true
+  echo "\n$ nginx mission/customli compact route summary"
+  nginx -T 2>/dev/null | grep -nE "mission|customli|ai-mission|localhost|127\.0\.0\.1:4100|proxy_pass|server_name|root /opt/apps/ai-mission-control" | head -160 | redact_line || true
 else
   echo "nginx not available"
 fi
@@ -177,7 +187,7 @@ section "Summary"
 echo "Diagnostics complete. Review the output for:"
 echo "- service WorkingDirectory / ExecStart"
 echo "- EnvironmentFiles path"
-echo "- detected PORT"
+echo "- detected PORT or candidate port 4100 health result"
 echo "- nginx ownership of frontend/API routes"
 echo "- git branch status and local commits"
-echo "- health check result"
+echo "- public and local health check result"
