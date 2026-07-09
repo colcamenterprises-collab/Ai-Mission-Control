@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListTasks,
@@ -5,6 +6,7 @@ import {
   getListTasksQueryKey,
   type Task,
 } from "@workspace/api-client-react";
+import type { LucideIcon } from "lucide-react";
 import { ArrowRight, CheckCircle2, CircleAlert, Clock, MessageSquare, Play, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +17,7 @@ import "./workspaces.css";
 
 type MissionTask = Task & { status: Task["status"] };
 
-const COLUMNS: Array<{ id: Task["status"]; label: string; icon: typeof CheckCircle2 }> = [
+const COLUMNS: Array<{ id: Task["status"]; label: string; icon: LucideIcon }> = [
   { id: "backlog", label: "Backlog", icon: Clock },
   { id: "ready", label: "Ready", icon: Sparkles },
   { id: "running", label: "Running", icon: Play },
@@ -38,7 +40,7 @@ function displayPriority(priority: string) {
 
 export default function Tasks() {
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useStateLite({ priority: "all", project: "all" });
+  const [filter, setFilter] = useState({ priority: "all", project: "all" });
   const { data: tasks = [], isLoading } = useListTasks();
   const moveTask = useMoveTask();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
@@ -120,7 +122,7 @@ export default function Tasks() {
 }
 
 function TaskCard({ task, onMove }: { task: MissionTask; onMove: (task: MissionTask, status: Task["status"]) => void }) {
-  const nextStatus = task.status === "backlog" ? "ready" : task.status === "ready" ? "running" : task.status === "running" || task.status === "in_progress" ? "review" : task.status === "review" ? "done" : null;
+  const nextStatus: Task["status"] | null = task.status === "backlog" ? "ready" : task.status === "ready" ? "running" : task.status === "running" || task.status === "in_progress" ? "review" : task.status === "review" ? "done" : null;
 
   return (
     <article className="task-card-minimal">
@@ -141,9 +143,4 @@ function TaskCard({ task, onMove }: { task: MissionTask; onMove: (task: MissionT
       </div>
     </article>
   );
-}
-
-function useStateLite<T>(initialValue: T): [T, (updater: T | ((current: T) => T)) => void] {
-  const React = require("react") as typeof import("react");
-  return React.useState(initialValue);
 }
