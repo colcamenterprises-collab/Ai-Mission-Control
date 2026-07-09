@@ -96,6 +96,70 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
       created_at timestamptz NOT NULL DEFAULT now()
     );
 
+    CREATE TABLE IF NOT EXISTS activity (
+      id serial PRIMARY KEY,
+      agent_name text NOT NULL,
+      action text NOT NULL,
+      detail text,
+      status text NOT NULL DEFAULT 'idle',
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS integrations (
+      id serial PRIMARY KEY,
+      name text NOT NULL,
+      url text NOT NULL,
+      description text,
+      category text NOT NULL DEFAULT 'custom',
+      icon_initials text NOT NULL,
+      icon_color text NOT NULL DEFAULT 'from-slate-600 to-slate-800',
+      status text NOT NULL DEFAULT 'connected',
+      api_key text,
+      is_public boolean NOT NULL DEFAULT false,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_integrations (
+      id serial PRIMARY KEY,
+      agent_id integer NOT NULL,
+      integration_id integer NOT NULL,
+      role text,
+      assigned_at timestamptz NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_commands (
+      id serial PRIMARY KEY,
+      agent_id integer NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+      instructions text NOT NULL,
+      context text,
+      task_id integer,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      acknowledged_at timestamptz,
+      delivered_via_http boolean NOT NULL DEFAULT false
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_tools (
+      id serial PRIMARY KEY,
+      name text NOT NULL,
+      description text,
+      url text,
+      category text NOT NULL DEFAULT 'custom',
+      credential_type text NOT NULL DEFAULT 'api_key',
+      api_key text,
+      username text,
+      password text,
+      notes text,
+      is_active boolean NOT NULL DEFAULT true,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_tool_access (
+      id serial PRIMARY KEY,
+      agent_id integer NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+      tool_id integer NOT NULL REFERENCES agent_tools(id) ON DELETE CASCADE,
+      granted_at timestamptz NOT NULL DEFAULT now()
+    );
+
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS description text;
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assignee text;
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority text DEFAULT 'medium';
@@ -154,6 +218,52 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
     ALTER TABLE events ADD COLUMN IF NOT EXISTS all_day boolean DEFAULT false;
     ALTER TABLE events ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
 
+    ALTER TABLE activity ADD COLUMN IF NOT EXISTS agent_name text;
+    ALTER TABLE activity ADD COLUMN IF NOT EXISTS action text;
+    ALTER TABLE activity ADD COLUMN IF NOT EXISTS detail text;
+    ALTER TABLE activity ADD COLUMN IF NOT EXISTS status text DEFAULT 'idle';
+    ALTER TABLE activity ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+
+    ALTER TABLE integrations ADD COLUMN IF NOT EXISTS name text;
+    ALTER TABLE integrations ADD COLUMN IF NOT EXISTS url text;
+    ALTER TABLE integrations ADD COLUMN IF NOT EXISTS description text;
+    ALTER TABLE integrations ADD COLUMN IF NOT EXISTS category text DEFAULT 'custom';
+    ALTER TABLE integrations ADD COLUMN IF NOT EXISTS icon_initials text DEFAULT 'IN';
+    ALTER TABLE integrations ADD COLUMN IF NOT EXISTS icon_color text DEFAULT 'from-slate-600 to-slate-800';
+    ALTER TABLE integrations ADD COLUMN IF NOT EXISTS status text DEFAULT 'connected';
+    ALTER TABLE integrations ADD COLUMN IF NOT EXISTS api_key text;
+    ALTER TABLE integrations ADD COLUMN IF NOT EXISTS is_public boolean DEFAULT false;
+    ALTER TABLE integrations ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+
+    ALTER TABLE agent_integrations ADD COLUMN IF NOT EXISTS agent_id integer;
+    ALTER TABLE agent_integrations ADD COLUMN IF NOT EXISTS integration_id integer;
+    ALTER TABLE agent_integrations ADD COLUMN IF NOT EXISTS role text;
+    ALTER TABLE agent_integrations ADD COLUMN IF NOT EXISTS assigned_at timestamptz DEFAULT now();
+
+    ALTER TABLE agent_commands ADD COLUMN IF NOT EXISTS agent_id integer;
+    ALTER TABLE agent_commands ADD COLUMN IF NOT EXISTS instructions text;
+    ALTER TABLE agent_commands ADD COLUMN IF NOT EXISTS context text;
+    ALTER TABLE agent_commands ADD COLUMN IF NOT EXISTS task_id integer;
+    ALTER TABLE agent_commands ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+    ALTER TABLE agent_commands ADD COLUMN IF NOT EXISTS acknowledged_at timestamptz;
+    ALTER TABLE agent_commands ADD COLUMN IF NOT EXISTS delivered_via_http boolean DEFAULT false;
+
+    ALTER TABLE agent_tools ADD COLUMN IF NOT EXISTS name text;
+    ALTER TABLE agent_tools ADD COLUMN IF NOT EXISTS description text;
+    ALTER TABLE agent_tools ADD COLUMN IF NOT EXISTS url text;
+    ALTER TABLE agent_tools ADD COLUMN IF NOT EXISTS category text DEFAULT 'custom';
+    ALTER TABLE agent_tools ADD COLUMN IF NOT EXISTS credential_type text DEFAULT 'api_key';
+    ALTER TABLE agent_tools ADD COLUMN IF NOT EXISTS api_key text;
+    ALTER TABLE agent_tools ADD COLUMN IF NOT EXISTS username text;
+    ALTER TABLE agent_tools ADD COLUMN IF NOT EXISTS password text;
+    ALTER TABLE agent_tools ADD COLUMN IF NOT EXISTS notes text;
+    ALTER TABLE agent_tools ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
+    ALTER TABLE agent_tools ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+
+    ALTER TABLE agent_tool_access ADD COLUMN IF NOT EXISTS agent_id integer;
+    ALTER TABLE agent_tool_access ADD COLUMN IF NOT EXISTS tool_id integer;
+    ALTER TABLE agent_tool_access ADD COLUMN IF NOT EXISTS granted_at timestamptz DEFAULT now();
+
     UPDATE tasks SET assignee = 'UNMAPPED' WHERE assignee IS NULL;
     UPDATE tasks SET priority = 'medium' WHERE priority IS NULL;
     UPDATE tasks SET status = 'backlog' WHERE status IS NULL;
@@ -191,6 +301,29 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
     UPDATE events SET start_date = 'UNMAPPED' WHERE start_date IS NULL;
     UPDATE events SET all_day = false WHERE all_day IS NULL;
     UPDATE events SET created_at = now() WHERE created_at IS NULL;
+
+    UPDATE activity SET agent_name = 'UNMAPPED' WHERE agent_name IS NULL;
+    UPDATE activity SET action = 'UNMAPPED' WHERE action IS NULL;
+    UPDATE activity SET status = 'idle' WHERE status IS NULL;
+    UPDATE activity SET created_at = now() WHERE created_at IS NULL;
+
+    UPDATE integrations SET name = 'UNMAPPED' WHERE name IS NULL;
+    UPDATE integrations SET url = 'UNMAPPED' WHERE url IS NULL;
+    UPDATE integrations SET category = 'custom' WHERE category IS NULL;
+    UPDATE integrations SET icon_initials = 'IN' WHERE icon_initials IS NULL;
+    UPDATE integrations SET icon_color = 'from-slate-600 to-slate-800' WHERE icon_color IS NULL;
+    UPDATE integrations SET status = 'connected' WHERE status IS NULL;
+    UPDATE integrations SET is_public = false WHERE is_public IS NULL;
+    UPDATE integrations SET created_at = now() WHERE created_at IS NULL;
+
+    UPDATE agent_integrations SET assigned_at = now() WHERE assigned_at IS NULL;
+    UPDATE agent_commands SET created_at = now() WHERE created_at IS NULL;
+    UPDATE agent_commands SET delivered_via_http = false WHERE delivered_via_http IS NULL;
+    UPDATE agent_tools SET category = 'custom' WHERE category IS NULL;
+    UPDATE agent_tools SET credential_type = 'api_key' WHERE credential_type IS NULL;
+    UPDATE agent_tools SET is_active = true WHERE is_active IS NULL;
+    UPDATE agent_tools SET created_at = now() WHERE created_at IS NULL;
+    UPDATE agent_tool_access SET granted_at = now() WHERE granted_at IS NULL;
 
     ALTER TABLE tasks ALTER COLUMN assignee SET NOT NULL;
     ALTER TABLE tasks ALTER COLUMN priority SET NOT NULL;
@@ -230,7 +363,40 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
     ALTER TABLE events ALTER COLUMN all_day SET NOT NULL;
     ALTER TABLE events ALTER COLUMN created_at SET NOT NULL;
 
+    ALTER TABLE activity ALTER COLUMN agent_name SET NOT NULL;
+    ALTER TABLE activity ALTER COLUMN action SET NOT NULL;
+    ALTER TABLE activity ALTER COLUMN status SET NOT NULL;
+    ALTER TABLE activity ALTER COLUMN created_at SET NOT NULL;
+
+    ALTER TABLE integrations ALTER COLUMN name SET NOT NULL;
+    ALTER TABLE integrations ALTER COLUMN url SET NOT NULL;
+    ALTER TABLE integrations ALTER COLUMN category SET NOT NULL;
+    ALTER TABLE integrations ALTER COLUMN icon_initials SET NOT NULL;
+    ALTER TABLE integrations ALTER COLUMN icon_color SET NOT NULL;
+    ALTER TABLE integrations ALTER COLUMN status SET NOT NULL;
+    ALTER TABLE integrations ALTER COLUMN is_public SET NOT NULL;
+    ALTER TABLE integrations ALTER COLUMN created_at SET NOT NULL;
+
+    ALTER TABLE agent_commands ALTER COLUMN agent_id SET NOT NULL;
+    ALTER TABLE agent_commands ALTER COLUMN instructions SET NOT NULL;
+    ALTER TABLE agent_commands ALTER COLUMN created_at SET NOT NULL;
+    ALTER TABLE agent_commands ALTER COLUMN delivered_via_http SET NOT NULL;
+
+    ALTER TABLE agent_tools ALTER COLUMN name SET NOT NULL;
+    ALTER TABLE agent_tools ALTER COLUMN category SET NOT NULL;
+    ALTER TABLE agent_tools ALTER COLUMN credential_type SET NOT NULL;
+    ALTER TABLE agent_tools ALTER COLUMN is_active SET NOT NULL;
+    ALTER TABLE agent_tools ALTER COLUMN created_at SET NOT NULL;
+
+    ALTER TABLE agent_tool_access ALTER COLUMN agent_id SET NOT NULL;
+    ALTER TABLE agent_tool_access ALTER COLUMN tool_id SET NOT NULL;
+    ALTER TABLE agent_tool_access ALTER COLUMN granted_at SET NOT NULL;
+
     CREATE INDEX IF NOT EXISTS content_created_at_idx ON content (created_at);
     CREATE INDEX IF NOT EXISTS events_start_date_idx ON events (start_date);
+    CREATE INDEX IF NOT EXISTS tasks_assignee_status_idx ON tasks (assignee, status);
+    CREATE INDEX IF NOT EXISTS agent_commands_agent_ack_idx ON agent_commands (agent_id, acknowledged_at);
+    CREATE INDEX IF NOT EXISTS agent_tool_access_agent_idx ON agent_tool_access (agent_id);
+    CREATE INDEX IF NOT EXISTS activity_created_at_idx ON activity (created_at);
   `);
 }
