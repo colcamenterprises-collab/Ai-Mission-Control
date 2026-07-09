@@ -1,0 +1,294 @@
+.team-directory-hero {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: end;
+  gap: 1rem;
+  padding: clamp(1rem, 2vw, 1.35rem);
+  overflow: hidden;
+}
+
+.team-hero-stats {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.team-hero-stats span {
+  min-width: 5.8rem;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(2, 6, 23, 0.36);
+  border-radius: 0.9rem;
+  padding: 0.62rem 0.7rem;
+  color: rgba(203, 213, 225, 0.62);
+  font-family: var(--mc-font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.team-hero-stats strong {
+  display: block;
+  color: rgba(248, 250, 252, 0.92);
+  font-family: var(--mc-font-ui);
+  font-size: 1.35rem;
+  line-height: 1;
+  letter-spacing: -0.06em;
+}
+
+.agent-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.75rem, 1fr));
+  gap: 0.85rem;
+}
+
+.agent-directory-card {
+  min-height: 13.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 1.1rem;
+  background:
+    radial-gradient(circle at 50% 8%, rgba(34, 211, 238, 0.12), transparent 42%),
+    rgba(2, 6, 23, 0.46);
+  padding: 1rem 0.75rem;
+  text-align: center;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.agent-directory-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(34, 211, 238, 0.34);
+  background:
+    radial-gradient(circle at 50% 8%, rgba(34, 211, 238, 0.18), transparent 45%),
+    rgba(2, 6, 23, 0.58);
+}
+
+.agent-add-card {
+  border-style: dashed;
+  color: rgba(203, 213, 225, 0.72);
+}
+
+.agent-portrait {
+  position: relative;
+  width: 5.2rem;
+  height: 5.2rem;
+  display: grid;
+  place-items: center;
+}
+
+.agent-portrait-glow {
+  position: absolute;
+  inset: 0.25rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.26), rgba(79, 70, 229, 0.05) 58%, transparent 70%);
+  filter: blur(0.35rem);
+}
+
+.agent-portrait-face {
+  position: relative;
+  width: 4.2rem;
+  height: 4.2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 1.35rem;
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.98), rgba(8, 47, 73, 0.82));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 18px 42px rgba(0, 0, 0, 0.28);
+  color: rgb(34, 211, 238);
+}
+
+.agent-portrait-face span {
+  position: absolute;
+  bottom: 0.38rem;
+  font-family: var(--mc-font-mono);
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: rgba(203, 213, 225, 0.72);
+}
+
+.agent-portrait-status {
+  position: absolute;
+  right: 0.56rem;
+  bottom: 0.6rem;
+  width: 0.72rem;
+  height: 0.72rem;
+  border-radius: 999px;
+  border: 2px solid rgb(2, 6, 23);
+  background: rgba(148, 163, 184, 0.6);
+}
+
+.agent-portrait-status.online {
+  background: rgb(52, 211, 153);
+  box-shadow: 0 0 16px rgba(52, 211, 153, 0.6);
+}
+
+.agent-card-copy {
+  display: grid;
+  gap: 0.22rem;
+  min-width: 0;
+}
+
+.agent-card-copy h3 {
+  margin: 0;
+  color: rgba(248, 250, 252, 0.94);
+  font-size: 0.92rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.agent-card-copy p {
+  margin: 0;
+  color: rgba(203, 213, 225, 0.58);
+  font-size: 0.72rem;
+  line-height: 1.15;
+}
+
+.agent-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.8rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  padding: 0.32rem 0.52rem;
+  color: rgba(203, 213, 225, 0.68);
+  font-family: var(--mc-font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.agent-status-pill.online {
+  border-color: rgba(52, 211, 153, 0.26);
+  background: rgba(6, 78, 59, 0.24);
+  color: rgba(167, 243, 208, 0.9);
+}
+
+.agent-add-icon {
+  width: 4.2rem;
+  height: 4.2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 1.35rem;
+  border: 1px dashed rgba(34, 211, 238, 0.28);
+  color: rgb(34, 211, 238);
+  background: rgba(34, 211, 238, 0.05);
+}
+
+.mission-dialog-title,
+.agent-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.94rem;
+}
+
+.agent-detail-head span {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.agent-detail-head strong {
+  font-size: 1rem;
+  letter-spacing: -0.03em;
+}
+
+.agent-detail-head em {
+  color: rgba(203, 213, 225, 0.62);
+  font-size: 0.78rem;
+  font-style: normal;
+}
+
+.agent-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.agent-detail-grid div,
+.agent-token-box {
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 0.9rem;
+  background: rgba(2, 6, 23, 0.34);
+  padding: 0.72rem;
+}
+
+.agent-detail-grid span,
+.agent-token-box span {
+  display: block;
+  color: rgba(203, 213, 225, 0.55);
+  font-family: var(--mc-font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.agent-detail-grid strong {
+  display: block;
+  margin-top: 0.2rem;
+  color: rgba(248, 250, 252, 0.9);
+  font-size: 0.78rem;
+  font-weight: 560;
+}
+
+.agent-admin-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.55rem;
+  padding-top: 0.2rem;
+}
+
+.agent-token-box {
+  display: grid;
+  gap: 0.55rem;
+  color: rgba(203, 213, 225, 0.78);
+  font-family: var(--mc-font-mono);
+  font-size: 0.68rem;
+  overflow: hidden;
+}
+
+.agent-token-box p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-token-box div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.agent-copy-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: rgb(34, 211, 238);
+  font-size: 0.68rem;
+}
+
+@media (min-width: 1500px) {
+  .agent-directory-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 920px) {
+  .team-directory-hero {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .team-hero-stats {
+    flex-wrap: wrap;
+  }
+}
