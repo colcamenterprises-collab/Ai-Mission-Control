@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import {
   useGetDashboardSummary,
   useListAgents,
@@ -15,7 +16,6 @@ import {
   ListTodo,
   MessageSquare,
   Radio,
-  Settings,
   Users,
   Zap,
 } from "lucide-react";
@@ -105,7 +105,7 @@ export default function Dashboard() {
             <PanelHeader icon={Brain} title="Memory" action="View" href="/memory" />
             <div className="memory-node-map" aria-hidden="true">
               {Array.from({ length: 18 }).map((_, index) => (
-                <span key={index} style={{ "--i": index } as React.CSSProperties} />
+                <span key={index} style={{ "--i": index } as CSSProperties} />
               ))}
             </div>
             <div className="visual-count-row"><span>stored</span><strong>{memories.length}</strong></div>
