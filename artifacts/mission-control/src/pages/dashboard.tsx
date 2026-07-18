@@ -55,14 +55,17 @@ export default function Dashboard() {
           <div className="workspace-panel dashboard-command-card">
             <div className="dashboard-topline">
               <span className="status-dot status-dot-live" />
-              Live command view
+              Your business control room
             </div>
-            <h1 className="mission-page-title">Mission Control</h1>
+            <div>
+              <h1 className="mission-page-title">Overview</h1>
+              <p className="mission-page-subtitle">See what needs attention, who is working, and what to do next.</p>
+            </div>
             <div className="dashboard-action-strip">
-              <QuickLink href="/tasks" icon={ListTodo} label="Tasks + Chat" />
-              <QuickLink href="/team" icon={Users} label="Agents" />
-              <QuickLink href="/memory" icon={Brain} label="Memory" />
-              <QuickLink href="/skills" icon={Zap} label="Skills" />
+              <QuickLink href="/tasks" icon={ListTodo} label="Open Tasks" />
+              <QuickLink href="/team" icon={Users} label="Employ AI Team" />
+              <QuickLink href="/memory" icon={Brain} label="Add Knowledge" />
+              <QuickLink href="/skills" icon={Zap} label="Open Playbooks" />
             </div>
           </div>
 
@@ -74,26 +77,26 @@ export default function Dashboard() {
             </div>
             <div className="orbit-stats">
               <VisualStat label="tasks" value={String(totalTasks)} loading={isSummaryLoading || isTasksLoading} />
-              <VisualStat label="agents" value={String(installedAgents)} />
-              <VisualStat label="memory" value={String(memories.length)} />
+              <VisualStat label="AI team" value={String(installedAgents)} />
+              <VisualStat label="knowledge" value={String(memories.length)} />
             </div>
           </div>
         </section>
 
         <section className="dashboard-kpi-grid">
-          <MetricTile title="Active" value={String(summary?.activeTaskCount ?? runningTasks)} icon={Activity} loading={isSummaryLoading} tone="cyan" />
+          <MetricTile title="Working" value={String(summary?.activeTaskCount ?? runningTasks)} icon={Activity} loading={isSummaryLoading} tone="cyan" />
           <MetricTile title="Review" value={String(reviewTasks)} icon={CheckCircle2} loading={isTasksLoading} tone="violet" />
           <MetricTile title="Blocked" value={String(blockedTasks)} icon={Radio} loading={isTasksLoading} tone="amber" />
-          <MetricTile title="Events" value={String(summary?.upcomingEventCount ?? 0)} icon={CalendarIcon} loading={isSummaryLoading} tone="green" />
+          <MetricTile title="Upcoming" value={String(summary?.upcomingEventCount ?? 0)} icon={CalendarIcon} loading={isSummaryLoading} tone="green" />
         </section>
 
         <section className="dashboard-visual-grid">
           <div className="workspace-panel visual-panel visual-panel-large">
-            <PanelHeader icon={GitBranch} title="Work Flow" action="Open" href="/tasks" />
+            <PanelHeader icon={GitBranch} title="Task Flow" action="Open" href="/tasks" />
             <div className="stage-map">
               {stageCounts.map((item) => (
                 <div className="stage-row" key={item.stage}>
-                  <span>{item.stage.replace("_", " ")}</span>
+                  <span>{plainStage(item.stage)}</span>
                   <div className="stage-track"><span style={{ width: `${Math.min(100, item.count * 24)}%` }} /></div>
                   <strong>{item.count}</strong>
                 </div>
@@ -102,7 +105,7 @@ export default function Dashboard() {
           </div>
 
           <div className="workspace-panel visual-panel">
-            <PanelHeader icon={Brain} title="Memory" action="View" href="/memory" />
+            <PanelHeader icon={Brain} title="Knowledge" action="View" href="/memory" />
             <div className="memory-node-map" aria-hidden="true">
               {Array.from({ length: 18 }).map((_, index) => (
                 <span key={index} style={{ "--i": index } as CSSProperties} />
@@ -112,20 +115,20 @@ export default function Dashboard() {
           </div>
 
           <div className="workspace-panel visual-panel">
-            <PanelHeader icon={Users} title="Agents" action="Manage" href="/team" />
+            <PanelHeader icon={Users} title="AI Team" action="Employ" href="/team" />
             <div className="agent-cluster">
               {Array.from({ length: Math.max(1, Math.min(6, installedAgents)) }).map((_, index) => (
                 <span key={index} className={index < activeAgents ? "agent-node agent-node-live" : "agent-node"} />
               ))}
             </div>
-            <div className="visual-count-row"><span>installed</span><strong>{installedAgents}</strong></div>
+            <div className="visual-count-row"><span>team members</span><strong>{installedAgents}</strong></div>
           </div>
 
           <div className="workspace-panel visual-panel visual-panel-large">
             <PanelHeader icon={MessageSquare} title="Current Work" action="Tasks" href="/tasks" />
             <div className="compact-task-list">
               {latestTasks.length === 0 ? (
-                <div className="empty-visual-state">No active work</div>
+                <div className="empty-visual-state">No active work yet</div>
               ) : latestTasks.map((task) => (
                 <Link href="/tasks" className="compact-task" key={task.id}>
                   <span className={`status-dot status-dot-${task.status}`} />
@@ -139,6 +142,19 @@ export default function Dashboard() {
       </div>
     </div>
   );
+}
+
+function plainStage(stage: string) {
+  const names: Record<string, string> = {
+    backlog: "Ideas",
+    ready: "Ready",
+    running: "Working",
+    blocked: "Blocked",
+    review: "Review",
+    done: "Done",
+  };
+
+  return names[stage] ?? stage.replace("_", " ");
 }
 
 function VisualStat({ label, value, loading }: { label: string; value: string; loading?: boolean }) {
