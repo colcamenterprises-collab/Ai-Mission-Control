@@ -1,30 +1,30 @@
 .mission-logo {
   display: inline-grid;
   place-items: center;
-  width: 2.35rem;
-  height: 2.35rem;
-  border-radius: 0.95rem;
-  background:
-    radial-gradient(circle at 40% 20%, rgba(183, 173, 255, 0.28), transparent 48%),
-    rgba(12, 10, 28, 0.78);
-  border: 1px solid rgba(183, 173, 255, 0.22);
-  box-shadow: 0 0 28px rgba(135, 117, 255, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  width: 2.55rem;
+  height: 2.55rem;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
 }
 
 .mission-logo-compact {
-  width: 2.15rem;
-  height: 2.15rem;
+  width: 2.35rem;
+  height: 2.35rem;
 }
 
 .mission-logo-mark {
-  width: 1.75rem;
-  height: 1.75rem;
-  filter: drop-shadow(0 0 18px rgba(135, 117, 255, 0.42));
+  width: 2.25rem;
+  height: 2.25rem;
+  filter: drop-shadow(0 0 14px rgba(135, 117, 255, 0.34));
 }
 
 .mission-sidebar-top {
-  height: 4.2rem;
-  padding-top: 0.2rem;
+  height: 4.1rem;
+  padding-top: 0.1rem;
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
 }
 
 .mission-page-subtitle {
@@ -36,27 +36,36 @@
 }
 
 .quick-launch-button {
-  min-height: 2.4rem;
-  border: 1px solid rgba(183, 173, 255, 0.18);
-  background: linear-gradient(135deg, rgba(135, 117, 255, 0.2), rgba(34, 211, 238, 0.08));
+  min-height: 2.55rem;
+  border: 1px solid rgba(183, 173, 255, 0.16);
+  background: linear-gradient(135deg, rgba(135, 117, 255, 0.18), rgba(20, 28, 54, 0.52));
   color: rgba(248, 250, 252, 0.94);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.28);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .quick-launch-button:hover {
-  border-color: rgba(183, 173, 255, 0.38);
-  background: linear-gradient(135deg, rgba(135, 117, 255, 0.32), rgba(34, 211, 238, 0.12));
+  border-color: rgba(183, 173, 255, 0.34);
+  background: linear-gradient(135deg, rgba(135, 117, 255, 0.28), rgba(20, 28, 54, 0.62));
 }
 
 .dashboard-command-card,
 .dashboard-orbit-card,
 .visual-panel,
 .metric-tile {
-  border-color: rgba(183, 173, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
   background:
-    radial-gradient(circle at 20% 0%, rgba(135, 117, 255, 0.14), transparent 34%),
-    linear-gradient(145deg, rgba(17, 24, 39, 0.76), rgba(2, 6, 23, 0.88)) !important;
-  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    linear-gradient(145deg, rgba(33, 37, 55, 0.68), rgba(12, 16, 30, 0.84)) !important;
+  box-shadow: 0 28px 78px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+.dashboard-command-card {
+  border-radius: 1.45rem !important;
+}
+
+.dashboard-orbit-card,
+.visual-panel,
+.metric-tile {
+  border-radius: 1.15rem !important;
 }
 
 .orbit-core-dot {
@@ -79,6 +88,17 @@
 .memory-node-map,
 .agent-cluster {
   background:
-    radial-gradient(circle at 50% 50%, rgba(135, 117, 255, 0.16), transparent 62%),
-    rgba(2, 6, 23, 0.28);
+    radial-gradient(circle at 50% 50%, rgba(135, 117, 255, 0.14), transparent 62%),
+    rgba(2, 6, 23, 0.2);
+}
+
+.theme-pill {
+  background: rgba(8, 10, 22, 0.64) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.theme-pill-thumb {
+  background: linear-gradient(135deg, rgba(183, 173, 255, 0.95), rgba(34, 211, 238, 0.72)) !important;
+  box-shadow: 0 0 20px rgba(135, 117, 255, 0.32) !important;
 }
