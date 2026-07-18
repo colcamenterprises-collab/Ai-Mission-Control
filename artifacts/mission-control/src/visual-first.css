@@ -1,0 +1,84 @@
+.mission-logo {
+  display: inline-grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.95rem;
+  background:
+    radial-gradient(circle at 40% 20%, rgba(183, 173, 255, 0.28), transparent 48%),
+    rgba(12, 10, 28, 0.78);
+  border: 1px solid rgba(183, 173, 255, 0.22);
+  box-shadow: 0 0 28px rgba(135, 117, 255, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.mission-logo-compact {
+  width: 2.15rem;
+  height: 2.15rem;
+}
+
+.mission-logo-mark {
+  width: 1.75rem;
+  height: 1.75rem;
+  filter: drop-shadow(0 0 18px rgba(135, 117, 255, 0.42));
+}
+
+.mission-sidebar-top {
+  height: 4.2rem;
+  padding-top: 0.2rem;
+}
+
+.mission-page-subtitle {
+  max-width: 34rem;
+  margin-top: 0.85rem;
+  color: rgba(203, 213, 225, 0.66);
+  font-size: clamp(0.95rem, 1.2vw, 1.08rem);
+  line-height: 1.55;
+}
+
+.quick-launch-button {
+  min-height: 2.4rem;
+  border: 1px solid rgba(183, 173, 255, 0.18);
+  background: linear-gradient(135deg, rgba(135, 117, 255, 0.2), rgba(34, 211, 238, 0.08));
+  color: rgba(248, 250, 252, 0.94);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.28);
+}
+
+.quick-launch-button:hover {
+  border-color: rgba(183, 173, 255, 0.38);
+  background: linear-gradient(135deg, rgba(135, 117, 255, 0.32), rgba(34, 211, 238, 0.12));
+}
+
+.dashboard-command-card,
+.dashboard-orbit-card,
+.visual-panel,
+.metric-tile {
+  border-color: rgba(183, 173, 255, 0.16) !important;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(135, 117, 255, 0.14), transparent 34%),
+    linear-gradient(145deg, rgba(17, 24, 39, 0.76), rgba(2, 6, 23, 0.88)) !important;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.orbit-core-dot {
+  background: radial-gradient(circle, rgba(183, 173, 255, 0.95), rgba(135, 117, 255, 0.28));
+  box-shadow: 0 0 58px rgba(135, 117, 255, 0.42);
+}
+
+.orbit-ring-one {
+  border-color: rgba(183, 173, 255, 0.28);
+}
+
+.orbit-ring-two {
+  border-color: rgba(34, 211, 238, 0.2);
+}
+
+.stage-track span {
+  background: linear-gradient(90deg, rgba(183, 173, 255, 0.95), rgba(34, 211, 238, 0.56));
+}
+
+.memory-node-map,
+.agent-cluster {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(135, 117, 255, 0.16), transparent 62%),
+    rgba(2, 6, 23, 0.28);
+}
