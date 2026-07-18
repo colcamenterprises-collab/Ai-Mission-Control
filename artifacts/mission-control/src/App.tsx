@@ -15,6 +15,7 @@ import Skills from "@/pages/skills";
 import Contacts from "@/pages/contacts";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
+import "./visual-first.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -25,16 +25,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const navItems = [
-    { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/tasks", label: "Tasks + Chat", icon: CheckSquare },
-    { href: "/team", label: "Agents", icon: Users },
-    { href: "/memory", label: "Memory", icon: Activity },
-    { href: "/skills", label: "Skills", icon: BookOpen },
-    { href: "/workspaces", label: "Repos", icon: Boxes },
-    { href: "/content", label: "Content", icon: PenTool },
-    { href: "/calendar", label: "Calendar", icon: CalendarDays },
+    { href: "/", label: "Overview", icon: LayoutDashboard },
+    { href: "/tasks", label: "Tasks", icon: CheckSquare },
+    { href: "/team", label: "AI Team", icon: Users },
+    { href: "/memory", label: "Knowledge", icon: Activity },
+    { href: "/skills", label: "Playbooks", icon: BookOpen },
+    { href: "/workspaces", label: "Projects", icon: Boxes },
+    { href: "/content", label: "Marketing", icon: PenTool },
+    { href: "/calendar", label: "Planner", icon: CalendarDays },
     { href: "/contacts", label: "Contacts", icon: UsersRound },
-    { href: "/settings", label: "Settings", icon: Settings },
+    { href: "/settings", label: "Setup", icon: Settings },
   ];
 
   return (
@@ -63,7 +63,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Moon className={`theme-pill-icon theme-pill-moon ${theme === "dark" ? "opacity-100" : "opacity-40"}`} />
           </button>
         </div>
-        <nav className="flex-1 overflow-y-auto py-2">
+        <nav className="flex-1 overflow-y-auto py-2" aria-label="Main navigation">
           <ul className="space-y-0.5 px-1.5">
             {navItems.map((item) => {
               const isActive =
@@ -108,9 +108,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </button>
           {!isCollapsed && (
             <>
-              SYSTEM: ONLINE
+              READY
               <br />
-              STATUS: NOMINAL
+              LIVE WORKSPACE
             </>
           )}
         </div>
