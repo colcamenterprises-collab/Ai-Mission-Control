@@ -1,30 +1,101 @@
 .mission-logo {
-  display: inline-grid;
-  place-items: center;
-  width: 2.55rem;
-  height: 2.55rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.85rem;
+  height: 2.85rem;
+  border: 0;
   border-radius: 0;
   background: transparent;
-  border: 0;
   box-shadow: none;
   padding: 0;
 }
 
 .mission-logo-compact {
-  width: 2.35rem;
-  height: 2.35rem;
+  width: 2.55rem;
+  height: 2.55rem;
 }
 
 .mission-logo-mark {
-  width: 2.25rem;
-  height: 2.25rem;
-  filter: drop-shadow(0 0 14px rgba(135, 117, 255, 0.34));
+  display: block;
+  width: 2.55rem;
+  height: 2.55rem;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px rgba(135, 117, 255, 0.22));
 }
 
 .mission-sidebar-top {
   height: 4.1rem;
   padding-top: 0.1rem;
   border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Typography reset: no robotic/typewriter UI on the business-facing surface. */
+:root {
+  --mc-font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mc-font-mono: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body,
+button,
+input,
+textarea,
+select,
+.mission-app-bg,
+.visual-panel-header,
+.task-lane-head,
+.dashboard-topline,
+.mission-label,
+.metric-tile span,
+.orbit-stats span,
+.visual-count-row span,
+.compact-task strong,
+.empty-visual-state,
+.advanced-token summary,
+.intake-flow,
+.stage-row,
+nav,
+aside,
+main {
+  font-family: var(--mc-font-ui) !important;
+}
+
+.dashboard-topline,
+.visual-panel-header,
+.task-lane-head,
+.mission-label,
+.metric-tile span,
+.orbit-stats span,
+.visual-count-row span,
+.compact-task strong,
+.empty-visual-state,
+.advanced-token summary,
+.intake-flow {
+  letter-spacing: 0.035em !important;
+  text-transform: none !important;
+  font-weight: 560 !important;
+}
+
+.visual-panel-header,
+.task-lane-head {
+  font-size: 0.86rem !important;
+  color: rgba(226, 232, 240, 0.86) !important;
+}
+
+.dashboard-topline {
+  font-size: 0.76rem !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+}
+
+nav a,
+nav span {
+  font-weight: 520;
+  letter-spacing: -0.01em;
+}
+
+.mission-page-title {
+  letter-spacing: -0.06em;
 }
 
 .mission-page-subtitle {
@@ -53,8 +124,7 @@
 .visual-panel,
 .metric-tile {
   border-color: rgba(255, 255, 255, 0.1) !important;
-  background:
-    linear-gradient(145deg, rgba(33, 37, 55, 0.68), rgba(12, 16, 30, 0.84)) !important;
+  background: linear-gradient(145deg, rgba(33, 37, 55, 0.68), rgba(12, 16, 30, 0.84)) !important;
   box-shadow: 0 28px 78px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.055);
 }
 
