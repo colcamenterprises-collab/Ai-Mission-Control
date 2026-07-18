@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Customli">
+  <defs>
+    <linearGradient id="g" x1="70" y1="430" x2="438" y2="76" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b8adff"/>
+      <stop offset="0.48" stop-color="#8877ff"/>
+      <stop offset="1" stop-color="#6e5df0"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#g)" d="M124 365c-35 0-66-13-90-38-46-46-46-121 0-167l70-70c46-46 121-46 167 0l207 207c13 13 13 35 0 48s-35 13-48 0L223 138c-20-20-52-20-72 0l-70 70c-20 20-20 52 0 72s52 20 72 0l78-78c13-13 35-13 48 0s13 35 0 48l-78 78c-21 24-48 37-77 37Z"/>
+  <path fill="url(#g)" d="M319 365c-29 0-58-11-80-33L32 125c-13-13-13-35 0-48s35-13 48 0l207 207c20 20 52 20 72 0l70-70c20-20 20-52 0-72s-52-20-72 0l-78 78c-13 13-35 13-48 0s-13-35 0-48l78-78c46-46 121-46 167 0s46 121 0 167l-70 70c-24 23-55 34-87 34Z" opacity="0.94"/>
+</svg>
