@@ -32,45 +32,36 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/skills", label: "Playbooks", icon: BookOpen },
     { href: "/content", label: "Marketing", icon: PenTool },
     { href: "/calendar", label: "Planner", icon: CalendarDays },
-    { href: "/contacts", label: "Contacts", icon: UsersRound },
-    { href: "/tasks", label: "Reports", icon: BarChart3 },
+    { href: "/contacts", label: "People", icon: UsersRound },
+    { href: "/workspaces", label: "Reports", icon: BarChart3 },
     { href: "/settings", label: "Setup", icon: Settings },
   ];
 
   return (
     <div className="mission-app-bg relative min-h-screen overflow-hidden flex text-foreground">
-      <aside
-        className={`${isCollapsed ? "w-[4.5rem]" : "w-52"} mission-sidebar relative z-10 flex-shrink-0 flex flex-col transition-[width] duration-200`}
-      >
-        <div
-          className={`mission-sidebar-top ${isCollapsed ? "justify-center px-3" : "px-5"}`}
-        >
+      <div className="mission-premium-background" aria-hidden="true" />
+      <aside className={`${isCollapsed ? "w-[4.5rem]" : "w-48 md:w-52"} mission-sidebar relative z-10 flex-shrink-0 flex flex-col transition-[width] duration-200`}>
+        <div className={`mission-sidebar-top ${isCollapsed ? "justify-center px-3" : "px-4"}`}>
           <CustomliLogo compact={isCollapsed} />
           {!isCollapsed && <div className="flex-1" />}
-          <button
-            onClick={toggle}
-            aria-label="Toggle theme"
-            className="theme-pill"
-          >
+          <button onClick={toggle} aria-label="Toggle theme" className="theme-pill">
             <span className={`theme-pill-thumb ${theme === "dark" ? "translate-x-5" : "translate-x-0"}`} />
             <Sun className={`theme-pill-icon theme-pill-sun ${theme === "dark" ? "opacity-40" : "opacity-100"}`} />
             <Moon className={`theme-pill-icon theme-pill-moon ${theme === "dark" ? "opacity-100" : "opacity-40"}`} />
           </button>
         </div>
-        <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Main navigation">
-          <ul className="space-y-1">
+        <nav className="flex-1 overflow-y-auto py-4" aria-label="Main navigation">
+          <ul className="space-y-1.5 px-3">
             {navItems.map((item) => {
-              const isActive =
-                location === item.href ||
-                (item.href !== "/" && location.startsWith(item.href));
+              const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
               return (
                 <li key={`${item.href}-${item.label}`}>
                   <Link
                     href={item.href}
                     title={isCollapsed ? item.label : undefined}
-                    className={`mission-nav-item ${isCollapsed ? "justify-center px-2" : "px-3"} ${isActive ? "mission-nav-active" : ""}`}
+                    className={`mission-nav-item ${isCollapsed ? "justify-center px-3" : "px-3"} ${isActive ? "mission-nav-active" : ""}`}
                   >
-                    <item.icon className="h-4 w-4 flex-shrink-0" />
+                    <item.icon className={`h-4 w-4 flex-shrink-0 ${isCollapsed ? "" : "mr-3"}`} />
                     {!isCollapsed && <span>{item.label}</span>}
                   </Link>
                 </li>
@@ -79,14 +70,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </ul>
         </nav>
         <div className={`${isCollapsed ? "p-3" : "p-4"} mission-sidebar-footer`}>
-          <button
-            onClick={() => setIsCollapsed((value) => !value)}
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="mission-collapse-button"
-          >
+          <button onClick={() => setIsCollapsed((value) => !value)} aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"} className="mission-collapse-button">
             {isCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
           </button>
-          {!isCollapsed && <span>Workspace ready</span>}
+          {!isCollapsed && <span>Ready</span>}
         </div>
       </aside>
       <main className="relative z-10 flex-1 flex flex-col h-screen overflow-hidden bg-transparent">
