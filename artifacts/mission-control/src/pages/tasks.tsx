@@ -1,11 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  useListTasks,
-  useMoveTask,
-  getListTasksQueryKey,
-  type Task,
-} from "@workspace/api-client-react";
+import { useListTasks, useMoveTask, getListTasksQueryKey, type Task } from "@workspace/api-client-react";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight, CheckCircle2, CircleAlert, Clock, MessageSquare, Play, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -17,11 +12,11 @@ import "./workspaces.css";
 type MissionTask = Task & { status: Task["status"] };
 
 const COLUMNS: Array<{ id: Task["status"]; label: string; icon: LucideIcon }> = [
-  { id: "backlog", label: "Backlog", icon: Clock },
+  { id: "backlog", label: "Ideas", icon: Clock },
   { id: "ready", label: "Ready", icon: Sparkles },
-  { id: "running", label: "Running", icon: Play },
+  { id: "running", label: "Working", icon: Play },
   { id: "blocked", label: "Blocked", icon: CircleAlert },
-  { id: "review", label: "Review", icon: MessageSquare },
+  { id: "review", label: "Check", icon: MessageSquare },
   { id: "done", label: "Done", icon: CheckCircle2 },
 ];
 
@@ -60,14 +55,14 @@ export default function Tasks() {
       <div className="workspaces-canvas space-y-4">
         <section className="tasks-hero workspace-panel">
           <div>
-            <span className="dashboard-topline"><MessageSquare className="h-3.5 w-3.5" /> Tasks + Chat</span>
-            <h1 className="mission-page-title">Command Queue</h1>
+            <span className="dashboard-topline"><MessageSquare className="h-3.5 w-3.5" /> Work</span>
+            <h1 className="mission-page-title">Work board</h1>
           </div>
           <div className="tasks-filter-row">
             <Select value={filter.priority} onValueChange={(priority) => setFilter((current) => ({ ...current, priority }))}>
-              <SelectTrigger className="h-9 w-36"><SelectValue placeholder="Priority" /></SelectTrigger>
+              <SelectTrigger className="h-9 w-36"><SelectValue placeholder="Importance" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All priority</SelectItem>
+                <SelectItem value="all">All importance</SelectItem>
                 <SelectItem value="low">Low</SelectItem>
                 <SelectItem value="medium">Medium</SelectItem>
                 <SelectItem value="high">High</SelectItem>
@@ -75,9 +70,9 @@ export default function Tasks() {
               </SelectContent>
             </Select>
             <Select value={filter.project} onValueChange={(project) => setFilter((current) => ({ ...current, project }))}>
-              <SelectTrigger className="h-9 w-44"><SelectValue placeholder="Project" /></SelectTrigger>
+              <SelectTrigger className="h-9 w-44"><SelectValue placeholder="Area" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All projects</SelectItem>
+                <SelectItem value="all">All areas</SelectItem>
                 {projects.map((project) => <SelectItem key={project} value={project}>{project}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -88,13 +83,7 @@ export default function Tasks() {
 
         <section className="task-board-grid">
           {isLoading ? (
-            COLUMNS.map((column) => (
-              <div className="task-lane workspace-panel" key={column.id}>
-                <Skeleton className="h-5 w-20" />
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-24 w-full" />
-              </div>
-            ))
+            COLUMNS.map((column) => <div className="task-lane workspace-panel" key={column.id}><Skeleton className="h-5 w-20" /><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div>)
           ) : COLUMNS.map((column) => {
             const Icon = column.icon;
             const laneTasks = filteredTasks.filter((task) => task.status === column.id || (column.id === "running" && task.status === "in_progress"));
@@ -105,11 +94,7 @@ export default function Tasks() {
                   <strong>{laneTasks.length}</strong>
                 </div>
                 <div className="task-lane-list">
-                  {laneTasks.length === 0 ? (
-                    <div className="empty-visual-state">Clear</div>
-                  ) : laneTasks.map((task) => (
-                    <TaskCard key={task.id} task={task} onMove={moveTo} />
-                  ))}
+                  {laneTasks.length === 0 ? <div className="empty-visual-state">Clear</div> : laneTasks.map((task) => <TaskCard key={task.id} task={task} onMove={moveTo} />)}
                 </div>
               </div>
             );
@@ -126,19 +111,12 @@ function TaskCard({ task, onMove }: { task: MissionTask; onMove: (task: MissionT
   return (
     <article className="task-card-minimal">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3>{task.title}</h3>
-          <span>{task.project}</span>
-        </div>
+        <div><h3>{task.title}</h3><span>{task.project}</span></div>
         <Badge className={`text-[10px] ${PRIORITY_COLORS[task.priority] ?? PRIORITY_COLORS.medium}`}>{displayPriority(task.priority)}</Badge>
       </div>
       <div className="task-card-foot">
         <span>{task.assignee}</span>
-        {nextStatus && (
-          <button type="button" onClick={() => onMove(task, nextStatus)}>
-            Move <ArrowRight className="h-3 w-3" />
-          </button>
-        )}
+        {nextStatus && <button type="button" onClick={() => onMove(task, nextStatus)}>Move <ArrowRight className="h-3 w-3" /></button>}
       </div>
     </article>
   );
