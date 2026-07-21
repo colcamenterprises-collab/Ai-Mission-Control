@@ -14,7 +14,7 @@ import {
   UpdateAgentResponse,
 } from "@workspace/api-zod";
 import { serializeDates } from "../utils/serialize.js";
-import { OPERATIONAL_AGENTS, getAssignedSkillNamesForAgent } from "../config-operational-agents.js";
+import { getAssignedSkillNamesForAgent } from "../config-operational-agents.js";
 
 const router: IRouter = Router();
 
@@ -29,20 +29,10 @@ function maskAgentForResponse(agent: typeof agentsTable.$inferSelect) {
   return { ...rest, apiKeyHint: maskApiKey(apiKey), assignedSkills: getAssignedSkillNamesForAgent(agent.name) };
 }
 
-function mergeConfiguredAgents(agents: ReturnType<typeof maskAgentForResponse>[]) {
-  const configuredNames = new Set(agents.map((agent) => agent.name.toLowerCase()));
-  return [
-    ...OPERATIONAL_AGENTS.filter(
-      (configuredAgent) => !configuredNames.has(configuredAgent.name.toLowerCase()),
-    ),
-    ...agents,
-  ];
-}
-
 router.get("/agents", async (_req, res): Promise<void> => {
   const agents = await db.select().from(agentsTable).orderBy(agentsTable.id);
   const masked = agents.map(maskAgentForResponse);
-  res.json(ListAgentsResponse.parse(serializeDates(mergeConfiguredAgents(masked))));
+  res.json(ListAgentsResponse.parse(serializeDates(masked)));
 });
 
 router.post("/agents", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
@@ -60,6 +50,7 @@ router.post("/agents", createRateLimit("admin-write", 40, 60_000), async (req, r
     isPluggedIn: rest.isPluggedIn ?? false,
   };
   const [agent] = await db.insert(agentsTable).values(insertData).returning();
+  await auditLog({ action: "created", entityType: "agent", entityId: agent.id, actorType: "admin", actorName: "Mission Control" });
   res.status(201).json(GetAgentResponse.parse(serializeDates(maskAgentForResponse(agent))));
 });
 
@@ -98,6 +89,7 @@ router.patch("/agents/:id", createRateLimit("admin-write", 40, 60_000), async (r
     res.status(404).json({ error: "Agent not found" });
     return;
   }
+  await auditLog({ action: "updated", entityType: "agent", entityId: agent.id, actorType: "admin", actorName: "Mission Control" });
   res.json(UpdateAgentResponse.parse(serializeDates(maskAgentForResponse(agent))));
 });
 
@@ -112,6 +104,7 @@ router.delete("/agents/:id", createRateLimit("admin-write", 40, 60_000), async (
     res.status(404).json({ error: "Agent not found" });
     return;
   }
+  await auditLog({ action: "deleted", entityType: "agent", entityId: agent.id, actorType: "admin", actorName: "Mission Control" });
   res.sendStatus(204);
 });
 
