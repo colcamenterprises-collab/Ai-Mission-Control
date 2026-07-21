@@ -1,5 +1,4 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
 import {
   db,
   tasksTable,
@@ -8,7 +7,6 @@ import {
   activityTable,
 } from "@workspace/db";
 import { serializeDates } from "../utils/serialize.js";
-import { OPERATIONAL_AGENTS } from "../config-operational-agents.js";
 
 const router: IRouter = Router();
 
@@ -21,7 +19,10 @@ type IntakeBody = {
   dueDate?: unknown;
 };
 
+type AgentRecord = typeof agentsTable.$inferSelect;
+
 type AgentCandidate = {
+  agent: AgentRecord | null;
   name: string;
   role: string;
   department: string;
@@ -31,6 +32,7 @@ type AgentCandidate = {
 
 const DEFAULT_PROJECT = "Mission Control";
 const DEFAULT_PRIORITY = "medium";
+const UNASSIGNED_AGENT_NAME = "Unassigned";
 
 function asCleanString(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -51,114 +53,103 @@ function keywordScore(text: string, keywords: string[]): number {
   return keywords.reduce((score, keyword) => score + (haystack.includes(keyword) ? 1 : 0), 0);
 }
 
-function chooseAgent(body: Required<Pick<IntakeBody, "title" | "description">> & IntakeBody): AgentCandidate {
-  const requestedAgent = asCleanString(body.requestedAgent);
-  const text = `${body.title} ${body.description} ${asCleanString(body.project) ?? ""}`.toLowerCase();
-
-  if (requestedAgent) {
-    const configured = OPERATIONAL_AGENTS.find((agent) => agent.name.toLowerCase() === requestedAgent.toLowerCase());
-    return {
-      name: configured?.name ?? requestedAgent,
-      role: configured?.role ?? "Requested agent",
-      department: configured?.department ?? "Operators",
-      reason: "Explicitly requested in the intake payload.",
-      confidence: 95,
-    };
-  }
-
-  const candidates: Array<AgentCandidate & { keywords: string[] }> = [
-    {
-      name: "Dev/Codex",
-      role: "Build agent",
-      department: "Developers",
-      keywords: ["code", "repo", "github", "deploy", "bug", "fix", "patch", "react", "api", "database", "typescript", "website", "build"],
-      reason: "Task appears to require coding, repository, deployment, API, or debugging work.",
-      confidence: 80,
-    },
-    {
-      name: "Scout",
-      role: "Research",
-      department: "Researchers",
-      keywords: ["research", "compare", "market", "source", "verify", "competitor", "data", "latest", "news", "analysis"],
-      reason: "Task appears to require research, source checking, comparison, or data gathering.",
-      confidence: 78,
-    },
-    {
-      name: "Scribe",
-      role: "Documentation/content",
-      department: "Writers",
-      keywords: ["write", "document", "markdown", "summary", "copy", "email", "brief", "sop", "lyrics", "proposal", "content"],
-      reason: "Task appears to require writing, documentation, summaries, or structured communication.",
-      confidence: 76,
-    },
-    {
-      name: "Reach",
-      role: "Marketing/outreach",
-      department: "Operators",
-      keywords: ["marketing", "outreach", "campaign", "lead", "client", "ads", "social", "crm", "follow up", "sales"],
-      reason: "Task appears to require marketing, outreach, lead management, or client follow-up.",
-      confidence: 74,
-    },
-  ];
-
-  const ranked = candidates
-    .map((candidate) => ({ ...candidate, score: keywordScore(text, candidate.keywords) }))
-    .sort((a, b) => b.score - a.score);
-
-  const winner = ranked[0];
-  if (winner && winner.score > 0) {
-    return {
-      name: winner.name,
-      role: winner.role,
-      department: winner.department,
-      reason: winner.reason,
-      confidence: Math.min(95, winner.confidence + winner.score * 3),
-    };
-  }
-
-  return {
-    name: "James",
-    role: "Orchestrator",
-    department: "Operators",
-    reason: "No specialist signal was strong enough, so the task remains with the orchestrator for review and routing.",
-    confidence: 70,
-  };
+function isRealConnectedAgent(agent: AgentRecord): boolean {
+  return Boolean(
+    agent.isPluggedIn ||
+      agent.endpoint ||
+      agent.inboundToken ||
+      (agent.provider && agent.model),
+  );
 }
 
-async function ensureAgent(candidate: AgentCandidate) {
-  const [existing] = await db
-    .select()
-    .from(agentsTable)
-    .where(eq(agentsTable.name, candidate.name));
+function agentSearchText(agent: AgentRecord): string {
+  return [
+    agent.name,
+    agent.role,
+    agent.department,
+    agent.responsibilities,
+    agent.provider,
+    agent.model,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
 
-  if (existing) return existing;
+function buildAgentReason(agent: AgentRecord, score: number): string {
+  if (score > 0) return "Best matching connected AI worker for this work brief.";
+  if (agent.isLead) return "Lead connected AI worker selected because no specialist matched strongly.";
+  return "Connected AI worker selected for review and routing.";
+}
 
-  const configured = OPERATIONAL_AGENTS.find((agent) => agent.name === candidate.name);
-  const [created] = await db
-    .insert(agentsTable)
-    .values({
-      name: candidate.name,
-      role: configured?.role ?? candidate.role,
-      department: configured?.department ?? candidate.department,
-      isLead: configured?.isLead ?? candidate.name === "James",
-      status: "idle",
-      currentTask: null,
-      lastActive: "created by orchestrator intake",
-      responsibilities: configured?.responsibilities ?? candidate.reason,
-      avatarInitials: configured?.avatarInitials ?? candidate.name.slice(0, 2).toUpperCase(),
-      tasksCompleted: 0,
-      successRate: 100,
-      isPluggedIn: configured?.isPluggedIn ?? false,
-      provider: configured?.provider ?? null,
-      model: configured?.model ?? null,
-      apiKey: null,
-      endpoint: null,
-      inboundToken: null,
-      lastPing: null,
+async function chooseAgent(body: Required<Pick<IntakeBody, "title" | "description">> & IntakeBody): Promise<AgentCandidate> {
+  const requestedAgent = asCleanString(body.requestedAgent);
+  const text = `${body.title} ${body.description} ${asCleanString(body.project) ?? ""}`.toLowerCase();
+  const allAgents = await db.select().from(agentsTable).orderBy(agentsTable.id);
+  const connectedAgents = allAgents.filter(isRealConnectedAgent);
+
+  if (requestedAgent) {
+    const requested = connectedAgents.find((agent) => agent.name.toLowerCase() === requestedAgent.toLowerCase());
+    if (requested) {
+      return {
+        agent: requested,
+        name: requested.name,
+        role: requested.role,
+        department: requested.department,
+        reason: "Requested connected AI worker matched by name.",
+        confidence: 95,
+      };
+    }
+
+    return {
+      agent: null,
+      name: requestedAgent,
+      role: "Requested AI worker",
+      department: "Unassigned",
+      reason: "Requested AI worker is not connected yet. Work was kept in the board until the worker is connected.",
+      confidence: 20,
+    };
+  }
+
+  if (!connectedAgents.length) {
+    return {
+      agent: null,
+      name: UNASSIGNED_AGENT_NAME,
+      role: "No connected AI worker",
+      department: "Unassigned",
+      reason: "No real connected AI workers exist yet. Work was added to the board but not sent outside Mission Control.",
+      confidence: 0,
+    };
+  }
+
+  const routingKeywords = [
+    "code", "repo", "github", "deploy", "bug", "fix", "patch", "react", "api", "database", "typescript", "website", "build",
+    "research", "compare", "market", "source", "verify", "competitor", "data", "latest", "news", "analysis",
+    "write", "document", "markdown", "summary", "copy", "email", "brief", "sop", "proposal", "content",
+    "marketing", "outreach", "campaign", "lead", "client", "ads", "social", "crm", "follow up", "sales",
+    "operations", "report", "stock", "staff", "task", "schedule", "calendar", "customer", "support",
+  ];
+
+  const ranked = connectedAgents
+    .map((agent) => {
+      const combined = `${agentSearchText(agent)} ${text}`;
+      return {
+        agent,
+        score: keywordScore(combined, routingKeywords) + (agent.isLead ? 1 : 0) + (agent.status === "active" ? 1 : 0),
+      };
     })
-    .returning();
+    .sort((a, b) => b.score - a.score || a.agent.id - b.agent.id);
 
-  return created;
+  const winner = ranked[0];
+  const agent = winner.agent;
+  return {
+    agent,
+    name: agent.name,
+    role: agent.role,
+    department: agent.department,
+    reason: buildAgentReason(agent, winner.score),
+    confidence: Math.min(90, 58 + winner.score * 4),
+  };
 }
 
 function buildInstructions(params: {
@@ -175,8 +166,8 @@ function buildInstructions(params: {
     "",
     `Priority: ${params.priority}`,
     `Project: ${params.project}`,
-    `Assigned agent: ${params.assignee}`,
-    `Recommendation confidence: ${params.recommendation.confidence}%`,
+    `Assigned AI worker: ${params.assignee}`,
+    `Routing confidence: ${params.recommendation.confidence}%`,
     `Routing reason: ${params.recommendation.reason}`,
     "",
     "Task brief:",
@@ -185,7 +176,7 @@ function buildInstructions(params: {
     "Expected behaviour:",
     "1. Review the task and available context.",
     "2. Identify blockers, required access, and safest next action.",
-    "3. Recommend an execution plan before making risky changes.",
+    "3. Use only the tools and secrets assigned to your agent token.",
     "4. Report progress back to Mission Control with task status.",
   ].join("\n");
 }
@@ -199,9 +190,9 @@ router.post("/orchestrator/intake", async (req, res): Promise<void> => {
     res.status(400).json({
       error: "title and description are required",
       example: {
-        title: "Fix HHA website mobile hero",
-        description: "Review the mobile layout and recommend the safest patch.",
-        project: "HHA",
+        title: "Follow up yesterday's customer enquiries",
+        description: "Review the notes, draft replies, and report anything needing owner approval.",
+        project: "Customer follow-up",
         priority: "high",
       },
     });
@@ -211,8 +202,9 @@ router.post("/orchestrator/intake", async (req, res): Promise<void> => {
   const project = asCleanString(body.project) ?? DEFAULT_PROJECT;
   const priority = normalizePriority(body.priority);
   const dueDate = asCleanString(body.dueDate);
-  const recommendation = chooseAgent({ title, description, project, priority, requestedAgent: body.requestedAgent, dueDate });
-  const agent = await ensureAgent(recommendation);
+  const recommendation = await chooseAgent({ title, description, project, priority, requestedAgent: body.requestedAgent, dueDate });
+  const assignedAgent = recommendation.agent;
+  const assignee = assignedAgent?.name ?? UNASSIGNED_AGENT_NAME;
 
   const [task] = await db
     .insert(tasksTable)
@@ -222,50 +214,62 @@ router.post("/orchestrator/intake", async (req, res): Promise<void> => {
       project,
       priority,
       dueDate,
-      assignee: agent.name,
-      status: "assigned",
+      assignee,
+      status: assignedAgent ? "ready" : "backlog",
     })
     .returning();
 
-  const instructions = buildInstructions({
-    taskId: task.id,
-    title,
-    description,
-    project,
-    priority,
-    assignee: agent.name,
-    recommendation,
-  });
+  let command: typeof agentCommandsTable.$inferSelect | null = null;
 
-  const [command] = await db
-    .insert(agentCommandsTable)
-    .values({
-      agentId: agent.id,
+  if (assignedAgent) {
+    const instructions = buildInstructions({
       taskId: task.id,
-      instructions,
-      context: JSON.stringify({
-        source: "orchestrator-intake",
-        recommendation,
-        createdBy: "Mission Control Orchestrator MVP",
-      }, null, 2),
-    })
-    .returning();
+      title,
+      description,
+      project,
+      priority,
+      assignee,
+      recommendation,
+    });
+
+    [command] = await db
+      .insert(agentCommandsTable)
+      .values({
+        agentId: assignedAgent.id,
+        taskId: task.id,
+        instructions,
+        context: JSON.stringify({
+          source: "orchestrator-intake",
+          recommendation: {
+            recommendedAgent: recommendation.name,
+            role: recommendation.role,
+            department: recommendation.department,
+            reason: recommendation.reason,
+            confidence: recommendation.confidence,
+          },
+          createdBy: "Mission Control Orchestrator",
+        }, null, 2),
+      })
+      .returning();
+
+    await db
+      .update(agentsTable)
+      .set({
+        currentTask: `Task #${task.id}: ${title}`,
+        status: "pending",
+        lastActive: "work queued by Mission Control",
+      })
+      .where(eq(agentsTable.id, assignedAgent.id));
+  }
 
   await db.insert(activityTable).values({
     agentName: "Mission Control",
-    action: "Orchestrator intake allocated task",
-    detail: `Task #${task.id} allocated to ${agent.name}. Reason: ${recommendation.reason}`,
-    status: "assigned",
+    action: assignedAgent ? "Queued work for connected AI worker" : "Added work without connected AI worker",
+    detail: assignedAgent
+      ? `Task #${task.id} queued for ${assignedAgent.name}. Reason: ${recommendation.reason}`
+      : `Task #${task.id} created as unassigned. Reason: ${recommendation.reason}`,
+    status: assignedAgent ? "pending" : "idle",
   });
-
-  await db
-    .update(agentsTable)
-    .set({
-      currentTask: `Task #${task.id}: ${title}`,
-      status: "assigned",
-      lastActive: "task allocated by orchestrator",
-    })
-    .where(eq(agentsTable.id, agent.id));
 
   res.status(201).json({
     accepted: true,
@@ -277,13 +281,15 @@ router.post("/orchestrator/intake", async (req, res): Promise<void> => {
       reason: recommendation.reason,
       confidence: recommendation.confidence,
     },
-    allocation: {
-      agentId: agent.id,
-      agentName: agent.name,
-      commandId: command.id,
-      delivery: "queued_for_agent_ping",
-      nextStep: "The assigned agent receives this command through POST /api/agent/ping using its bearer token.",
-    },
+    allocation: assignedAgent && command
+      ? {
+          agentId: assignedAgent.id,
+          agentName: assignedAgent.name,
+          commandId: command.id,
+          delivery: "queued_for_agent_ping",
+          nextStep: "The assigned AI worker can collect this command through POST /api/agent/ping using its bearer token.",
+        }
+      : null,
   });
 });
 
