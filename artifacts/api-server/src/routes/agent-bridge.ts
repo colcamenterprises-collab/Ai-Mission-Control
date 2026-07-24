@@ -32,6 +32,10 @@ function optionalString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function isJamesHermes(agent: typeof agentsTable.$inferSelect): boolean {
+  return agent.provider === "hermes" || agent.name.toLowerCase().includes("james hermes");
+}
+
 async function agentSkillsContext(agentName: string, context?: string | null): Promise<string | null> {
   const assignedSkillNames = getAssignedSkillNamesForAgent(agentName);
   const assignedSkills = await readSkillsForDelegation({ names: assignedSkillNames });
@@ -44,7 +48,6 @@ async function loadAgentById(id: number) {
   return agent ?? null;
 }
 
-/* ─── GET /agent/skills ───────────────────────────────────────── */
 router.get("/agent/skills", createRateLimit("agent-skills", 60, 60_000), async (req, res): Promise<void> => {
   const agent = await getAgentFromBearer(req.headers.authorization);
   if (!agent) {
@@ -73,7 +76,6 @@ router.get("/agent/skills/:id", createRateLimit("agent-skills", 60, 60_000), asy
   res.json({ agentId: agent.id, skill });
 });
 
-/* ─── POST /agent/ping ──────────────────────────────────────── */
 router.post("/agent/ping", createRateLimit("agent-ping", 60, 60_000), async (req, res): Promise<void> => {
   const agent = await getAgentFromBearer(req.headers.authorization);
   if (!agent) {
@@ -102,7 +104,6 @@ router.post("/agent/ping", createRateLimit("agent-ping", 60, 60_000), async (req
   res.json({ agentId: agent.id, name: agent.name, acknowledged: true, pendingTasks, pendingCommands: unacked });
 });
 
-/* ─── POST /agent/command/:id/ack ──────────────────────────── */
 router.post("/agent/command/:id/ack", createRateLimit("agent-ack", 60, 60_000), async (req, res): Promise<void> => {
   const agent = await getAgentFromBearer(req.headers.authorization);
   if (!agent) {
@@ -125,7 +126,6 @@ router.post("/agent/command/:id/ack", createRateLimit("agent-ack", 60, 60_000), 
   res.json({ acknowledged: true, commandId: cmd.id });
 });
 
-/* ─── POST /agent/report ────────────────────────────────────── */
 router.post("/agent/report", createRateLimit("agent-report", 60, 60_000), async (req, res): Promise<void> => {
   const agent = await getAgentFromBearer(req.headers.authorization);
   if (!agent) {
@@ -156,7 +156,8 @@ router.post("/agent/report", createRateLimit("agent-report", 60, 60_000), async 
   if (type === "task_complete") {
     agentUpdate.tasksCompleted = agent.tasksCompleted + 1;
     agentUpdate.currentTask = null;
-    agentUpdate.status = "idle";
+    agentUpdate.status = isJamesHermes(agent) ? "active" : "idle";
+    agentUpdate.lastActive = "reported completed work";
   } else {
     agentUpdate.currentTask = content.slice(0, 100);
     agentUpdate.status = "active";
@@ -167,9 +168,6 @@ router.post("/agent/report", createRateLimit("agent-report", 60, 60_000), async 
   res.json({ accepted: true, activityId: activity.id });
 });
 
-/* ─── POST /agents/:id/test ───────────────────────────────────
-   Admin test: verify an agent can be reached by its selected runtime.
-──────────────────────────────────────────────────────────────── */
 router.post("/agents/:id/test", createRateLimit("admin-agent-test", 20, 60_000), async (req, res): Promise<void> => {
   const params = DispatchAgentParams.safeParse(req.params);
   if (!params.success) {
@@ -193,21 +191,18 @@ router.post("/agents/:id/test", createRateLimit("admin-agent-test", 20, 60_000),
     context: "This is a Mission Control runtime health test.",
   });
 
-  await db.insert(activityTable).values({
+  const [activity] = await db.insert(activityTable).values({
     agentName: agent.name,
     action: result.ok ? "Agent connection test passed" : "Agent connection test failed",
     detail: result.output ?? result.error,
     status: result.ok ? "active" : "error",
-  });
+  }).returning();
 
   await db.update(agentsTable).set({ status: result.ok ? "active" : "error", lastActive: result.ok ? "connection tested" : "connection test failed", lastPing: result.ok ? new Date() : agent.lastPing }).where(eq(agentsTable.id, agent.id));
 
-  res.status(result.ok ? 200 : 502).json(result);
+  res.status(result.ok ? 200 : 502).json({ ...result, activityId: activity.id });
 });
 
-/* ─── POST /agents/:id/test-task ───────────────────────────────
-   Admin test: create a task, queue a command, execute it now, save report.
-──────────────────────────────────────────────────────────────── */
 router.post("/agents/:id/test-task", createRateLimit("admin-agent-test-task", 10, 60_000), async (req, res): Promise<void> => {
   const params = DispatchAgentParams.safeParse(req.params);
   if (!params.success) {
@@ -238,7 +233,7 @@ router.post("/agents/:id/test-task", createRateLimit("admin-agent-test-task", 10
 
   await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: result.ok || result.delivery === "webhook" }).where(eq(agentCommandsTable.id, command.id));
   await db.update(tasksTable).set({ status: result.ok ? "done" : "blocked" }).where(eq(tasksTable.id, task.id));
-  await db.update(agentsTable).set({ status: result.ok ? "idle" : "error", currentTask: result.ok ? null : `Task #${task.id}: ${title}`, lastActive: result.ok ? "test task completed" : "test task failed", lastPing: result.ok ? new Date() : agent.lastPing, tasksCompleted: result.ok ? agent.tasksCompleted + 1 : agent.tasksCompleted }).where(eq(agentsTable.id, agent.id));
+  await db.update(agentsTable).set({ status: result.ok ? (isJamesHermes(agent) ? "active" : "idle") : "error", currentTask: result.ok ? null : `Task #${task.id}: ${title}`, lastActive: result.ok ? "work report saved" : "test task failed", lastPing: result.ok ? new Date() : agent.lastPing, tasksCompleted: result.ok ? agent.tasksCompleted + 1 : agent.tasksCompleted }).where(eq(agentsTable.id, agent.id));
 
   const [activity] = await db.insert(activityTable).values({
     agentName: agent.name,
@@ -250,7 +245,6 @@ router.post("/agents/:id/test-task", createRateLimit("admin-agent-test-task", 10
   res.status(result.ok ? 201 : 502).json({ ok: result.ok, taskId: task.id, commandId: command.id, activityId: activity.id, result });
 });
 
-/* ─── POST /agents/:id/dispatch ────────────────────────────── */
 router.post("/agents/:id/dispatch", createRateLimit("admin-dispatch", 20, 60_000), async (req, res): Promise<void> => {
   const params = DispatchAgentParams.safeParse(req.params);
   if (!params.success) {
@@ -290,6 +284,7 @@ router.post("/agents/:id/dispatch", createRateLimit("admin-dispatch", 20, 60_000
     if (dispatched) {
       await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: true }).where(eq(agentCommandsTable.id, command.id));
       if (taskId) await db.update(tasksTable).set({ status: "done" }).where(eq(tasksTable.id, taskId));
+      await db.update(agentsTable).set({ status: isJamesHermes(agent) ? "active" : "idle", currentTask: null, lastActive: "dispatch completed", lastPing: new Date(), tasksCompleted: agent.tasksCompleted + 1 }).where(eq(agentsTable.id, agent.id));
     }
   }
 
@@ -303,7 +298,6 @@ router.post("/agents/:id/dispatch", createRateLimit("admin-dispatch", 20, 60_000
   res.json({ queued: true, commandId: command.id, dispatched, delivery, agentId: agent.id, endpoint: agent.endpoint ?? null, statusCode, error: httpError, output });
 });
 
-/* ─── POST /agents/:id/token ───────────────────────────────── */
 router.post("/agents/:id/token", createRateLimit("admin-token", 10, 60_000), async (req, res): Promise<void> => {
   const params = RegenerateAgentTokenParams.safeParse(req.params);
   if (!params.success) {
@@ -323,7 +317,6 @@ router.post("/agents/:id/token", createRateLimit("admin-token", 10, 60_000), asy
   res.json({ agentId: agent.id, inboundToken: token });
 });
 
-/* ─── GET /agent/tools ─────────────────────────────────────────── */
 router.get("/agent/tools", createRateLimit("agent-tools", 20, 60_000), async (req, res): Promise<void> => {
   const agent = await getAgentFromBearer(req.headers.authorization);
   if (!agent) {
