@@ -1,107 +1,101 @@
-import { useMemo, useState } from "react";
-import { BookOpen } from "lucide-react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useGetSkill, useListSkills, useSyncSkills, type SkillMetadata, type SkillSourceStatus } from "@/lib/skills-api";
+import { useGetSkill, useListSkills, type SkillMetadata } from "@/lib/skills-api";
 import "./workspaces.css";
+import "./skills-page.css";
 
 function formatDate(value: string | null): string {
   if (!value) return "Not checked";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-function importStatusLabel(value: string | null | undefined) {
-  if (!value || value === "NULL") return "Not imported";
-  return value.replaceAll("_", " ");
+function cleanCategory(value: string | null | undefined): string {
+  if (!value || value === "UNMAPPED") return "General";
+  return value.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function OriginStatusTable({ sources }: { sources: SkillSourceStatus[] }) {
-  if (!sources.length) return null;
+function shortPath(path: string): string {
+  if (!path || path === "UNMAPPED") return "Mission Control playbook";
+  return path.replace(/^library\//, "").replace(/^agent-os\//, "");
+}
+
+function PlaybookCard({ skill, expanded, tone, onToggle }: { skill: SkillMetadata; expanded: boolean; tone: string; onToggle: () => void }) {
+  const detail = useGetSkill(expanded ? skill.id : null);
+  const description = skill.description?.trim();
+
   return (
-    <div className="mb-4 overflow-hidden rounded-2xl border border-border/70">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-secondary/35 text-muted-foreground">
-          <tr><th className="p-3">Library</th><th className="p-3">Checked</th><th className="p-3">Status</th><th className="p-3">Playbooks</th></tr>
-        </thead>
-        <tbody>
-          {sources.map((source) => (
-            <tr key={source.id} className="border-t border-border/70">
-              <td className="p-3">{source.sourceRepo || source.sourceUrl || source.id}</td>
-              <td className="p-3 text-muted-foreground">{formatDate(source.lastSyncTime)}</td>
-              <td className="p-3">{importStatusLabel(source.status)}</td>
-              <td className="p-3 text-muted-foreground">{source.skillCount}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+    <article className={`playbook-card playbook-card-${tone} ${expanded ? "is-open" : ""}`}>
+      <button type="button" className="playbook-card-main" onClick={onToggle} aria-expanded={expanded}>
+        <div className="playbook-card-copy">
+          <span className="playbook-label">{cleanCategory(skill.category)}</span>
+          <h2>{skill.title || skill.name}</h2>
+          {description && <p>{description}</p>}
+          <small>{shortPath(skill.path)} · Updated {formatDate(skill.lastUpdated)}</small>
+        </div>
+        <div className="playbook-card-action">
+          <Badge variant="outline" className="playbook-badge">{cleanCategory(skill.category)}</Badge>
+          <span>{expanded ? "Hide" : "Preview"}</span>
+        </div>
+      </button>
 
-function LocalSkillList({ skills, selectedId, onSelect }: { skills: SkillMetadata[]; selectedId: string | null; onSelect: (id: string) => void }) {
-  if (!skills.length) return <p className="text-sm text-muted-foreground">No playbooks have been added yet.</p>;
-  return (
-    <div className="space-y-2">
-      {skills.map((skill) => (
-        <button key={skill.id} onClick={() => onSelect(skill.id)} className={`w-full rounded-2xl border p-4 text-left transition-colors ${selectedId === skill.id ? "border-primary/60 bg-primary/10" : "border-border bg-card/60 hover:border-primary/40"}`}>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-base font-semibold">{skill.name}</span>
-            <Badge variant="outline" className="text-[10px]">{skill.category}</Badge>
-          </div>
-          <p className="mt-2 truncate text-xs text-muted-foreground">{skill.path}</p>
-          <p className="mt-1 text-xs text-muted-foreground">Updated {formatDate(skill.lastUpdated)}</p>
-        </button>
-      ))}
-    </div>
+      {expanded && (
+        <div className="playbook-accordion">
+          {detail.isLoading ? (
+            <Skeleton className="h-40 w-full rounded-2xl" />
+          ) : detail.error ? (
+            <p className="playbook-error">Could not load this playbook.</p>
+          ) : detail.data ? (
+            <pre>{detail.data.content}</pre>
+          ) : (
+            <p className="playbook-empty">Choose Preview to read this playbook.</p>
+          )}
+        </div>
+      )}
+    </article>
   );
-}
-
-function MarkdownPreview({ content }: { content: string }) {
-  return <pre className="playbook-preview min-h-[24rem] whitespace-pre-wrap rounded-2xl border border-border bg-secondary/25 p-4 text-sm leading-relaxed text-foreground overflow-auto">{content}</pre>;
 }
 
 export default function Skills() {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const { data, isLoading, error } = useListSkills();
-  const syncSkills = useSyncSkills();
   const skills = data?.skills ?? [];
-  const origins = data?.origins ?? data?.sources ?? [];
-  const selectedSkillId = selectedId ?? skills[0]?.id ?? null;
-  const selected = useMemo(() => skills.find(skill => skill.id === selectedSkillId) ?? null, [skills, selectedSkillId]);
-  const detail = useGetSkill(selectedSkillId);
+  const tones = ["aqua", "violet", "blue", "green", "amber", "rose"];
 
   return (
     <div className="workspaces-shell flex h-full flex-col overflow-y-auto">
-      <div className="workspaces-canvas flex-1 space-y-6">
-        <header className="mission-page-hero workspace-panel">
-          <p className="workspace-eyebrow">Playbooks</p>
-          <h1 className="mission-page-title">How your AI team works.</h1>
-          <p className="mission-page-subtitle">Reusable instructions for your AI workers. Keep them simple, searchable and easy to reuse.</p>
+      <div className="playbooks-canvas">
+        <header className="playbooks-header">
+          <div>
+            <p>Playbooks</p>
+            <h1>Instructions your AI workers follow.</h1>
+          </div>
+          <span>{skills.length} active</span>
         </header>
 
-        <section className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(18rem,24rem)_1fr]">
-          <div className="workspace-panel p-4">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="dashboard-section-title flex items-center gap-2"><BookOpen className="h-4 w-4" /> Playbooks</h2>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={() => syncSkills.mutate()} disabled={syncSkills.isPending} className="rounded-xl border border-border px-3 py-2 text-xs text-muted-foreground hover:border-primary/40 disabled:opacity-60">{syncSkills.isPending ? "Updating..." : "Update"}</button>
-                <Badge variant="outline" className="text-[10px]">{skills.length}</Badge>
-              </div>
-            </div>
-            {syncSkills.error && <p className="mb-3 text-xs text-red-400">Update failed: {syncSkills.error instanceof Error ? syncSkills.error.message : "Unknown error"}</p>}
-            {isLoading ? <Skeleton className="h-40 w-full" /> : error ? <p className="text-xs text-red-400">Could not load playbooks.</p> : <><LocalSkillList skills={skills} selectedId={selectedSkillId} onSelect={setSelectedId} /><h2 className="dashboard-section-title mt-6 mb-3">Connected libraries</h2><OriginStatusTable sources={origins} /></>}
+        {isLoading ? (
+          <div className="playbooks-grid">
+            {Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-40 rounded-3xl" />)}
           </div>
-
-          <div className="workspace-panel p-4">
-            <div className="mb-4">
-              <p className="workspace-eyebrow">Preview</p>
-              <h2 className="dashboard-section-title mt-1">{selected?.name ?? "No playbook selected"}</h2>
-            </div>
-            {detail.isLoading ? <Skeleton className="h-96 w-full" /> : detail.error ? <p className="text-xs text-red-400">Could not load this playbook.</p> : detail.data ? <MarkdownPreview content={detail.data.content} /> : <p className="text-sm text-muted-foreground">Choose a playbook to preview it.</p>}
-          </div>
-        </section>
+        ) : error ? (
+          <div className="playbook-state">Could not load playbooks.</div>
+        ) : skills.length === 0 ? (
+          <div className="playbook-state">No playbooks have been added yet.</div>
+        ) : (
+          <section className="playbooks-grid" aria-label="Playbooks">
+            {skills.map((skill, index) => (
+              <PlaybookCard
+                key={skill.id}
+                skill={skill}
+                tone={tones[index % tones.length]}
+                expanded={expandedId === skill.id}
+                onToggle={() => setExpandedId((current) => current === skill.id ? null : skill.id)}
+              />
+            ))}
+          </section>
+        )}
       </div>
     </div>
   );
