@@ -1,0 +1,229 @@
+.playbooks-canvas {
+  width: min(100%, 76rem);
+  margin: 0 auto;
+  padding: clamp(1rem, 2.4vw, 2rem);
+  display: grid;
+  gap: 1rem;
+}
+
+.playbooks-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 1.5rem;
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.78), rgba(2, 6, 23, 0.46));
+  padding: clamp(1rem, 2vw, 1.45rem);
+}
+
+.playbooks-header p {
+  margin: 0 0 0.25rem;
+  color: rgba(125, 211, 252, 0.9);
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.playbooks-header h1 {
+  margin: 0;
+  max-width: 42rem;
+  color: rgba(248, 250, 252, 0.96);
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: 780;
+  letter-spacing: -0.08em;
+  line-height: 0.92;
+}
+
+.playbooks-header > span {
+  flex: 0 0 auto;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.44);
+  padding: 0.55rem 0.75rem;
+  color: rgba(226, 232, 240, 0.82);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.playbooks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 0.85rem;
+}
+
+.playbook-card {
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 1.35rem;
+  background: rgba(2, 6, 23, 0.42);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.16);
+}
+
+.playbook-card-main {
+  width: 100%;
+  min-height: 10.25rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 0;
+  padding: 1.1rem;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  background:
+    radial-gradient(circle at 8% 0%, var(--playbook-glow), transparent 46%),
+    linear-gradient(140deg, var(--playbook-start), var(--playbook-end));
+}
+
+.playbook-card-aqua {
+  --playbook-start: rgba(14, 165, 233, 0.82);
+  --playbook-end: rgba(34, 211, 238, 0.66);
+  --playbook-glow: rgba(168, 85, 247, 0.34);
+}
+
+.playbook-card-violet {
+  --playbook-start: rgba(124, 58, 237, 0.82);
+  --playbook-end: rgba(59, 130, 246, 0.62);
+  --playbook-glow: rgba(34, 211, 238, 0.28);
+}
+
+.playbook-card-blue {
+  --playbook-start: rgba(37, 99, 235, 0.78);
+  --playbook-end: rgba(14, 165, 233, 0.62);
+  --playbook-glow: rgba(191, 219, 254, 0.2);
+}
+
+.playbook-card-green {
+  --playbook-start: rgba(5, 150, 105, 0.76);
+  --playbook-end: rgba(20, 184, 166, 0.58);
+  --playbook-glow: rgba(134, 239, 172, 0.22);
+}
+
+.playbook-card-amber {
+  --playbook-start: rgba(217, 119, 6, 0.78);
+  --playbook-end: rgba(234, 179, 8, 0.52);
+  --playbook-glow: rgba(254, 240, 138, 0.24);
+}
+
+.playbook-card-rose {
+  --playbook-start: rgba(190, 18, 60, 0.76);
+  --playbook-end: rgba(168, 85, 247, 0.55);
+  --playbook-glow: rgba(251, 113, 133, 0.22);
+}
+
+.playbook-card-copy {
+  min-width: 0;
+  display: grid;
+  align-content: space-between;
+  gap: 0.5rem;
+}
+
+.playbook-label {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.68rem;
+  font-weight: 760;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.playbook-card h2 {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.98);
+  font-size: clamp(1.35rem, 2.8vw, 2.2rem);
+  font-weight: 780;
+  letter-spacing: -0.06em;
+  line-height: 0.98;
+}
+
+.playbook-card p {
+  margin: 0;
+  max-width: 36rem;
+  color: rgba(241, 245, 249, 0.78);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.playbook-card small {
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 0.74rem;
+}
+
+.playbook-card-action {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.playbook-badge {
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  background: rgba(15, 23, 42, 0.14) !important;
+}
+
+.playbook-card-action span {
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.16);
+  padding: 0.42rem 0.7rem;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.76rem;
+  font-weight: 720;
+}
+
+.playbook-accordion {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(2, 6, 23, 0.58);
+  padding: 1rem;
+}
+
+.playbook-accordion pre {
+  max-height: 28rem;
+  overflow: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid rgba(148, 163, 184, 0.13);
+  border-radius: 1rem;
+  background: rgba(2, 6, 23, 0.58);
+  padding: 1rem;
+  color: rgba(226, 232, 240, 0.9);
+  font-family: var(--mc-font-ui);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.playbook-state,
+.playbook-error,
+.playbook-empty {
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 1.25rem;
+  background: rgba(2, 6, 23, 0.42);
+  padding: 1rem;
+  color: rgba(226, 232, 240, 0.75);
+}
+
+.playbook-error {
+  color: rgba(254, 202, 202, 0.9);
+}
+
+@media (max-width: 760px) {
+  .playbooks-header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .playbook-card-main {
+    flex-direction: column;
+  }
+
+  .playbook-card-action {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+  }
+}
