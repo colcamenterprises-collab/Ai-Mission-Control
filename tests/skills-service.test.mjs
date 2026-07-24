@@ -88,7 +88,7 @@ try {
   assert.ok(listed.skills.some(s => s.source.sourceRepo === 'local/good'), 'previously imported local skill remains available when another origin is unavailable');
   const docs = await service.readSkillsForDelegation({ names: ['Remote Skill'] });
   assert.equal(docs.length, 1, 'agent registry reads imported local SKILL.md files');
-  assert.match(service.formatSkillsForPrompt(docs), /Local Path: library\/imported\/local\/good\/nested\/SKILL.md/, 'prompt formatting uses local path');
+  assert.match(service.formatSkillsForPrompt(docs), /Path: library\/imported\/local\/good\/nested\/SKILL.md/, 'prompt formatting uses local path');
 
   console.log('skills service tests passed');
 } finally {
