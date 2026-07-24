@@ -27,6 +27,7 @@ import { getAssignedSkillNamesForAgent } from "../config-operational-agents.js";
 import { dispatchRuntime, isRuntimeConfigured } from "../services/agent-runtime.js";
 
 const router: IRouter = Router();
+const CORE_PLAYBOOK_CATEGORIES = ["Product", "Standard", "Spec"];
 
 function optionalString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -38,9 +39,14 @@ function isJamesHermes(agent: typeof agentsTable.$inferSelect): boolean {
 
 async function agentSkillsContext(agentName: string, context?: string | null): Promise<string | null> {
   const assignedSkillNames = getAssignedSkillNamesForAgent(agentName);
-  const assignedSkills = await readSkillsForDelegation({ names: assignedSkillNames });
+  const assignedSkills = await readSkillsForDelegation({ names: assignedSkillNames, categories: CORE_PLAYBOOK_CATEGORIES });
   const skillsContext = formatSkillsForPrompt(assignedSkills);
-  return [context ?? null, skillsContext ? `Relevant assigned skills:\n\n${skillsContext}` : null].filter(Boolean).join("\n\n") || null;
+  const attachedNames = assignedSkills.map(skill => `${skill.category}: ${skill.name}`).join("; ");
+  return [
+    context ?? null,
+    attachedNames ? `Attached playbooks: ${attachedNames}` : null,
+    skillsContext ? `Relevant assigned skills and operating playbooks:\n\n${skillsContext}` : null,
+  ].filter(Boolean).join("\n\n") || null;
 }
 
 async function loadAgentById(id: number) {
@@ -185,10 +191,11 @@ router.post("/agents/:id/test", createRateLimit("admin-agent-test", 20, 60_000),
     return;
   }
 
+  const contextWithSkills = await agentSkillsContext(agent.name, "This is a Mission Control runtime health test.");
   const result = await dispatchRuntime(agent, {
     mode: "test",
-    instructions: `Connection test for ${agent.name}. Reply in one short sentence confirming the connection works.`,
-    context: "This is a Mission Control runtime health test.",
+    instructions: `Connection test for ${agent.name}. Reply in one short sentence confirming the connection works and list the playbook categories you received.`,
+    context: contextWithSkills,
   });
 
   const [activity] = await db.insert(activityTable).values({
@@ -198,7 +205,7 @@ router.post("/agents/:id/test", createRateLimit("admin-agent-test", 20, 60_000),
     status: result.ok ? "active" : "error",
   }).returning();
 
-  await db.update(agentsTable).set({ status: result.ok ? "active" : "error", lastActive: result.ok ? "connection tested" : "connection test failed", lastPing: result.ok ? new Date() : agent.lastPing }).where(eq(agentsTable.id, agent.id));
+  await db.update(agentsTable).set({ status: result.ok ? "active" : "error", lastActive: result.ok ? "connection tested with playbooks" : "connection test failed", lastPing: result.ok ? new Date() : agent.lastPing }).where(eq(agentsTable.id, agent.id));
 
   res.status(result.ok ? 200 : 502).json({ ...result, activityId: activity.id });
 });
@@ -226,18 +233,18 @@ router.post("/agents/:id/test-task", createRateLimit("admin-agent-test-task", 10
   const priority = optionalString(req.body?.priority) ?? "medium";
 
   const [task] = await db.insert(tasksTable).values({ title, description: instructions, assignee: agent.name, priority, status: "running", project, dueDate: null }).returning();
-  const contextWithSkills = await agentSkillsContext(agent.name, "This is an immediate test task executed by the Mission Control runtime.");
+  const contextWithSkills = await agentSkillsContext(agent.name, "This is an immediate test task executed by the Mission Control runtime. Report which playbooks you used.");
   const [command] = await db.insert(agentCommandsTable).values({ agentId: agent.id, taskId: task.id, instructions, context: contextWithSkills }).returning();
 
   const result = await dispatchRuntime(agent, { mode: "work", instructions, context: contextWithSkills, taskId: task.id, commandId: command.id });
 
   await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: result.ok || result.delivery === "webhook" }).where(eq(agentCommandsTable.id, command.id));
   await db.update(tasksTable).set({ status: result.ok ? "done" : "blocked" }).where(eq(tasksTable.id, task.id));
-  await db.update(agentsTable).set({ status: result.ok ? (isJamesHermes(agent) ? "active" : "idle") : "error", currentTask: result.ok ? null : `Task #${task.id}: ${title}`, lastActive: result.ok ? "work report saved" : "test task failed", lastPing: result.ok ? new Date() : agent.lastPing, tasksCompleted: result.ok ? agent.tasksCompleted + 1 : agent.tasksCompleted }).where(eq(agentsTable.id, agent.id));
+  await db.update(agentsTable).set({ status: result.ok ? (isJamesHermes(agent) ? "active" : "idle") : "error", currentTask: result.ok ? null : `Task #${task.id}: ${title}`, lastActive: result.ok ? "work report saved with playbooks" : "test task failed", lastPing: result.ok ? new Date() : agent.lastPing, tasksCompleted: result.ok ? agent.tasksCompleted + 1 : agent.tasksCompleted }).where(eq(agentsTable.id, agent.id));
 
   const [activity] = await db.insert(activityTable).values({
     agentName: agent.name,
-    action: result.ok ? "Completed test work" : "Test work failed",
+    action: result.ok ? "Completed test work with playbooks" : "Test work failed",
     detail: result.output ?? result.error,
     status: result.ok ? "active" : "error",
   }).returning();
@@ -284,13 +291,13 @@ router.post("/agents/:id/dispatch", createRateLimit("admin-dispatch", 20, 60_000
     if (dispatched) {
       await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: true }).where(eq(agentCommandsTable.id, command.id));
       if (taskId) await db.update(tasksTable).set({ status: "done" }).where(eq(tasksTable.id, taskId));
-      await db.update(agentsTable).set({ status: isJamesHermes(agent) ? "active" : "idle", currentTask: null, lastActive: "dispatch completed", lastPing: new Date(), tasksCompleted: agent.tasksCompleted + 1 }).where(eq(agentsTable.id, agent.id));
+      await db.update(agentsTable).set({ status: isJamesHermes(agent) ? "active" : "idle", currentTask: null, lastActive: "dispatch completed with playbooks", lastPing: new Date(), tasksCompleted: agent.tasksCompleted + 1 }).where(eq(agentsTable.id, agent.id));
     }
   }
 
   await db.insert(activityTable).values({
     agentName: agent.name,
-    action: dispatched ? "Completed dispatch" : "Command queued — waiting for worker",
+    action: dispatched ? "Completed dispatch with playbooks" : "Command queued — waiting for worker",
     detail: output ?? `${instructions.slice(0, 200)}${httpError ? ` — ${httpError}` : ""}`,
     status: dispatched ? "active" : "pending",
   });
