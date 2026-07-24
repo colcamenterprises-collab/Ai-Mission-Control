@@ -11,10 +11,12 @@ export type RuntimeDispatchInput = {
   mode?: "test" | "work";
 };
 
+export type RuntimeDelivery = "provider" | "webhook" | "queued";
+
 export type RuntimeDispatchResult = {
   ok: boolean;
   provider: string;
-  delivery: "provider" | "webhook" | "none";
+  delivery: RuntimeDelivery;
   output: string | null;
   statusCode: number | null;
   error: string | null;
@@ -64,7 +66,7 @@ async function readResponseText(response: Response): Promise<string> {
 
 async function dispatchOpenAi(agent: RuntimeAgent, input: RuntimeDispatchInput): Promise<RuntimeDispatchResult> {
   const apiKey = decryptSecret(agent.apiKey);
-  if (!apiKey) return { ok: false, provider: "openai", delivery: "none", output: null, statusCode: null, error: "OpenAI API key is missing." };
+  if (!apiKey) return { ok: false, provider: "openai", delivery: "queued", output: null, statusCode: null, error: "OpenAI API key is missing." };
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -81,7 +83,7 @@ async function dispatchOpenAi(agent: RuntimeAgent, input: RuntimeDispatchInput):
 
 async function dispatchClaude(agent: RuntimeAgent, input: RuntimeDispatchInput): Promise<RuntimeDispatchResult> {
   const apiKey = decryptSecret(agent.apiKey);
-  if (!apiKey) return { ok: false, provider: "claude", delivery: "none", output: null, statusCode: null, error: "Claude API key is missing." };
+  if (!apiKey) return { ok: false, provider: "claude", delivery: "queued", output: null, statusCode: null, error: "Claude API key is missing." };
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
@@ -97,7 +99,7 @@ async function dispatchClaude(agent: RuntimeAgent, input: RuntimeDispatchInput):
 }
 
 async function dispatchWebhook(agent: RuntimeAgent, input: RuntimeDispatchInput): Promise<RuntimeDispatchResult> {
-  if (!agent.endpoint) return { ok: false, provider: cleanProvider(agent.provider), delivery: "none", output: null, statusCode: null, error: "Webhook/Hermes endpoint is missing." };
+  if (!agent.endpoint) return { ok: false, provider: cleanProvider(agent.provider), delivery: "queued", output: null, statusCode: null, error: "Webhook/Hermes endpoint is missing." };
   const apiKey = decryptSecret(agent.apiKey);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
