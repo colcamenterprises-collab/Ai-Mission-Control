@@ -33,7 +33,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/content", label: "Marketing", icon: PenTool },
     { href: "/calendar", label: "Planner", icon: CalendarDays },
     { href: "/contacts", label: "People", icon: UsersRound },
-    { href: "/workspaces", label: "Reports", icon: BarChart3 },
+    { href: "/reports", label: "Reports", icon: BarChart3 },
     { href: "/settings", label: "Setup", icon: Settings },
   ];
 
