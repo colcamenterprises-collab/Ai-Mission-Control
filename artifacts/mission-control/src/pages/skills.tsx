@@ -13,7 +13,7 @@ function formatDate(value: string | null): string {
 }
 
 function shortPath(path: string): string {
-  if (!path || path === "UNMAPPED") return "Mission Control rule";
+  if (!path || path === "UNMAPPED") return "Mission Control instruction";
   return path.replace(/^library\//, "").replace(/^agent-os\//, "");
 }
 
@@ -25,10 +25,10 @@ function cleanTitle(value: string): string {
     .trim();
 }
 
-function WorkerRuleCard({ rule, expanded, onToggle }: { rule: SkillMetadata; expanded: boolean; onToggle: () => void }) {
-  const detail = useGetSkill(expanded ? rule.id : null);
-  const description = rule.description?.trim();
-  const title = cleanTitle(rule.title || rule.name);
+function AgentInstructionCard({ instruction, expanded, onToggle }: { instruction: SkillMetadata; expanded: boolean; onToggle: () => void }) {
+  const detail = useGetSkill(expanded ? instruction.id : null);
+  const description = instruction.description?.trim();
+  const title = cleanTitle(instruction.title || instruction.name);
 
   return (
     <article className={`playbook-card playbook-card-violet ${expanded ? "is-open" : ""}`}>
@@ -36,7 +36,7 @@ function WorkerRuleCard({ rule, expanded, onToggle }: { rule: SkillMetadata; exp
         <div className="playbook-card-copy">
           <h3>{title}</h3>
           {description && <p>{description}</p>}
-          <small>{shortPath(rule.path)} · Updated {formatDate(rule.lastUpdated)}</small>
+          <small>{shortPath(instruction.path)} · Updated {formatDate(instruction.lastUpdated)}</small>
         </div>
         <div className="playbook-card-action">
           <Badge variant="outline" className="playbook-badge">{expanded ? "Open" : "Ready"}</Badge>
@@ -49,11 +49,11 @@ function WorkerRuleCard({ rule, expanded, onToggle }: { rule: SkillMetadata; exp
           {detail.isLoading ? (
             <Skeleton className="h-40 w-full rounded-2xl" />
           ) : detail.error ? (
-            <p className="playbook-error">Could not load this rule.</p>
+            <p className="playbook-error">Could not load this instruction.</p>
           ) : detail.data ? (
             <pre>{detail.data.content}</pre>
           ) : (
-            <p className="playbook-empty">Choose Read to open this rule.</p>
+            <p className="playbook-empty">Choose Read to open this instruction.</p>
           )}
         </div>
       )}
@@ -64,19 +64,19 @@ function WorkerRuleCard({ rule, expanded, onToggle }: { rule: SkillMetadata; exp
 export default function Skills() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const { data, isLoading, error } = useListSkills();
-  const rules = data?.skills ?? [];
+  const instructions = data?.skills ?? [];
 
   return (
     <div className="workspaces-shell flex h-full flex-col overflow-y-auto">
       <div className="playbooks-canvas">
         <header className="playbooks-header">
           <div>
-            <h1>Worker Rules</h1>
-            <span>Simple instructions your workers use to complete tasks correctly.</span>
+            <h1>Agent Instructions</h1>
+            <span>Simple instructions your agents use to complete work correctly.</span>
           </div>
-          <div className="playbooks-header-stats" aria-label="Worker rules summary">
-            <strong>{rules.length}</strong>
-            <span>Rules ready</span>
+          <div className="playbooks-header-stats" aria-label="Agent instructions summary">
+            <strong>{instructions.length}</strong>
+            <span>Instructions ready</span>
             <small>Used during work</small>
           </div>
         </header>
@@ -86,17 +86,17 @@ export default function Skills() {
             {Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-40 rounded-3xl" />)}
           </div>
         ) : error ? (
-          <div className="playbook-state">Could not load worker rules.</div>
-        ) : rules.length === 0 ? (
-          <div className="playbook-state">No worker rules have been added yet.</div>
+          <div className="playbook-state">Could not load agent instructions.</div>
+        ) : instructions.length === 0 ? (
+          <div className="playbook-state">No agent instructions have been added yet.</div>
         ) : (
-          <section className="playbooks-grid" aria-label="Worker rules">
-            {rules.map((rule) => (
-              <WorkerRuleCard
-                key={rule.id}
-                rule={rule}
-                expanded={expandedId === rule.id}
-                onToggle={() => setExpandedId((current) => current === rule.id ? null : rule.id)}
+          <section className="playbooks-grid" aria-label="Agent instructions">
+            {instructions.map((instruction) => (
+              <AgentInstructionCard
+                key={instruction.id}
+                instruction={instruction}
+                expanded={expandedId === instruction.id}
+                onToggle={() => setExpandedId((current) => current === instruction.id ? null : instruction.id)}
               />
             ))}
           </section>
