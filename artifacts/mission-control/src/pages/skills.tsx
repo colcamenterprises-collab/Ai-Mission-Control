@@ -72,7 +72,6 @@ export default function Skills() {
         <header className="playbooks-header">
           <div>
             <h1>Agent Instructions</h1>
-            <span>Simple instructions your agents use to complete work correctly.</span>
           </div>
           <div className="playbooks-header-stats" aria-label="Agent instructions summary">
             <strong>{instructions.length}</strong>
