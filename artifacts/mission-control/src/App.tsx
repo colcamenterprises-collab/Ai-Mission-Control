@@ -13,6 +13,7 @@ import Workspaces from "@/pages/workspaces";
 import Team from "@/pages/team";
 import Skills from "@/pages/skills";
 import Contacts from "@/pages/contacts";
+import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 import "./visual-first.css";
@@ -37,6 +38,7 @@ function Router() {
         <Route path="/calendar" component={Calendar} />
         <Route path="/memory" component={Memory} />
         <Route path="/workspaces" component={Workspaces} />
+        <Route path="/reports" component={Reports} />
         <Route path="/team" component={Team} />
         <Route path="/skills" component={Skills} />
         <Route path="/contacts" component={Contacts} />
