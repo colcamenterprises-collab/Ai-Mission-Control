@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   db,
   agentsTable,
@@ -24,14 +24,27 @@ import {
 } from "@workspace/api-zod";
 import { formatSkillsForPrompt, listSkills, readSkill, readSkillsForDelegation } from "../services/skills.js";
 import { getAssignedSkillNamesForAgent } from "../config-operational-agents.js";
+import { dispatchRuntime, isRuntimeConfigured } from "../services/agent-runtime.js";
 
 const router: IRouter = Router();
 
+function optionalString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
 
-/* ─── GET /agent/skills ─────────────────────────────────────────
-   Authenticated agents can discover shared SKILL.md documents by
-   exact name or category and then read selected skill documents.
-──────────────────────────────────────────────────────────────── */
+async function agentSkillsContext(agentName: string, context?: string | null): Promise<string | null> {
+  const assignedSkillNames = getAssignedSkillNamesForAgent(agentName);
+  const assignedSkills = await readSkillsForDelegation({ names: assignedSkillNames });
+  const skillsContext = formatSkillsForPrompt(assignedSkills);
+  return [context ?? null, skillsContext ? `Relevant assigned skills:\n\n${skillsContext}` : null].filter(Boolean).join("\n\n") || null;
+}
+
+async function loadAgentById(id: number) {
+  const [agent] = await db.select().from(agentsTable).where(eq(agentsTable.id, id));
+  return agent ?? null;
+}
+
+/* ─── GET /agent/skills ───────────────────────────────────────── */
 router.get("/agent/skills", createRateLimit("agent-skills", 60, 60_000), async (req, res): Promise<void> => {
   const agent = await getAgentFromBearer(req.headers.authorization);
   if (!agent) {
@@ -60,11 +73,7 @@ router.get("/agent/skills/:id", createRateLimit("agent-skills", 60, 60_000), asy
   res.json({ agentId: agent.id, skill });
 });
 
-/* ─── POST /agent/ping ────────────────────────────────────────
-   Heartbeat from any agent (local, Docker, hosted).
-   Returns pending tasks AND any queued commands waiting to
-   be picked up (the pull-based dispatch mechanism).
-──────────────────────────────────────────────────────────────── */
+/* ─── POST /agent/ping ──────────────────────────────────────── */
 router.post("/agent/ping", createRateLimit("agent-ping", 60, 60_000), async (req, res): Promise<void> => {
   const agent = await getAgentFromBearer(req.headers.authorization);
   if (!agent) {
@@ -78,66 +87,22 @@ router.post("/agent/ping", createRateLimit("agent-ping", 60, 60_000), async (req
     return;
   }
 
-  await db
-    .update(agentsTable)
-    .set({ lastPing: new Date(), status: "active" })
-    .where(eq(agentsTable.id, agent.id));
+  await db.update(agentsTable).set({ lastPing: new Date(), status: "active" }).where(eq(agentsTable.id, agent.id));
 
-  // Tasks assigned to this agent by name
   const pendingTasks = await db
-    .select({
-      id: tasksTable.id,
-      title: tasksTable.title,
-      priority: tasksTable.priority,
-      status: tasksTable.status,
-    })
+    .select({ id: tasksTable.id, title: tasksTable.title, priority: tasksTable.priority, status: tasksTable.status })
     .from(tasksTable)
     .where(eq(tasksTable.assignee, agent.name));
 
-  // Queued commands not yet acknowledged — the pull-based fallback for local agents
-  const pendingCommands = await db
-    .select({
-      id: agentCommandsTable.id,
-      instructions: agentCommandsTable.instructions,
-      context: agentCommandsTable.context,
-      taskId: agentCommandsTable.taskId,
-      createdAt: agentCommandsTable.createdAt,
-    })
-    .from(agentCommandsTable)
-    .where(
-      eq(agentCommandsTable.agentId, agent.id),
-    )
-    .then(rows => rows.filter(r => r.createdAt !== null));
-
-  // Only return unacknowledged commands
-  const rawCommands = await db
-    .select()
-    .from(agentCommandsTable)
-    .where(eq(agentCommandsTable.agentId, agent.id));
-
+  const rawCommands = await db.select().from(agentCommandsTable).where(eq(agentCommandsTable.agentId, agent.id));
   const unacked = rawCommands
     .filter(c => c.acknowledgedAt === null)
-    .map(c => ({
-      id: c.id,
-      instructions: c.instructions,
-      context: c.context ?? null,
-      taskId: c.taskId ?? null,
-      createdAt: c.createdAt.toISOString(),
-    }));
+    .map(c => ({ id: c.id, instructions: c.instructions, context: c.context ?? null, taskId: c.taskId ?? null, createdAt: c.createdAt.toISOString() }));
 
-  res.json({
-    agentId: agent.id,
-    name: agent.name,
-    acknowledged: true,
-    pendingTasks,
-    pendingCommands: unacked,
-  });
+  res.json({ agentId: agent.id, name: agent.name, acknowledged: true, pendingTasks, pendingCommands: unacked });
 });
 
-/* ─── POST /agent/command/:id/ack ────────────────────────────
-   Agent acknowledges it has received and started processing a
-   queued command. Mission Control marks it delivered.
-──────────────────────────────────────────────────────────────── */
+/* ─── POST /agent/command/:id/ack ──────────────────────────── */
 router.post("/agent/command/:id/ack", createRateLimit("agent-ack", 60, 60_000), async (req, res): Promise<void> => {
   const agent = await getAgentFromBearer(req.headers.authorization);
   if (!agent) {
@@ -151,13 +116,8 @@ router.post("/agent/command/:id/ack", createRateLimit("agent-ack", 60, 60_000), 
     return;
   }
 
-  const [cmd] = await db
-    .update(agentCommandsTable)
-    .set({ acknowledgedAt: new Date() })
-    .where(eq(agentCommandsTable.id, params.data.id))
-    .returning();
-
-  if (!cmd) {
+  const [cmd] = await db.update(agentCommandsTable).set({ acknowledgedAt: new Date() }).where(eq(agentCommandsTable.id, params.data.id)).returning();
+  if (!cmd || cmd.agentId !== agent.id) {
     res.status(404).json({ error: "Command not found" });
     return;
   }
@@ -165,9 +125,7 @@ router.post("/agent/command/:id/ack", createRateLimit("agent-ack", 60, 60_000), 
   res.json({ acknowledged: true, commandId: cmd.id });
 });
 
-/* ─── POST /agent/report ──────────────────────────────────────
-   Agent pushes back an activity, task completion, or memory.
-──────────────────────────────────────────────────────────────── */
+/* ─── POST /agent/report ────────────────────────────────────── */
 router.post("/agent/report", createRateLimit("agent-report", 60, 60_000), async (req, res): Promise<void> => {
   const agent = await getAgentFromBearer(req.headers.authorization);
   if (!agent) {
@@ -181,48 +139,20 @@ router.post("/agent/report", createRateLimit("agent-report", 60, 60_000), async 
     return;
   }
 
-  const { type, content, taskId, taskStatus, memoryTitle, memoryCategory } =
-    parsed.data;
+  const { type, content, taskId, taskStatus, memoryTitle, memoryCategory } = parsed.data;
+  const actionLabel = type === "task_complete" ? "Completed task" : type === "memory" ? "Stored memory" : content.slice(0, 80);
 
-  const actionLabel =
-    type === "task_complete"
-      ? "Completed task"
-      : type === "memory"
-        ? "Stored memory"
-        : content.slice(0, 80);
-
-  const [activity] = await db
-    .insert(activityTable)
-    .values({
-      agentName: agent.name,
-      action: actionLabel,
-      detail: content,
-      status: "active",
-    })
-    .returning();
+  const [activity] = await db.insert(activityTable).values({ agentName: agent.name, action: actionLabel, detail: content, status: "active" }).returning();
 
   if (type === "task_complete" && taskId) {
-    await db
-      .update(tasksTable)
-      .set({
-        status: (taskStatus ??
-          "done") as typeof tasksTable.$inferInsert["status"],
-      })
-      .where(eq(tasksTable.id, taskId));
+    await db.update(tasksTable).set({ status: (taskStatus ?? "done") as typeof tasksTable.$inferInsert["status"] }).where(eq(tasksTable.id, taskId));
   }
 
   if (type === "memory" && memoryTitle) {
-    await db.insert(memoriesTable).values({
-      title: memoryTitle,
-      content,
-      category: memoryCategory ?? "agent",
-      preview: content.slice(0, 150),
-    });
+    await db.insert(memoriesTable).values({ title: memoryTitle, content, category: memoryCategory ?? "knowledge", preview: content.slice(0, 150) });
   }
 
-  const agentUpdate: Partial<typeof agentsTable.$inferInsert> = {
-    lastPing: new Date(),
-  };
+  const agentUpdate: Partial<typeof agentsTable.$inferInsert> = { lastPing: new Date() };
   if (type === "task_complete") {
     agentUpdate.tasksCompleted = agent.tasksCompleted + 1;
     agentUpdate.currentTask = null;
@@ -233,24 +163,94 @@ router.post("/agent/report", createRateLimit("agent-report", 60, 60_000), async 
     agentUpdate.lastActive = "just now";
   }
 
-  await db
-    .update(agentsTable)
-    .set(agentUpdate)
-    .where(eq(agentsTable.id, agent.id));
-
+  await db.update(agentsTable).set(agentUpdate).where(eq(agentsTable.id, agent.id));
   res.json({ accepted: true, activityId: activity.id });
 });
 
-/* ─── POST /agents/:id/dispatch ──────────────────────────────
-   Send instructions to an agent from Mission Control.
-
-   Delivery strategy:
-   1. Always store in the command queue first (works for any network).
-   2. If the agent has a public endpoint, also attempt an HTTP push
-      (10s timeout). This gives immediate delivery for hosted agents.
-   3. Local/firewalled agents simply pick the command up on their
-      next ping — zero extra configuration needed.
+/* ─── POST /agents/:id/test ───────────────────────────────────
+   Admin test: verify an agent can be reached by its selected runtime.
 ──────────────────────────────────────────────────────────────── */
+router.post("/agents/:id/test", createRateLimit("admin-agent-test", 20, 60_000), async (req, res): Promise<void> => {
+  const params = DispatchAgentParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const agent = await loadAgentById(params.data.id);
+  if (!agent) {
+    res.status(404).json({ error: "Agent not found" });
+    return;
+  }
+  if (!isRuntimeConfigured(agent)) {
+    res.status(400).json({ ok: false, error: "Agent runtime is not configured. Add a provider API key or webhook endpoint first." });
+    return;
+  }
+
+  const result = await dispatchRuntime(agent, {
+    mode: "test",
+    instructions: `Connection test for ${agent.name}. Reply in one short sentence confirming the connection works.`,
+    context: "This is a Mission Control runtime health test.",
+  });
+
+  await db.insert(activityTable).values({
+    agentName: agent.name,
+    action: result.ok ? "Agent connection test passed" : "Agent connection test failed",
+    detail: result.output ?? result.error,
+    status: result.ok ? "active" : "error",
+  });
+
+  await db.update(agentsTable).set({ status: result.ok ? "active" : "error", lastActive: result.ok ? "connection tested" : "connection test failed", lastPing: result.ok ? new Date() : agent.lastPing }).where(eq(agentsTable.id, agent.id));
+
+  res.status(result.ok ? 200 : 502).json(result);
+});
+
+/* ─── POST /agents/:id/test-task ───────────────────────────────
+   Admin test: create a task, queue a command, execute it now, save report.
+──────────────────────────────────────────────────────────────── */
+router.post("/agents/:id/test-task", createRateLimit("admin-agent-test-task", 10, 60_000), async (req, res): Promise<void> => {
+  const params = DispatchAgentParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const agent = await loadAgentById(params.data.id);
+  if (!agent) {
+    res.status(404).json({ error: "Agent not found" });
+    return;
+  }
+  if (!isRuntimeConfigured(agent)) {
+    res.status(400).json({ ok: false, error: "Agent runtime is not configured. Add a provider API key or webhook endpoint first." });
+    return;
+  }
+
+  const title = optionalString(req.body?.title) ?? `Test work for ${agent.name}`;
+  const instructions = optionalString(req.body?.instructions) ?? "Write a short Mission Control test report confirming you received and completed this work item.";
+  const project = optionalString(req.body?.project) ?? "Mission Control";
+  const priority = optionalString(req.body?.priority) ?? "medium";
+
+  const [task] = await db.insert(tasksTable).values({ title, description: instructions, assignee: agent.name, priority, status: "running", project, dueDate: null }).returning();
+  const contextWithSkills = await agentSkillsContext(agent.name, "This is an immediate test task executed by the Mission Control runtime.");
+  const [command] = await db.insert(agentCommandsTable).values({ agentId: agent.id, taskId: task.id, instructions, context: contextWithSkills }).returning();
+
+  const result = await dispatchRuntime(agent, { mode: "work", instructions, context: contextWithSkills, taskId: task.id, commandId: command.id });
+
+  await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: result.ok || result.delivery === "webhook" }).where(eq(agentCommandsTable.id, command.id));
+  await db.update(tasksTable).set({ status: result.ok ? "done" : "blocked" }).where(eq(tasksTable.id, task.id));
+  await db.update(agentsTable).set({ status: result.ok ? "idle" : "error", currentTask: result.ok ? null : `Task #${task.id}: ${title}`, lastActive: result.ok ? "test task completed" : "test task failed", lastPing: result.ok ? new Date() : agent.lastPing, tasksCompleted: result.ok ? agent.tasksCompleted + 1 : agent.tasksCompleted }).where(eq(agentsTable.id, agent.id));
+
+  const [activity] = await db.insert(activityTable).values({
+    agentName: agent.name,
+    action: result.ok ? "Completed test work" : "Test work failed",
+    detail: result.output ?? result.error,
+    status: result.ok ? "active" : "error",
+  }).returning();
+
+  res.status(result.ok ? 201 : 502).json({ ok: result.ok, taskId: task.id, commandId: command.id, activityId: activity.id, result });
+});
+
+/* ─── POST /agents/:id/dispatch ────────────────────────────── */
 router.post("/agents/:id/dispatch", createRateLimit("admin-dispatch", 20, 60_000), async (req, res): Promise<void> => {
   const params = DispatchAgentParams.safeParse(req.params);
   if (!params.success) {
@@ -258,10 +258,7 @@ router.post("/agents/:id/dispatch", createRateLimit("admin-dispatch", 20, 60_000
     return;
   }
 
-  const [agent] = await db
-    .select()
-    .from(agentsTable)
-    .where(eq(agentsTable.id, params.data.id));
+  const agent = await loadAgentById(params.data.id);
   if (!agent) {
     res.status(404).json({ error: "Agent not found" });
     return;
@@ -274,91 +271,39 @@ router.post("/agents/:id/dispatch", createRateLimit("admin-dispatch", 20, 60_000
   }
 
   const { instructions, taskId, context } = parsed.data;
-  const assignedSkillNames = getAssignedSkillNamesForAgent(agent.name);
-  const assignedSkills = await readSkillsForDelegation({ names: assignedSkillNames });
-  const skillsContext = formatSkillsForPrompt(assignedSkills);
-  const contextWithSkills = [context ?? null, skillsContext ? `Relevant assigned skills:\n\n${skillsContext}` : null].filter(Boolean).join("\n\n");
+  const contextWithSkills = await agentSkillsContext(agent.name, context);
+  const [command] = await db.insert(agentCommandsTable).values({ agentId: agent.id, instructions, context: contextWithSkills, taskId: taskId ?? null }).returning();
 
-  // Step 1 — queue the command unconditionally
-  const [command] = await db
-    .insert(agentCommandsTable)
-    .values({
-      agentId: agent.id,
-      instructions,
-      context: contextWithSkills || null,
-      taskId: taskId ?? null,
-    })
-    .returning();
-
-  // Step 2 — attempt HTTP push if the agent has a public endpoint
   let dispatched = false;
+  let delivery: "provider" | "webhook" | "queued" = "queued";
   let statusCode: number | null = null;
   let httpError: string | null = null;
+  let output: string | null = null;
 
-  if (agent.endpoint) {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (agent.apiKey) headers["Authorization"] = `Bearer ${agent.apiKey}`;
-
-    try {
-      const response = await fetch(agent.endpoint, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          commandId: command.id,
-          instructions,
-          taskId: taskId ?? null,
-          context: contextWithSkills || null,
-          source: "mission-control",
-          timestamp: new Date().toISOString(),
-        }),
-        signal: AbortSignal.timeout(10_000),
-      });
-      statusCode = response.status;
-      dispatched = response.ok;
-      if (!response.ok) httpError = `Agent returned HTTP ${response.status}`;
-
-      // If HTTP delivery succeeded, mark the command as acknowledged
-      if (dispatched) {
-        await db
-          .update(agentCommandsTable)
-          .set({ acknowledgedAt: new Date(), deliveredViaHttp: true })
-          .where(eq(agentCommandsTable.id, command.id));
-      }
-    } catch (err: unknown) {
-      httpError =
-        err instanceof Error ? err.message : "Network error";
+  if (isRuntimeConfigured(agent)) {
+    const result = await dispatchRuntime(agent, { instructions, context: contextWithSkills, taskId: taskId ?? null, commandId: command.id, mode: "work" });
+    dispatched = result.ok;
+    delivery = result.ok ? result.delivery : "queued";
+    statusCode = result.statusCode;
+    httpError = result.error;
+    output = result.output;
+    if (dispatched) {
+      await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: true }).where(eq(agentCommandsTable.id, command.id));
+      if (taskId) await db.update(tasksTable).set({ status: "done" }).where(eq(tasksTable.id, taskId));
     }
   }
 
-  const delivery = dispatched ? "http" : "queued";
-
   await db.insert(activityTable).values({
     agentName: agent.name,
-    action:
-      delivery === "http"
-        ? "Received dispatch (HTTP)"
-        : "Command queued — picks up on next ping",
-    detail: `${instructions.slice(0, 200)}${httpError ? ` — ${httpError}` : ""}`,
-    status: delivery === "http" ? "active" : "pending",
+    action: dispatched ? "Completed dispatch" : "Command queued — waiting for worker",
+    detail: output ?? `${instructions.slice(0, 200)}${httpError ? ` — ${httpError}` : ""}`,
+    status: dispatched ? "active" : "pending",
   });
 
-  res.json({
-    queued: true,
-    commandId: command.id,
-    dispatched,
-    delivery,
-    agentId: agent.id,
-    endpoint: agent.endpoint ?? null,
-    statusCode,
-    error: httpError,
-  });
+  res.json({ queued: true, commandId: command.id, dispatched, delivery, agentId: agent.id, endpoint: agent.endpoint ?? null, statusCode, error: httpError, output });
 });
 
-/* ─── POST /agents/:id/token ─────────────────────────────────
-   Mint or regenerate the inbound Bearer token.
-──────────────────────────────────────────────────────────────── */
+/* ─── POST /agents/:id/token ───────────────────────────────── */
 router.post("/agents/:id/token", createRateLimit("admin-token", 10, 60_000), async (req, res): Promise<void> => {
   const params = RegenerateAgentTokenParams.safeParse(req.params);
   if (!params.success) {
@@ -368,12 +313,7 @@ router.post("/agents/:id/token", createRateLimit("admin-token", 10, 60_000), asy
 
   const token = generateAgentToken();
   const tokenHash = hashToken(token);
-  const [agent] = await db
-    .update(agentsTable)
-    .set({ inboundToken: tokenHash })
-    .where(eq(agentsTable.id, params.data.id))
-    .returning();
-
+  const [agent] = await db.update(agentsTable).set({ inboundToken: tokenHash }).where(eq(agentsTable.id, params.data.id)).returning();
   if (!agent) {
     res.status(404).json({ error: "Agent not found" });
     return;
@@ -383,10 +323,7 @@ router.post("/agents/:id/token", createRateLimit("admin-token", 10, 60_000), asy
   res.json({ agentId: agent.id, inboundToken: token });
 });
 
-/* ─── GET /agent/tools ───────────────────────────────────────────
-   Authenticated agent fetches its assigned tools with FULL credentials.
-   Only accessible via Bearer token — credentials are never exposed to the UI.
-──────────────────────────────────────────────────────────────────── */
+/* ─── GET /agent/tools ─────────────────────────────────────────── */
 router.get("/agent/tools", createRateLimit("agent-tools", 20, 60_000), async (req, res): Promise<void> => {
   const agent = await getAgentFromBearer(req.headers.authorization);
   if (!agent) {
@@ -400,21 +337,19 @@ router.get("/agent/tools", createRateLimit("agent-tools", 20, 60_000), async (re
     .innerJoin(agentToolsTable, eq(agentToolAccessTable.toolId, agentToolsTable.id))
     .where(eq(agentToolAccessTable.agentId, agent.id));
 
-  const tools = rows
-    .filter(r => r.tool.isActive)
-    .map(r => ({
-      id: r.tool.id,
-      name: r.tool.name,
-      description: r.tool.description,
-      url: r.tool.url,
-      category: r.tool.category,
-      credentialType: r.tool.credentialType,
-      apiKey: decryptSecret(r.tool.apiKey),
-      username: decryptSecret(r.tool.username),
-      password: decryptSecret(r.tool.password),
-      notes: r.tool.notes,
-      isActive: r.tool.isActive,
-    }));
+  const tools = rows.filter(r => r.tool.isActive).map(r => ({
+    id: r.tool.id,
+    name: r.tool.name,
+    description: r.tool.description,
+    url: r.tool.url,
+    category: r.tool.category,
+    credentialType: r.tool.credentialType,
+    apiKey: decryptSecret(r.tool.apiKey),
+    username: decryptSecret(r.tool.username),
+    password: decryptSecret(r.tool.password),
+    notes: r.tool.notes,
+    isActive: r.tool.isActive,
+  }));
 
   await auditLog({ action: "requested", entityType: "agent_tool_credentials", entityId: agent.id, actorType: "agent", actorName: agent.name });
   res.json(tools);
