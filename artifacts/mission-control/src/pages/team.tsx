@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListAgents,
@@ -42,6 +42,14 @@ const DEFAULT_ENDPOINT: Record<string, string> = {
 };
 const PRIMARY_TOKEN_STORAGE_KEY = "mission_control_admin_token";
 const LEGACY_TOKEN_STORAGE_KEY = "missionControlAdminToken";
+const CHAT_HISTORY_PREFIX = "mission_control_agent_chat";
+
+function taskLabel(taskId?: number, activityId?: number) {
+  const parts = [];
+  if (taskId) parts.push(`Task #${taskId}`);
+  if (activityId) parts.push(`Activity #${activityId}`);
+  return parts.join(" · ");
+}
 
 type RuntimeResult = {
   ok?: boolean;
@@ -50,6 +58,15 @@ type RuntimeResult = {
   taskId?: number;
   activityId?: number;
   result?: { output?: string | null; error?: string | null };
+};
+
+type ActivityEntry = {
+  id: number;
+  agentName: string;
+  action: string;
+  detail?: string | null;
+  status: string;
+  createdAt: string;
 };
 
 type ChatEntry = {
@@ -65,7 +82,32 @@ function getAdminToken() {
   return window.localStorage.getItem(PRIMARY_TOKEN_STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_TOKEN_STORAGE_KEY) ?? "";
 }
 
-async function authedFetch(path: string, init?: RequestInit, timeoutMs = 25_000) {
+function chatStorageKey(agentId: number) {
+  return `${CHAT_HISTORY_PREFIX}:${agentId}`;
+}
+
+function loadChatHistory(agentId: number): ChatEntry[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.sessionStorage.getItem(chatStorageKey(agentId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as ChatEntry[];
+    return Array.isArray(parsed) ? parsed.filter((entry) => entry.text?.trim()).slice(-20) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveChatHistory(agentId: number, entries: ChatEntry[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(chatStorageKey(agentId), JSON.stringify(entries.slice(-20)));
+  } catch {
+    // Browser storage can be unavailable in private modes; chat still works in memory.
+  }
+}
+
+async function authedFetch<T = RuntimeResult>(path: string, init?: RequestInit, timeoutMs = 25_000): Promise<T> {
   const token = getAdminToken();
   const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json" };
   if (token) {
@@ -82,9 +124,9 @@ async function authedFetch(path: string, init?: RequestInit, timeoutMs = 25_000)
       headers: { ...headers, ...(init?.headers as Record<string, string> | undefined) },
     });
     const text = await response.text();
-    const payload = text.trim() ? (JSON.parse(text) as RuntimeResult) : {};
+    const payload = text.trim() ? (JSON.parse(text) as T & RuntimeResult) : ({} as T & RuntimeResult);
     if (!response.ok) throw new Error(payload.error ?? payload.result?.error ?? `${response.status} ${response.statusText}`);
-    return payload;
+    return payload as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error("Request timed out. Mission Control did not receive a response.");
@@ -92,6 +134,20 @@ async function authedFetch(path: string, init?: RequestInit, timeoutMs = 25_000)
     throw error;
   } finally {
     window.clearTimeout(timeout);
+  }
+}
+
+function runtimeOutput(result: RuntimeResult) {
+  return result.result?.output?.trim() || result.output?.trim() || "";
+}
+
+async function findSavedActivityDetail(agentName: string, activityId?: number) {
+  try {
+    const entries = await authedFetch<ActivityEntry[]>("/api/activity?limit=30", { method: "GET" }, 25_000);
+    const match = entries.find((entry) => (activityId ? entry.id === activityId : entry.agentName === agentName));
+    return match?.detail?.trim() || "";
+  } catch {
+    return "";
   }
 }
 
@@ -265,11 +321,24 @@ function AgentDetailDialog({ agent, onClose, onChanged }: { agent: Agent | null;
   const [chat, setChat] = useState<ChatEntry[]>([]);
   const [showSummary, setShowSummary] = useState(false);
 
+  useEffect(() => {
+    if (!agent) {
+      setChat([]);
+      setLastReport(null);
+      return;
+    }
+    setChat(loadChatHistory(agent.id));
+  }, [agent?.id]);
+
   if (!agent) return null;
   const online = isOnline(agent);
 
   const addChatEntry = (entry: Omit<ChatEntry, "id">) => {
-    setChat((current) => [...current, { id: `${Date.now()}-${current.length}`, ...entry }]);
+    setChat((current) => {
+      const next = [...current, { id: `${Date.now()}-${current.length}`, ...entry }].slice(-20);
+      saveChatHistory(agent.id, next);
+      return next;
+    });
   };
 
   const disconnect = async () => {
@@ -290,7 +359,7 @@ function AgentDetailDialog({ agent, onClose, onChanged }: { agent: Agent | null;
     setLastReport(null);
     try {
       const result = await authedFetch(`/api/agents/${agent.id}/test`, { method: "POST", body: JSON.stringify({}) }, agent.provider === "hermes" ? 190_000 : 25_000);
-      addChatEntry({ role: "system", text: result.output ?? result.result?.output ?? "Connection test passed." });
+      addChatEntry({ role: "system", text: runtimeOutput(result) || "Connection test passed." });
       setLastReport({ label: "Connection test saved to Activity" });
       await onChanged();
     } catch (err) {
@@ -310,7 +379,8 @@ function AgentDetailDialog({ agent, onClose, onChanged }: { agent: Agent | null;
     setLastReport(null);
     try {
       const result = await authedFetch(`/api/agents/${agent.id}/test-task`, { method: "POST", body: JSON.stringify({ instructions }) }, agent.provider === "hermes" ? 190_000 : 70_000);
-      addChatEntry({ role: "agent", text: result.result?.output ?? result.output ?? "Done.", taskId: result.taskId, activityId: result.activityId });
+      const reportText = runtimeOutput(result) || await findSavedActivityDetail(agent.name, result.activityId) || "Work completed and saved to Reports. Open Reports to review the full response.";
+      addChatEntry({ role: "agent", text: reportText, taskId: result.taskId, activityId: result.activityId });
       setLastReport({ label: "Work report saved", taskId: result.taskId, activityId: result.activityId });
       await onChanged();
     } catch (err) {
@@ -352,12 +422,12 @@ function AgentDetailDialog({ agent, onClose, onChanged }: { agent: Agent | null;
           {chat.length ? chat.map((entry) => (
             <div key={entry.id} className={`agent-chat-bubble ${entry.role}`}>
               <p>{entry.text}</p>
-              {(entry.taskId || entry.activityId) && <small>{entry.taskId ? `Task #${entry.taskId}` : ""}{entry.taskId && entry.activityId ? " · " : ""}{entry.activityId ? `Activity #${entry.activityId}` : ""}</small>}
+              {(entry.taskId || entry.activityId) && <small>{taskLabel(entry.taskId, entry.activityId)}</small>}
             </div>
           )) : <div className="agent-chat-empty">{online ? "Active and ready." : "Ready when connected."}</div>}
         </div>
 
-        {lastReport && <div className="agent-report-strip"><Zap className="h-3.5 w-3.5" />{lastReport.label}{lastReport.taskId ? ` · Task #${lastReport.taskId}` : ""}{lastReport.activityId ? ` · Activity #${lastReport.activityId}` : ""}</div>}
+        {lastReport && <div className="agent-report-strip"><Zap className="h-3.5 w-3.5" /><span>{lastReport.label}{lastReport.taskId ? ` · Task #${lastReport.taskId}` : ""}{lastReport.activityId ? ` · Activity #${lastReport.activityId}` : ""}</span><a href="/reports">View Reports</a></div>}
         {error && <div className="agent-error-strip"><AlertCircle className="h-3.5 w-3.5" />{error}</div>}
 
         <div className="agent-chat-composer">
