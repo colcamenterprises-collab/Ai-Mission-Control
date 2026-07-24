@@ -24,6 +24,8 @@ router.use(healthRouter);
 // Explicitly protect admin bridge routes before mounting bridge router.
 router.use("/agents/:id/dispatch", requireAdminAuth);
 router.use("/agents/:id/token", requireAdminAuth);
+router.use("/agents/:id/test", requireAdminAuth);
+router.use("/agents/:id/test-task", requireAdminAuth);
 router.use(agentBridgeRouter);
 router.use(requireAdminAuth);
 router.use(dashboardRouter);
