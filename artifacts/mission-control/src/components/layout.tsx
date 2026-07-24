@@ -49,7 +49,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       label: "Operations",
       items: [
         { href: "/memory", label: "Knowledge", icon: Activity },
-        { href: "/skills", label: "Playbooks", icon: BookOpen },
+        { href: "/skills", label: "Worker Rules", icon: BookOpen },
         { href: "/workspaces", label: "Projects", icon: LayoutDashboard },
       ],
     },
