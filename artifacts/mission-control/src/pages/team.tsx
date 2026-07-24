@@ -52,6 +52,14 @@ type RuntimeResult = {
   result?: { output?: string | null; error?: string | null };
 };
 
+type ChatEntry = {
+  id: string;
+  role: "owner" | "agent" | "system";
+  text: string;
+  taskId?: number;
+  activityId?: number;
+};
+
 function getAdminToken() {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem(PRIMARY_TOKEN_STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_TOKEN_STORAGE_KEY) ?? "";
@@ -251,13 +259,18 @@ function AgentDetailDialog({ agent, onClose, onChanged }: { agent: Agent | null;
   const [token, setToken] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastReport, setLastReport] = useState<{ label: string; taskId?: number; activityId?: number } | null>(null);
-  const [brief, setBrief] = useState("Write a short test report confirming you can complete work from Mission Control.");
+  const [brief, setBrief] = useState("");
+  const [chat, setChat] = useState<ChatEntry[]>([]);
+  const [showSummary, setShowSummary] = useState(false);
 
   if (!agent) return null;
   const online = isOnline(agent);
+
+  const addChatEntry = (entry: Omit<ChatEntry, "id">) => {
+    setChat((current) => [...current, { id: `${Date.now()}-${current.length}`, ...entry }]);
+  };
 
   const disconnect = async () => {
     await updateAgent.mutateAsync({ id: agent.id, data: { isPluggedIn: false, provider: null, model: null, apiKey: null, endpoint: null, status: "idle", currentTask: null } });
@@ -274,11 +287,10 @@ function AgentDetailDialog({ agent, onClose, onChanged }: { agent: Agent | null;
   const testConnection = async () => {
     setIsTesting(true);
     setError(null);
-    setMessage(null);
     setLastReport(null);
     try {
       const result = await authedFetch(`/api/agents/${agent.id}/test`, { method: "POST", body: JSON.stringify({}) }, agent.provider === "hermes" ? 190_000 : 25_000);
-      setMessage(result.output ?? result.result?.output ?? "Connection test passed.");
+      addChatEntry({ role: "system", text: result.output ?? result.result?.output ?? "Connection test passed." });
       setLastReport({ label: "Connection test saved to Activity" });
       await onChanged();
     } catch (err) {
@@ -289,13 +301,16 @@ function AgentDetailDialog({ agent, onClose, onChanged }: { agent: Agent | null;
   };
 
   const runTestTask = async () => {
+    const instructions = brief.trim();
+    if (!instructions) return;
+    addChatEntry({ role: "owner", text: instructions });
+    setBrief("");
     setIsRunning(true);
     setError(null);
-    setMessage(null);
     setLastReport(null);
     try {
-      const result = await authedFetch(`/api/agents/${agent.id}/test-task`, { method: "POST", body: JSON.stringify({ instructions: brief }) }, agent.provider === "hermes" ? 190_000 : 70_000);
-      setMessage(result.result?.output ?? result.output ?? "Test task completed.");
+      const result = await authedFetch(`/api/agents/${agent.id}/test-task`, { method: "POST", body: JSON.stringify({ instructions }) }, agent.provider === "hermes" ? 190_000 : 70_000);
+      addChatEntry({ role: "agent", text: result.result?.output ?? result.output ?? "Done.", taskId: result.taskId, activityId: result.activityId });
       setLastReport({ label: "Work report saved", taskId: result.taskId, activityId: result.activityId });
       await onChanged();
     } catch (err) {
@@ -307,27 +322,48 @@ function AgentDetailDialog({ agent, onClose, onChanged }: { agent: Agent | null;
 
   return (
     <Dialog open={Boolean(agent)} onOpenChange={(value) => !value && onClose()}>
-      <DialogContent className="max-w-lg bg-card border-border">
-        <DialogHeader><DialogTitle className="agent-detail-head"><AgentPortrait initials={agent.avatarInitials} online={online} /><span><strong>{agent.name}</strong><em>{agent.role}</em></span></DialogTitle></DialogHeader>
-        <div className="agent-detail-grid">
-          <div><span>Status</span><strong>{statusLabel(agent)}</strong></div>
-          <div><span>Provider</span><strong>{agent.provider ?? "—"}</strong></div>
-          <div><span>Model</span><strong>{agent.model ?? "—"}</strong></div>
-          <div><span>Last response</span><strong>{formatLastSeen(agent.lastPing)}</strong></div>
-        </div>
-        <div className="grid gap-2 rounded-xl border border-border/70 bg-secondary/20 p-3">
-          <Textarea value={brief} onChange={(event) => setBrief(event.target.value)} rows={3} placeholder="Test task brief" />
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={testConnection} disabled={isTesting} className="gap-2"><Wifi className="h-3.5 w-3.5" />{isTesting ? "Testing" : "Test connection"}</Button>
-            <Button size="sm" onClick={runTestTask} disabled={isRunning || !brief.trim()} className="gap-2"><Send className="h-3.5 w-3.5" />{isRunning ? "Running" : "Send test work"}</Button>
-            <Button size="sm" variant="outline" onClick={refreshToken} disabled={regenerate.isPending} className="gap-2"><KeyRound className="h-3.5 w-3.5" />{regenerate.isPending ? "Generating" : "Agent token"}</Button>
-            <Button size="sm" variant="ghost" onClick={disconnect} disabled={updateAgent.isPending} className="gap-2 text-red-400 hover:text-red-300"><Trash2 className="h-3.5 w-3.5" />Disconnect</Button>
+      <DialogContent className="agent-chat-dialog bg-card border-border">
+        <DialogHeader>
+          <DialogTitle className="agent-chat-head">
+            <span className={online ? "agent-chat-status online" : "agent-chat-status"} />
+            <span><strong>{agent.name}</strong><em>{statusLabel(agent)}</em></span>
+            <Button size="sm" variant="outline" onClick={() => setShowSummary((value) => !value)} className="ml-auto">Agent summary</Button>
+          </DialogTitle>
+        </DialogHeader>
+
+        {showSummary && (
+          <div className="agent-summary-panel">
+            <div className="agent-detail-grid">
+              <div><span>Status</span><strong>{statusLabel(agent)}</strong></div>
+              <div><span>Provider</span><strong>{agent.provider ?? "—"}</strong></div>
+              <div><span>Model</span><strong>{agent.model ?? "—"}</strong></div>
+              <div><span>Last response</span><strong>{formatLastSeen(agent.lastPing)}</strong></div>
+            </div>
+            <div className="agent-admin-strip">
+              <Button size="sm" variant="outline" onClick={testConnection} disabled={isTesting} className="gap-2"><Wifi className="h-3.5 w-3.5" />{isTesting ? "Checking" : "Check connection"}</Button>
+              <Button size="sm" variant="outline" onClick={refreshToken} disabled={regenerate.isPending} className="gap-2"><KeyRound className="h-3.5 w-3.5" />{regenerate.isPending ? "Generating" : "Agent token"}</Button>
+              <Button size="sm" variant="ghost" onClick={disconnect} disabled={updateAgent.isPending} className="gap-2 text-red-400 hover:text-red-300"><Trash2 className="h-3.5 w-3.5" />Disconnect</Button>
+            </div>
+            {(token || agent.endpoint) && <div className="agent-token-box">{agent.endpoint && <p><span>Endpoint</span>{agent.endpoint}</p>}{token && <div><span>Token ready</span><CopyButton value={token} /></div>}</div>}
           </div>
+        )}
+
+        <div className="agent-chat-log">
+          {chat.length ? chat.map((entry) => (
+            <div key={entry.id} className={`agent-chat-bubble ${entry.role}`}>
+              <p>{entry.text}</p>
+              {(entry.taskId || entry.activityId) && <small>{entry.taskId ? `Task #${entry.taskId}` : ""}{entry.taskId && entry.activityId ? " · " : ""}{entry.activityId ? `Activity #${entry.activityId}` : ""}</small>}
+            </div>
+          )) : <div className="agent-chat-empty">{online ? "Active and ready." : "Ready when connected."}</div>}
         </div>
-        {lastReport && <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-3 text-sm text-cyan-100"><Zap className="mr-2 inline h-4 w-4" />{lastReport.label}{lastReport.taskId ? ` · Task #${lastReport.taskId}` : ""}{lastReport.activityId ? ` · Activity #${lastReport.activityId}` : ""}</div>}
-        {message && <div className="rounded-xl border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-200"><CheckCircle2 className="mr-2 inline h-4 w-4" />{message}</div>}
-        {error && <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200"><AlertCircle className="mr-2 inline h-4 w-4" />{error}</div>}
-        {(token || agent.endpoint) && <div className="agent-token-box">{agent.endpoint && <p><span>Endpoint</span>{agent.endpoint}</p>}{token && <div><span>Token ready</span><CopyButton value={token} /></div>}</div>}
+
+        {lastReport && <div className="agent-report-strip"><Zap className="h-3.5 w-3.5" />{lastReport.label}{lastReport.taskId ? ` · Task #${lastReport.taskId}` : ""}{lastReport.activityId ? ` · Activity #${lastReport.activityId}` : ""}</div>}
+        {error && <div className="agent-error-strip"><AlertCircle className="h-3.5 w-3.5" />{error}</div>}
+
+        <div className="agent-chat-composer">
+          <Textarea value={brief} onChange={(event) => setBrief(event.target.value)} rows={3} />
+          <Button size="sm" onClick={runTestTask} disabled={isRunning || !brief.trim()} className="agent-send-button gap-2"><Send className="h-3.5 w-3.5" />{isRunning ? "Sending" : "Send"}</Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
