@@ -13,11 +13,13 @@ export const CURRENT_ORCHESTRATOR_NAME = "Mission Control";
 
 const CONFIGURED_AGENT_SKILLS: Record<string, string[]> = {
   james: ["orchestration"],
+  "james hermes": ["orchestration", "coding"],
   hermes: ["orchestration"],
   codex: ["coding"],
   "dev/codex": ["coding"],
   claude: ["orchestration"],
   openai: ["orchestration"],
+  openrouter: ["orchestration"],
   gemini: [],
   clawbot: [],
   openclaw: [],
