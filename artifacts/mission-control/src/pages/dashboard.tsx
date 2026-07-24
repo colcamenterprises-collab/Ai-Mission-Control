@@ -34,6 +34,7 @@ export default function Dashboard() {
   const blockedTasks = tasks.filter((task) => task.status === "blocked").length;
   const activeAgents = summary?.activeAgentCount ?? agents.filter((agent) => agent.status === "active").length;
   const installedAgents = agents.length || activeAgents;
+  const completedTasks = tasks.filter((task) => task.status === "done").length;
   const latestTasks = [...tasks]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 5);
@@ -103,12 +104,12 @@ export default function Dashboard() {
           </article>
 
           <article className="mission-panel">
-            <PanelTitle icon={CheckCircle2} title="Reports" action="Open" href="/tasks" />
+            <PanelTitle icon={CheckCircle2} title="Reports" action="Open" href="/reports" />
             <div className="mission-report-card">
-              <span>Next report</span>
-              <strong>Ready when work is complete</strong>
+              <span>Work complete</span>
+              <strong>{completedTasks} reports ready</strong>
             </div>
-            <p className="mission-panel-copy">Ongoing tasks should end with a simple report: what changed, what was done, and what needs attention.</p>
+            <p className="mission-panel-copy">Review what changed, what was done, and anything that needs owner attention.</p>
           </article>
         </section>
       </div>
