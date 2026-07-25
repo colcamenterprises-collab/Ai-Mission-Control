@@ -15,6 +15,8 @@ import Skills from "@/pages/skills";
 import Contacts from "@/pages/contacts";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
+import Secrets from "@/pages/secrets";
+import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
 import "./visual-first.css";
 
@@ -39,8 +41,12 @@ function Router() {
         <Route path="/memory" component={Memory} />
         <Route path="/workspaces" component={Workspaces} />
         <Route path="/reports" component={Reports} />
+        <Route path="/reports-summary" component={Reports} />
         <Route path="/team" component={Team} />
+        <Route path="/agent-creation" component={Team} />
         <Route path="/skills" component={Skills} />
+        <Route path="/secrets" component={Secrets} />
+        <Route path="/onboarding" component={Onboarding} />
         <Route path="/contacts" component={Contacts} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
