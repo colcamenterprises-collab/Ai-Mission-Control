@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Sun, Moon, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronDown, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { CustomliLogo } from "@/components/customli-logo";
 import { useTheme } from "@/lib/theme";
 
@@ -18,6 +18,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { theme, toggle } = useTheme();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    Operations: true,
+    System: false,
+    Onboarding: false,
+  });
 
   const homeItem: NavItem = { href: "/", label: "Home" };
 
@@ -62,6 +67,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
     );
   }
 
+  function toggleGroup(label: string) {
+    setOpenGroups((current) => ({ ...current, [label]: !current[label] }));
+  }
+
   return (
     <div className="mission-app-bg relative min-h-screen overflow-hidden flex text-foreground">
       <div className="mission-premium-background" aria-hidden="true" />
@@ -79,18 +88,33 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <div className="mission-nav-home">
             {renderNavItem(homeItem)}
           </div>
-          {navGroups.map((group) => (
-            <div key={group.label} className="mission-nav-group">
-              {!isCollapsed && <p className="mission-nav-group-label">{group.label}</p>}
-              <ul className="space-y-1">
-                {group.items.map((item) => (
-                  <li key={`${item.href}-${item.label}`}>
-                    {renderNavItem(item)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          {navGroups.map((group) => {
+            const isOpen = isCollapsed ? false : openGroups[group.label];
+            return (
+              <div key={group.label} className={`mission-nav-group ${isOpen ? "is-open" : "is-closed"}`}>
+                {!isCollapsed && (
+                  <button
+                    type="button"
+                    className="mission-nav-group-trigger"
+                    onClick={() => toggleGroup(group.label)}
+                    aria-expanded={isOpen}
+                  >
+                    <span>{group.label}</span>
+                    <ChevronDown className="mission-nav-chevron" />
+                  </button>
+                )}
+                {isOpen && (
+                  <ul className="space-y-1">
+                    {group.items.map((item) => (
+                      <li key={`${item.href}-${item.label}`}>
+                        {renderNavItem(item)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
         </nav>
         <div className={`${isCollapsed ? "p-2" : "p-3"} mission-sidebar-footer`}>
           <button onClick={() => setIsCollapsed((value) => !value)} aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"} className="mission-collapse-button">
