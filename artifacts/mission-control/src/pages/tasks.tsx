@@ -4,6 +4,7 @@ import { useListTasks, useMoveTask, getListTasksQueryKey, type Task } from "@wor
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrchestratorIntakePanel } from "@/components/orchestrator-intake-panel";
 import "./workspaces.css";
+import "./tasks-simple.css";
 
 type MissionTask = Task & { status: Task["status"] };
 
