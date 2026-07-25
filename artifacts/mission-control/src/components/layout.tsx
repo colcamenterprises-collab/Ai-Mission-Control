@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   CheckSquare,
   CalendarDays,
-  Users,
   Settings,
   Activity,
   BookOpen,
@@ -38,15 +37,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { theme, toggle } = useTheme();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  const homeItem: NavItem = { href: "/", label: "Home", icon: LayoutDashboard };
+
   const navGroups: NavGroup[] = [
-    {
-      label: "Home",
-      items: [
-        { href: "/", label: "Overview", icon: LayoutDashboard },
-        { href: "/team", label: "AI Team", icon: Users },
-        { href: "/reports-summary", label: "Reports Summary", icon: BarChart3 },
-      ],
-    },
     {
       label: "Operations",
       items: [
@@ -73,6 +66,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
     },
   ];
 
+  function renderNavItem(item: NavItem) {
+    const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+    return (
+      <Link
+        key={`${item.href}-${item.label}`}
+        href={item.href}
+        title={isCollapsed ? item.label : undefined}
+        className={`mission-nav-item ${isCollapsed ? "mission-nav-collapsed" : ""} ${isActive ? "mission-nav-active" : ""}`}
+      >
+        <item.icon className="mission-nav-icon" />
+        {!isCollapsed && <span>{item.label}</span>}
+      </Link>
+    );
+  }
+
   return (
     <div className="mission-app-bg relative min-h-screen overflow-hidden flex text-foreground">
       <div className="mission-premium-background" aria-hidden="true" />
@@ -87,25 +95,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
         <nav className="mission-sidebar-nav" aria-label="Main navigation">
+          <div className="mission-nav-home">
+            {renderNavItem(homeItem)}
+          </div>
           {navGroups.map((group) => (
             <div key={group.label} className="mission-nav-group">
               {!isCollapsed && <p className="mission-nav-group-label">{group.label}</p>}
               <ul className="space-y-1.5">
-                {group.items.map((item) => {
-                  const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
-                  return (
-                    <li key={`${item.href}-${item.label}`}>
-                      <Link
-                        href={item.href}
-                        title={isCollapsed ? item.label : undefined}
-                        className={`mission-nav-item ${isCollapsed ? "mission-nav-collapsed" : ""} ${isActive ? "mission-nav-active" : ""}`}
-                      >
-                        <item.icon className="mission-nav-icon" />
-                        {!isCollapsed && <span>{item.label}</span>}
-                      </Link>
-                    </li>
-                  );
-                })}
+                {group.items.map((item) => (
+                  <li key={`${item.href}-${item.label}`}>
+                    {renderNavItem(item)}
+                  </li>
+                ))}
               </ul>
             </div>
           ))}
