@@ -28,23 +28,18 @@ export default function Dashboard() {
 
   return (
     <div className="mission-shell h-full overflow-y-auto">
-      <div className="mission-canvas">
-        <header className="mission-topbar mission-home-topbar">
-          <div>
-            <h1>Home</h1>
-          </div>
-          <div className="mission-topbar-actions">
-            <Button asChild className="mission-primary-action">
-              <Link href="/tasks">Add work</Link>
-            </Button>
-            <Button asChild variant="outline" className="mission-secondary-action">
-              <Link href="/agent-creation">Create agent</Link>
-            </Button>
-          </div>
+      <div className="mission-canvas mission-home-canvas">
+        <header className="mission-home-actions" aria-label="Home actions">
+          <Button asChild className="mission-primary-action">
+            <Link href="/tasks">Add task</Link>
+          </Button>
+          <Button asChild variant="outline" className="mission-secondary-action">
+            <Link href="/agent-creation">Create agent</Link>
+          </Button>
         </header>
 
         <section className="mission-metric-grid">
-          <MetricCard title="Work open" value={String(totalTasks)} loading={isSummaryLoading || isTasksLoading} tone="blue" />
+          <MetricCard title="Tasks open" value={String(totalTasks)} loading={isSummaryLoading || isTasksLoading} tone="blue" />
           <MetricCard title="In progress" value={String(activeTasks)} loading={isSummaryLoading || isTasksLoading} tone="green" />
           <MetricCard title="AI team" value={String(installedAgents)} loading={isSummaryLoading} tone="violet" />
           <MetricCard title="Knowledge" value={String(memories.length)} loading={false} tone="amber" />
@@ -52,7 +47,7 @@ export default function Dashboard() {
 
         <section className="mission-dashboard-grid">
           <article className="mission-panel mission-panel-large">
-            <PanelTitle title="Work" action="Open" href="/tasks" />
+            <PanelTitle title="Tasks" action="Open" href="/tasks" />
             <div className="mission-work-summary">
               <WorkPill label="Working" value={activeTasks} />
               <WorkPill label="Waiting" value={waitingTasks} />
@@ -61,7 +56,7 @@ export default function Dashboard() {
             <div className="mission-task-list">
               {latestTasks.length === 0 ? (
                 <div className="mission-empty-state">
-                  <span>No work logged</span>
+                  <span>No tasks logged</span>
                 </div>
               ) : latestTasks.map((task) => (
                 <Link href="/tasks" className="mission-task-row" key={task.id}>
@@ -89,7 +84,7 @@ export default function Dashboard() {
             <PanelTitle title="Reports Summary" action="Open" href="/reports" />
             <div className="mission-report-card">
               <strong>{completedTasks}</strong>
-              <span>Reports ready</span>
+              <span>Ready</span>
             </div>
           </article>
         </section>
