@@ -1,95 +1,53 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { getListTasksQueryKey, useCreateTask } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-type IntakeResponse = {
-  accepted: boolean;
-  task?: { id: number; title: string; assignee: string; status: string; priority: string; project: string };
-};
-
 const DEFAULT_PROJECT = "Mission Control";
-const DEFAULT_PRIORITY = "high";
-const PRIMARY_TOKEN_STORAGE_KEY = "mission_control_admin_token";
-const LEGACY_TOKEN_STORAGE_KEY = "missionControlAdminToken";
-
-function getSavedToken() {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(PRIMARY_TOKEN_STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_TOKEN_STORAGE_KEY) ?? "";
-}
-
-function saveToken(token: string) {
-  if (typeof window === "undefined") return;
-  const cleaned = token.trim();
-  if (!cleaned) {
-    window.localStorage.removeItem(PRIMARY_TOKEN_STORAGE_KEY);
-    window.localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
-    return;
-  }
-  window.localStorage.setItem(PRIMARY_TOKEN_STORAGE_KEY, cleaned);
-  window.localStorage.setItem(LEGACY_TOKEN_STORAGE_KEY, cleaned);
-}
+const DEFAULT_PRIORITY = "medium";
+const DEFAULT_STATUS = "backlog";
+const DEFAULT_ASSIGNEE = "Unassigned";
 
 function errorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   return "Unable to add task.";
 }
 
-async function readError(response: Response) {
-  const text = await response.text();
-  if (!text.trim()) return `${response.status} ${response.statusText}`;
-  try {
-    const json = JSON.parse(text) as { error?: string; message?: string };
-    return json.error ?? json.message ?? text;
-  } catch {
-    return text.length > 180 ? `${text.slice(0, 177)}...` : text;
-  }
-}
-
 export function OrchestratorIntakePanel() {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ title: "", description: "", adminToken: getSavedToken() });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<IntakeResponse | null>(null);
+  const createTask = useCreateTask();
+  const [form, setForm] = useState({ title: "", description: "" });
+  const [createdTaskId, setCreatedTaskId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
-    setIsSubmitting(true);
     setError(null);
-    setResult(null);
+    setCreatedTaskId(null);
 
     try {
-      const adminToken = form.adminToken.trim();
-      saveToken(adminToken);
-      const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json" };
-      if (adminToken) {
-        headers.Authorization = `Bearer ${adminToken}`;
-        headers["x-admin-token"] = adminToken;
-      }
-      const response = await fetch("/api/orchestrator/intake", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
+      const task = await createTask.mutateAsync({
+        data: {
           title: form.title.trim(),
           description: form.description.trim(),
-          project: DEFAULT_PROJECT,
+          assignee: DEFAULT_ASSIGNEE,
           priority: DEFAULT_PRIORITY,
-        }),
+          status: DEFAULT_STATUS,
+          project: DEFAULT_PROJECT,
+          dueDate: null,
+        },
       });
-      if (!response.ok) throw new Error(await readError(response));
-      const payload = (await response.json()) as IntakeResponse;
-      setResult(payload);
-      setForm((current) => ({ ...current, title: "", description: "", adminToken }));
-      queryClient.invalidateQueries();
+      setCreatedTaskId(task.id);
+      setForm({ title: "", description: "" });
+      await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
     } catch (submitError) {
       setError(errorMessage(submitError));
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
+  const isSubmitting = createTask.isPending;
   const disabled = isSubmitting || !form.title.trim() || !form.description.trim();
 
   return (
@@ -108,21 +66,12 @@ export function OrchestratorIntakePanel() {
         </Button>
       </div>
 
-      <input
-        type="password"
-        value={form.adminToken}
-        onChange={(event) => setForm((current) => ({ ...current, adminToken: event.target.value }))}
-        className="sr-only"
-        aria-hidden="true"
-        tabIndex={-1}
-      />
-
       {error && <div className="mt-4 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
 
-      {result?.accepted && result.task && (
+      {createdTaskId && (
         <div className="accepted-card task-accepted-simple">
           <span>Added</span>
-          <strong>Task #{result.task.id}</strong>
+          <strong>Task #{createdTaskId}</strong>
         </div>
       )}
     </section>
