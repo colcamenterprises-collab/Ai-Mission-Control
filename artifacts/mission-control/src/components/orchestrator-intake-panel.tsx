@@ -1,21 +1,17 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Loader2, Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 type IntakeResponse = {
   accepted: boolean;
   task?: { id: number; title: string; assignee: string; status: string; priority: string; project: string };
-  orchestratorReview?: { recommendedAgent: string; role: string; department: string; reason: string; confidence: number };
-  allocation?: { agentId: number; agentName: string; commandId: number; delivery: string; nextStep: string };
 };
 
-const PROJECTS = ["Mission Control", "HHA", "SBB App Staging", "SBB App Production", "Customli Website", "SBB Website"];
-const PRIORITIES = ["low", "medium", "high", "critical"];
+const DEFAULT_PROJECT = "Mission Control";
+const DEFAULT_PRIORITY = "high";
 const PRIMARY_TOKEN_STORAGE_KEY = "mission_control_admin_token";
 const LEGACY_TOKEN_STORAGE_KEY = "missionControlAdminToken";
 
@@ -38,7 +34,7 @@ function saveToken(token: string) {
 
 function errorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
-  return "Unable to add work.";
+  return "Unable to add task.";
 }
 
 async function readError(response: Response) {
@@ -54,7 +50,7 @@ async function readError(response: Response) {
 
 export function OrchestratorIntakePanel() {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ title: "", description: "", project: "Mission Control", priority: "high", adminToken: getSavedToken() });
+  const [form, setForm] = useState({ title: "", description: "", adminToken: getSavedToken() });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<IntakeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +71,12 @@ export function OrchestratorIntakePanel() {
       const response = await fetch("/api/orchestrator/intake", {
         method: "POST",
         headers,
-        body: JSON.stringify({ title: form.title.trim(), description: form.description.trim(), project: form.project, priority: form.priority }),
+        body: JSON.stringify({
+          title: form.title.trim(),
+          description: form.description.trim(),
+          project: DEFAULT_PROJECT,
+          priority: DEFAULT_PRIORITY,
+        }),
       });
       if (!response.ok) throw new Error(await readError(response));
       const payload = (await response.json()) as IntakeResponse;
@@ -92,63 +93,36 @@ export function OrchestratorIntakePanel() {
   const disabled = isSubmitting || !form.title.trim() || !form.description.trim();
 
   return (
-    <section className="workspace-panel orchestrator-intake p-4 md:p-5">
-      <div className="intake-head">
-        <div>
-          <span className="dashboard-topline"><Sparkles className="h-3.5 w-3.5" /> Add work</span>
-          <h2>What needs doing?</h2>
+    <section className="workspace-panel orchestrator-intake task-intake-simple p-4 md:p-5">
+      <div className="task-intake-grid">
+        <div className="space-y-1.5">
+          <Label>Task Title</Label>
+          <Input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
         </div>
+        <div className="space-y-1.5">
+          <Label>Description</Label>
+          <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={3} />
+        </div>
+        <Button className="task-intake-button" disabled={disabled} onClick={submit}>
+          {isSubmitting ? "Adding" : "Add Task"}
+        </Button>
       </div>
 
-      <div className="intake-grid">
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Work title</Label>
-            <Input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="Example: Prepare tomorrow's sales report" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>What should happen?</Label>
-            <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Describe the outcome, deadline, and anything the AI worker needs to know." rows={4} />
-          </div>
-        </div>
-
-        <div className="intake-side">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>Business area</Label>
-              <Select value={form.project} onValueChange={(value) => setForm((current) => ({ ...current, project: value }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{PROJECTS.map((project) => <SelectItem key={project} value={project}>{project}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Importance</Label>
-              <Select value={form.priority} onValueChange={(value) => setForm((current) => ({ ...current, priority: value }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{PRIORITIES.map((priority) => <SelectItem key={priority} value={priority}>{priority}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <details className="advanced-token">
-            <summary>Advanced access</summary>
-            <Input type="password" value={form.adminToken} onChange={(event) => setForm((current) => ({ ...current, adminToken: event.target.value }))} placeholder="Saved in Setup" />
-          </details>
-
-          <Button className="w-full gap-2" disabled={disabled} onClick={submit}>
-            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {isSubmitting ? "Adding" : "Add work"}
-          </Button>
-        </div>
-      </div>
+      <input
+        type="password"
+        value={form.adminToken}
+        onChange={(event) => setForm((current) => ({ ...current, adminToken: event.target.value }))}
+        className="sr-only"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
 
       {error && <div className="mt-4 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
 
-      {result?.accepted && result.task && result.orchestratorReview && result.allocation && (
-        <div className="accepted-card">
-          <div><CheckCircle2 className="h-4 w-4" /><span>Added</span><strong>Work #{result.task.id}</strong></div>
-          <div><span>AI worker</span><strong>{result.orchestratorReview.recommendedAgent}</strong></div>
-          <div><span>Status</span><strong>Ready</strong></div>
+      {result?.accepted && result.task && (
+        <div className="accepted-card task-accepted-simple">
+          <span>Added</span>
+          <strong>Task #{result.task.id}</strong>
         </div>
       )}
     </section>
