@@ -3,10 +3,8 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
   CheckSquare,
-  PenTool,
   CalendarDays,
   Users,
-  UsersRound,
   Settings,
   Activity,
   BookOpen,
@@ -15,6 +13,11 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   BarChart3,
+  KeyRound,
+  UserPlus,
+  Sparkles,
+  BriefcaseBusiness,
+  ClipboardList,
 } from "lucide-react";
 import { CustomliLogo } from "@/components/customli-logo";
 import { useTheme } from "@/lib/theme";
@@ -37,29 +40,35 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const navGroups: NavGroup[] = [
     {
-      label: "Main",
+      label: "Home",
       items: [
         { href: "/", label: "Overview", icon: LayoutDashboard },
-        { href: "/tasks", label: "Work", icon: CheckSquare },
         { href: "/team", label: "AI Team", icon: Users },
-        { href: "/reports", label: "Reports", icon: BarChart3 },
+        { href: "/reports-summary", label: "Reports Summary", icon: BarChart3 },
       ],
     },
     {
       label: "Operations",
       items: [
-        { href: "/memory", label: "Knowledge", icon: Activity },
-        { href: "/skills", label: "Agent Instructions", icon: BookOpen },
-        { href: "/workspaces", label: "Projects", icon: LayoutDashboard },
+        { href: "/tasks", label: "Work", icon: ClipboardList },
+        { href: "/workspaces", label: "Projects", icon: BriefcaseBusiness },
+        { href: "/calendar", label: "Planner", icon: CalendarDays },
+        { href: "/reports", label: "Reports", icon: BarChart3 },
       ],
     },
     {
-      label: "Tools",
+      label: "System",
       items: [
-        { href: "/content", label: "Marketing", icon: PenTool },
-        { href: "/calendar", label: "Planner", icon: CalendarDays },
-        { href: "/contacts", label: "People", icon: UsersRound },
-        { href: "/settings", label: "Setup", icon: Settings },
+        { href: "/memory", label: "Agent Memory", icon: Activity },
+        { href: "/skills", label: "Agent Instructions", icon: BookOpen },
+        { href: "/secrets", label: "Secrets", icon: KeyRound },
+        { href: "/agent-creation", label: "Agent Creation", icon: UserPlus },
+      ],
+    },
+    {
+      label: "Onboarding",
+      items: [
+        { href: "/onboarding", label: "Getting Started", icon: Sparkles },
       ],
     },
   ];
@@ -105,7 +114,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <button onClick={() => setIsCollapsed((value) => !value)} aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"} className="mission-collapse-button">
             {isCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
           </button>
-          {!isCollapsed && <span>System ready</span>}
+          {!isCollapsed && <span>Work ready</span>}
         </div>
       </aside>
       <main className="mission-main-canvas relative z-10 flex-1 flex flex-col h-screen overflow-hidden bg-transparent">
