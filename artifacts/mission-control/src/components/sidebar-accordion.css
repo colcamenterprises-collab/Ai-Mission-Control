@@ -1,0 +1,54 @@
+.mission-nav-group-trigger {
+  width: 100%;
+  min-height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 0 !important;
+  border-radius: 0.72rem !important;
+  background: transparent !important;
+  padding: 0 0.55rem !important;
+  color: rgba(203, 213, 225, 0.78) !important;
+  font-size: 0.8rem !important;
+  font-weight: 560 !important;
+  letter-spacing: -0.02em !important;
+  box-shadow: none !important;
+}
+
+.mission-nav-group-trigger:hover {
+  background: rgba(255, 255, 255, 0.045) !important;
+  color: rgba(248, 250, 252, 0.95) !important;
+}
+
+.mission-nav-group-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mission-nav-chevron {
+  width: 0.9rem !important;
+  height: 0.9rem !important;
+  flex: 0 0 auto;
+  color: rgba(203, 213, 225, 0.62) !important;
+  transition: transform 160ms ease, color 160ms ease;
+}
+
+.mission-nav-group.is-open .mission-nav-chevron {
+  transform: rotate(180deg);
+  color: rgba(248, 250, 252, 0.82) !important;
+}
+
+.mission-nav-group ul {
+  margin-top: 0.25rem;
+  padding-left: 0;
+}
+
+.mission-nav-group.is-closed {
+  margin-bottom: 0.35rem;
+}
+
+.mission-nav-group .mission-nav-item {
+  margin-left: 0.35rem;
+}
