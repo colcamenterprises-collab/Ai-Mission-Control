@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { ChevronDown, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { CustomliLogo } from "@/components/customli-logo";
 import { useTheme } from "@/lib/theme";
+import "./sidebar-accordion.css";
 
 type NavItem = {
   href: string;
