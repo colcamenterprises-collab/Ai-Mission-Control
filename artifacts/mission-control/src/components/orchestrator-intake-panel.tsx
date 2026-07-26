@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { getListTasksQueryKey, useCreateTask } from "@workspace/api-client-react";
+import { getListTasksQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,8 +9,14 @@ import { ArrowUpRight, Sparkles } from "lucide-react";
 
 const DEFAULT_PROJECT = "Mission Control";
 const DEFAULT_PRIORITY = "medium";
-const DEFAULT_STATUS = "backlog";
-const DEFAULT_ASSIGNEE = "Unassigned";
+const PRIMARY_TOKEN_STORAGE_KEY = "mission_control_admin_token";
+const LEGACY_TOKEN_STORAGE_KEY = "missionControlAdminToken";
+
+type IntakeResult = {
+  task: { id: number; status: string };
+  orchestratorReview: { recommendedAgent: string; confidence: number };
+  allocation: { delivery: string; nextStep: string } | null;
+};
 
 function errorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
@@ -19,36 +25,42 @@ function errorMessage(error: unknown) {
 
 export function OrchestratorIntakePanel() {
   const queryClient = useQueryClient();
-  const createTask = useCreateTask();
   const [form, setForm] = useState({ title: "", description: "" });
-  const [createdTaskId, setCreatedTaskId] = useState<number | null>(null);
+  const [created, setCreated] = useState<IntakeResult | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
     setError(null);
-    setCreatedTaskId(null);
+    setCreated(null);
+    setIsSubmitting(true);
 
     try {
-      const task = await createTask.mutateAsync({
-        data: {
+      const token = localStorage.getItem(PRIMARY_TOKEN_STORAGE_KEY) ?? localStorage.getItem(LEGACY_TOKEN_STORAGE_KEY);
+      const response = await fetch("/api/orchestrator/intake", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}`, "x-admin-token": token } : {}),
+        },
+        body: JSON.stringify({
           title: form.title.trim(),
           description: form.description.trim(),
-          assignee: DEFAULT_ASSIGNEE,
-          priority: DEFAULT_PRIORITY,
-          status: DEFAULT_STATUS,
           project: DEFAULT_PROJECT,
-          dueDate: null,
-        },
+          priority: DEFAULT_PRIORITY,
+        }),
       });
-      setCreatedTaskId(task.id);
+      const body = await response.json() as IntakeResult | { error?: string };
+      if (!response.ok) throw new Error("error" in body ? body.error : `Unable to add work (HTTP ${response.status}).`);
+      setCreated(body as IntakeResult);
       setForm({ title: "", description: "" });
       await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
     } catch (submitError) {
       setError(errorMessage(submitError));
-    }
+    } finally { setIsSubmitting(false); }
   };
 
-  const isSubmitting = createTask.isPending;
   const disabled = isSubmitting || !form.title.trim() || !form.description.trim();
 
   return (
@@ -73,10 +85,10 @@ export function OrchestratorIntakePanel() {
 
       {error && <div className="mt-4 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
 
-      {createdTaskId && (
+      {created && (
         <div className="accepted-card task-accepted-simple">
-          <span>Work added</span>
-          <strong>Reference #{createdTaskId}</strong>
+          <span>{created.orchestratorReview.recommendedAgent === "Unassigned" ? "Work added for triage" : `Routed to ${created.orchestratorReview.recommendedAgent}`}</span>
+          <strong>Reference #{created.task.id} · {created.allocation?.delivery === "runtime_completed" ? "Ready for review" : "Queued"}</strong>
         </div>
       )}
     </section>

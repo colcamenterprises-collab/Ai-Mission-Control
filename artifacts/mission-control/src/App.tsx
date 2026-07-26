@@ -12,7 +12,6 @@ import Memory from "@/pages/memory";
 import Workspaces from "@/pages/workspaces";
 import Team from "@/pages/team";
 import Skills from "@/pages/skills";
-import Contacts from "@/pages/contacts";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
 import Secrets from "@/pages/secrets";
@@ -47,7 +46,6 @@ function Router() {
         <Route path="/skills" component={Skills} />
         <Route path="/secrets" component={Secrets} />
         <Route path="/onboarding" component={Onboarding} />
-        <Route path="/contacts" component={Contacts} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>

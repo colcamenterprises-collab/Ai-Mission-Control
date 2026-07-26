@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   db,
   agentsTable,
@@ -13,7 +13,7 @@ import {
 import { getAgentFromBearer } from "../lib/auth.js";
 import { createRateLimit } from "../lib/rate-limit.js";
 import { auditLog } from "../lib/audit.js";
-import { decryptSecret, generateAgentToken, hashToken } from "../lib/security.js";
+import { generateAgentToken, hashToken } from "../lib/security.js";
 import {
   AgentPingBody,
   AgentReportBody,
@@ -123,8 +123,11 @@ router.post("/agent/command/:id/ack", createRateLimit("agent-ack", 60, 60_000), 
     return;
   }
 
-  const [cmd] = await db.update(agentCommandsTable).set({ acknowledgedAt: new Date() }).where(eq(agentCommandsTable.id, params.data.id)).returning();
-  if (!cmd || cmd.agentId !== agent.id) {
+  const [cmd] = await db.update(agentCommandsTable)
+    .set({ acknowledgedAt: new Date() })
+    .where(and(eq(agentCommandsTable.id, params.data.id), eq(agentCommandsTable.agentId, agent.id)))
+    .returning();
+  if (!cmd) {
     res.status(404).json({ error: "Command not found" });
     return;
   }
@@ -148,11 +151,17 @@ router.post("/agent/report", createRateLimit("agent-report", 60, 60_000), async 
   const { type, content, taskId, taskStatus, memoryTitle, memoryCategory } = parsed.data;
   const actionLabel = type === "task_complete" ? "Completed task" : type === "memory" ? "Stored memory" : content.slice(0, 80);
 
-  const [activity] = await db.insert(activityTable).values({ agentName: agent.name, action: actionLabel, detail: content, status: "active" }).returning();
-
   if (type === "task_complete" && taskId) {
-    await db.update(tasksTable).set({ status: (taskStatus ?? "done") as typeof tasksTable.$inferInsert["status"] }).where(eq(tasksTable.id, taskId));
+    const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, taskId));
+    if (!task || task.assignee !== agent.name) {
+      res.status(403).json({ error: "This worker is not assigned to that work item." });
+      return;
+    }
+    const requestedStatus = taskStatus === "blocked" ? "blocked" : "review";
+    await db.update(tasksTable).set({ status: requestedStatus }).where(eq(tasksTable.id, taskId));
   }
+
+  const [activity] = await db.insert(activityTable).values({ agentName: agent.name, action: actionLabel, detail: content, status: "active" }).returning();
 
   if (type === "memory" && memoryTitle) {
     await db.insert(memoriesTable).values({ title: memoryTitle, content, category: memoryCategory ?? "knowledge", preview: content.slice(0, 150) });
@@ -239,12 +248,12 @@ router.post("/agents/:id/test-task", createRateLimit("admin-agent-test-task", 10
   const result = await dispatchRuntime(agent, { mode: "work", instructions, context: contextWithSkills, taskId: task.id, commandId: command.id });
 
   await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: result.ok || result.delivery === "webhook" }).where(eq(agentCommandsTable.id, command.id));
-  await db.update(tasksTable).set({ status: result.ok ? "done" : "blocked" }).where(eq(tasksTable.id, task.id));
-  await db.update(agentsTable).set({ status: result.ok ? (isJamesHermes(agent) ? "active" : "idle") : "error", currentTask: result.ok ? null : `Task #${task.id}: ${title}`, lastActive: result.ok ? "work report saved with playbooks" : "test task failed", lastPing: result.ok ? new Date() : agent.lastPing, tasksCompleted: result.ok ? agent.tasksCompleted + 1 : agent.tasksCompleted }).where(eq(agentsTable.id, agent.id));
+  await db.update(tasksTable).set({ status: result.ok ? "review" : "blocked" }).where(eq(tasksTable.id, task.id));
+  await db.update(agentsTable).set({ status: result.ok ? (isJamesHermes(agent) ? "active" : "idle") : "error", currentTask: result.ok ? null : `Task #${task.id}: ${title}`, lastActive: result.ok ? "work response awaiting review" : "test task failed", lastPing: result.ok ? new Date() : agent.lastPing }).where(eq(agentsTable.id, agent.id));
 
   const [activity] = await db.insert(activityTable).values({
     agentName: agent.name,
-    action: result.ok ? "Completed test work with playbooks" : "Test work failed",
+    action: result.ok ? "Test work response received — awaiting review" : "Test work failed",
     detail: result.output ?? result.error,
     status: result.ok ? "active" : "error",
   }).returning();
@@ -290,14 +299,14 @@ router.post("/agents/:id/dispatch", createRateLimit("admin-dispatch", 20, 60_000
     output = result.output;
     if (dispatched) {
       await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: true }).where(eq(agentCommandsTable.id, command.id));
-      if (taskId) await db.update(tasksTable).set({ status: "done" }).where(eq(tasksTable.id, taskId));
-      await db.update(agentsTable).set({ status: isJamesHermes(agent) ? "active" : "idle", currentTask: null, lastActive: "dispatch completed with playbooks", lastPing: new Date(), tasksCompleted: agent.tasksCompleted + 1 }).where(eq(agentsTable.id, agent.id));
+      if (taskId) await db.update(tasksTable).set({ status: "review" }).where(eq(tasksTable.id, taskId));
+      await db.update(agentsTable).set({ status: isJamesHermes(agent) ? "active" : "idle", currentTask: null, lastActive: "dispatch response awaiting review", lastPing: new Date() }).where(eq(agentsTable.id, agent.id));
     }
   }
 
   await db.insert(activityTable).values({
     agentName: agent.name,
-    action: dispatched ? "Completed dispatch with playbooks" : "Command queued — waiting for worker",
+    action: dispatched ? "Worker response received — awaiting review" : "Command queued — waiting for worker",
     detail: output ?? `${instructions.slice(0, 200)}${httpError ? ` — ${httpError}` : ""}`,
     status: dispatched ? "active" : "pending",
   });
@@ -337,6 +346,9 @@ router.get("/agent/tools", createRateLimit("agent-tools", 20, 60_000), async (re
     .innerJoin(agentToolsTable, eq(agentToolAccessTable.toolId, agentToolsTable.id))
     .where(eq(agentToolAccessTable.agentId, agent.id));
 
+  // Worker tokens may discover their granted tools, but must never receive
+  // reusable API keys or passwords. Provider calls remain server-side until a
+  // narrowly scoped tool-proxy contract is introduced.
   const tools = rows.filter(r => r.tool.isActive).map(r => ({
     id: r.tool.id,
     name: r.tool.name,
@@ -344,11 +356,9 @@ router.get("/agent/tools", createRateLimit("agent-tools", 20, 60_000), async (re
     url: r.tool.url,
     category: r.tool.category,
     credentialType: r.tool.credentialType,
-    apiKey: decryptSecret(r.tool.apiKey),
-    username: decryptSecret(r.tool.username),
-    password: decryptSecret(r.tool.password),
     notes: r.tool.notes,
     isActive: r.tool.isActive,
+    credentialAvailable: Boolean(r.tool.apiKey || r.tool.username || r.tool.password),
   }));
 
   await auditLog({ action: "requested", entityType: "agent_tool_credentials", entityId: agent.id, actorType: "agent", actorName: agent.name });
