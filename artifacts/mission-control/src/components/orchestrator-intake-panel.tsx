@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ArrowUpRight, Sparkles } from "lucide-react";
 
 const DEFAULT_PROJECT = "Mission Control";
 const DEFAULT_PRIORITY = "medium";
@@ -52,17 +53,21 @@ export function OrchestratorIntakePanel() {
 
   return (
     <section className="workspace-panel orchestrator-intake task-intake-simple p-4 md:p-5">
+      <div className="task-intake-heading">
+        <div className="task-intake-icon"><Sparkles /></div>
+        <div><p>New work</p><span>Tell us what needs doing. The right worker will be selected for it.</span></div>
+      </div>
       <div className="task-intake-grid">
         <div className="space-y-1.5">
-          <Label>Task Title</Label>
-          <Input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
+          <Label>What needs doing?</Label>
+          <Input placeholder="Short title" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
         </div>
         <div className="space-y-1.5">
-          <Label>Description</Label>
-          <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={3} />
+          <Label>Give it context</Label>
+          <Textarea placeholder="What does good look like? Add any useful detail." value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={3} />
         </div>
         <Button className="task-intake-button" disabled={disabled} onClick={submit}>
-          {isSubmitting ? "Adding" : "Add Task"}
+          {isSubmitting ? "Sending" : <>Send work <ArrowUpRight /></>}
         </Button>
       </div>
 
@@ -70,8 +75,8 @@ export function OrchestratorIntakePanel() {
 
       {createdTaskId && (
         <div className="accepted-card task-accepted-simple">
-          <span>Added</span>
-          <strong>Task #{createdTaskId}</strong>
+          <span>Work added</span>
+          <strong>Reference #{createdTaskId}</strong>
         </div>
       )}
     </section>
