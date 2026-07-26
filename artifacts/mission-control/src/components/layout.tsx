@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ChevronDown, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
+import { ChevronDown, PanelLeftClose, PanelLeftOpen, LayoutDashboard, ListTodo, Users, FileText, Brain, BookOpen, Zap, Boxes, Megaphone, CalendarDays, ContactRound, Settings } from "lucide-react";
 import { CustomliLogo } from "@/components/customli-logo";
-import { useTheme } from "@/lib/theme";
 import "./sidebar-accordion.css";
 
 type NavItem = {
   href: string;
   label: string;
+  icon: React.ComponentType<{ className?: string }>;
 };
 
 type NavGroup = {
@@ -17,39 +17,33 @@ type NavGroup = {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { theme, toggle } = useTheme();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     Operations: true,
-    System: false,
-    Onboarding: false,
+    Tools: true,
   });
 
-  const homeItem: NavItem = { href: "/", label: "Home" };
+  const homeItem: NavItem = { href: "/", label: "Overview", icon: LayoutDashboard };
 
   const navGroups: NavGroup[] = [
     {
       label: "Operations",
       items: [
-        { href: "/tasks", label: "Tasks" },
-        { href: "/workspaces", label: "Projects" },
-        { href: "/calendar", label: "Planner" },
-        { href: "/reports", label: "Reports" },
+        { href: "/tasks", label: "Work", icon: ListTodo },
+        { href: "/agent-creation", label: "AI Team", icon: Users },
+        { href: "/reports", label: "Reports", icon: FileText },
+        { href: "/workspaces", label: "Projects", icon: Boxes },
       ],
     },
     {
-      label: "System",
+      label: "Tools",
       items: [
-        { href: "/memory", label: "Agent Memory" },
-        { href: "/skills", label: "Agent Instructions" },
-        { href: "/secrets", label: "Secrets" },
-        { href: "/agent-creation", label: "Agent Creation" },
-      ],
-    },
-    {
-      label: "Onboarding",
-      items: [
-        { href: "/onboarding", label: "Getting Started" },
+        { href: "/memory", label: "Knowledge", icon: Brain },
+        { href: "/skills", label: "Playbooks", icon: BookOpen },
+        { href: "/settings", label: "Automations & setup", icon: Zap },
+        { href: "/content", label: "Marketing", icon: Megaphone },
+        { href: "/calendar", label: "Planner", icon: CalendarDays },
+        { href: "/contacts", label: "People", icon: ContactRound },
       ],
     },
   ];
@@ -63,6 +57,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         title={isCollapsed ? item.label : undefined}
         className={`mission-nav-item ${isCollapsed ? "mission-nav-collapsed" : ""} ${isActive ? "mission-nav-active" : ""}`}
       >
+        <item.icon className="mission-nav-icon" />
         {!isCollapsed && <span>{item.label}</span>}
       </Link>
     );
@@ -78,12 +73,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <aside className={`${isCollapsed ? "w-[4.25rem]" : "w-48 lg:w-52"} mission-sidebar relative z-10 flex-shrink-0 flex flex-col transition-[width] duration-200`}>
         <div className={`mission-sidebar-top ${isCollapsed ? "justify-center px-2" : "px-4"}`}>
           <CustomliLogo compact={isCollapsed} />
-          {!isCollapsed && <div className="flex-1" />}
-          <button onClick={toggle} aria-label="Toggle theme" className="theme-pill">
-            <span className={`theme-pill-thumb ${theme === "dark" ? "translate-x-5" : "translate-x-0"}`} />
-            <Sun className={`theme-pill-icon theme-pill-sun ${theme === "dark" ? "opacity-40" : "opacity-100"}`} />
-            <Moon className={`theme-pill-icon theme-pill-moon ${theme === "dark" ? "opacity-100" : "opacity-40"}`} />
-          </button>
+          {!isCollapsed && <div className="mission-sidebar-status"><span /> Systems ready</div>}
         </div>
         <nav className="mission-sidebar-nav" aria-label="Main navigation">
           <div className="mission-nav-home">
