@@ -90,8 +90,8 @@ export default function Reports() {
       <div className="workspaces-canvas space-y-4">
         <header className="mission-page-hero workspace-panel">
           <p className="workspace-eyebrow">Reports</p>
-          <h1 className="mission-page-title">Work reports and activity.</h1>
-          <p className="mission-page-subtitle">Review what your AI workers were asked, what they returned, what was saved, and what needs owner attention.</p>
+          <h1 className="mission-page-title">Reports.</h1>
+          <p className="mission-page-subtitle">Review completed work, saved outcomes and anything that needs your attention.</p>
         </header>
 
         <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -160,7 +160,7 @@ export default function Reports() {
                     {needsOwnerReview(selected) && <Badge variant="outline" className="border-yellow-400/20 bg-yellow-400/10 text-yellow-100">Owner review</Badge>}
                   </div>
                   <p className="workspace-eyebrow">Worker response</p>
-                  <pre className="mt-3 max-h-[34rem] overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-background/50 p-4 text-sm leading-relaxed text-foreground">{selected.detail || "No response detail saved."}</pre>
+                  <div className="mt-3 max-h-[34rem] overflow-auto whitespace-pre-wrap rounded-xl border border-border bg-background/50 p-4 text-sm leading-relaxed text-foreground">{selected.detail || "No response detail saved."}</div>
                 </div>
               </div>
             ) : (
