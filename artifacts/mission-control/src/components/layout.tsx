@@ -1,4 +1,3 @@
-artifacts/mission-control/src/App.tsx
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ChevronDown, PanelLeftClose, PanelLeftOpen, LayoutDashboard, ListTodo, Users, FileText, Brain, BookOpen, Zap, Boxes, Megaphone, CalendarDays } from "lucide-react";
