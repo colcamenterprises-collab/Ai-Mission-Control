@@ -1,4 +1,3 @@
-artifacts/api-server/src/routes/orchestrator.ts
 import { execFile, spawn } from "node:child_process";
 import {
   mkdir,
