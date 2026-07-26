@@ -46,8 +46,8 @@ assert.match(ensureSource, /CREATE INDEX IF NOT EXISTS events_start_date_idx ON 
 
 assert.match(deploySource, /run_pnpm run db:ensure-operational-schema/);
 assert.ok(
-  deploySource.indexOf("run_pnpm run db:ensure-operational-schema") < deploySource.lastIndexOf("run_smoke_if_available"),
-  "deploy must ensure schema before smoke",
+  deploySource.indexOf("run_pnpm run db:ensure-operational-schema") < deploySource.indexOf("run_pnpm run build"),
+  "deploy must ensure the additive schema before building and restarting the service",
 );
 
 console.log("Operational schema contract checks passed.");
