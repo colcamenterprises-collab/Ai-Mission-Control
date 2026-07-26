@@ -594,7 +594,7 @@ button[variant="outline"] {
 .mission-nav-group .mission-nav-item { margin-left:0 !important; }
 .mission-nav-item { justify-content:center; min-height:3rem; padding:0 !important; border-radius:1rem !important; }
 .mission-nav-item span { display:none !important; }
-.mission-nav-icon { width:1.18rem !important; height:1.18rem !important; opacity:.62; }
+.mission-nav-item .mission-nav-icon { display:block !important; width:1.18rem !important; height:1.18rem !important; opacity:.62; }
 .mission-nav-item:hover { transform:translateY(-1px); background:rgba(255,255,255,.07) !important; }
 .mission-nav-active { background:linear-gradient(145deg,rgba(124,92,251,.32),rgba(118,92,255,.12)) !important; box-shadow:0 8px 22px rgba(79,70,229,.2), inset 0 1px 0 rgba(255,255,255,.1) !important; border-color:rgba(139,92,246,.34) !important; }
 .mission-nav-active .mission-nav-icon { color:#c4b5fd; opacity:1; }
@@ -619,6 +619,13 @@ button[variant="outline"] {
 .mission-task-row,.task-card-minimal { border-radius:1rem !important; background:rgba(7,7,9,.45) !important; }
 .mission-work-pill,.mission-report-card { background:rgba(255,255,255,.045) !important; border-color:rgba(255,255,255,.09) !important; }
 @media (max-width:760px) { .mission-sidebar { width:5.5rem !important; min-width:5.5rem; } }
+
+/* Android tablet portrait and split-screen: preserve the dashboard's density. */
+@media (min-width: 560px) and (max-width: 760px) {
+  .mission-metric-grid,.dashboard-kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  .mission-metric-card { min-height:7.15rem; padding:1rem !important; }
+  .mission-metric-card strong { font-size:2.25rem !important; }
+}
 
 /* Foundation reset — one calm, dark Mission Control surface. */
 :root {
