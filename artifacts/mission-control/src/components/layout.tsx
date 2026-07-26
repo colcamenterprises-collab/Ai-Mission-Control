@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ChevronDown, PanelLeftClose, PanelLeftOpen, LayoutDashboard, ListTodo, Users, FileText, Brain, BookOpen, Zap, Boxes, Megaphone, CalendarDays, ContactRound } from "lucide-react";
+import { ChevronDown, PanelLeftClose, PanelLeftOpen, LayoutDashboard, ListTodo, Users, FileText, Brain, BookOpen, Zap, Boxes, Megaphone, CalendarDays } from "lucide-react";
 import { CustomliLogo } from "@/components/customli-logo";
 import "./sidebar-accordion.css";
 
@@ -43,7 +43,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         { href: "/settings", label: "Automations & setup", icon: Zap },
         { href: "/content", label: "Marketing", icon: Megaphone },
         { href: "/calendar", label: "Planner", icon: CalendarDays },
-        { href: "/contacts", label: "People", icon: ContactRound },
       ],
     },
   ];
