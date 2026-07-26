@@ -223,7 +223,7 @@ export type AgentLaunchResult = {
   error: string | null;
 };
 
-const configuredRepositories: WorktreeRepositoryConfig[] = [
+const defaultConfiguredRepositories: WorktreeRepositoryConfig[] = [
   {
     id: "mission-control",
     displayName: "Mission Control",
@@ -234,6 +234,45 @@ const configuredRepositories: WorktreeRepositoryConfig[] = [
     metadataPath: path.join(DEFAULT_WORKTREE_ROOT, METADATA_FILE_NAME),
   },
 ];
+
+/**
+ * Repository inventory is deliberately configuration-backed rather than
+ * hardcoded. This keeps Projects truthful: a repository appears only when its
+ * server path has been explicitly registered, while its git state is still
+ * read live from that path.
+ *
+ * MISSION_CONTROL_REPOSITORIES accepts a JSON array containing id,
+ * displayName, rootPath, defaultBaseBranch?, worktreeRoot? and
+ * productionProtected?. Invalid entries are ignored; the Mission Control
+ * repository remains available as a safe default.
+ */
+function configuredRepositories(): WorktreeRepositoryConfig[] {
+  const raw = process.env.MISSION_CONTROL_REPOSITORIES?.trim();
+  if (!raw) return defaultConfiguredRepositories;
+  try {
+    const items = JSON.parse(raw) as Array<Partial<WorktreeRepositoryConfig>>;
+    if (!Array.isArray(items)) return defaultConfiguredRepositories;
+    const repos = items.flatMap((item) => {
+      if (!item.id || !item.displayName || !item.rootPath || !path.isAbsolute(item.rootPath)) return [];
+      const rootPath = path.normalize(item.rootPath);
+      const worktreeRoot = item.worktreeRoot && path.isAbsolute(item.worktreeRoot)
+        ? path.normalize(item.worktreeRoot)
+        : path.join(rootPath, ".mission-control", "worktrees");
+      return [{
+        id: item.id,
+        displayName: item.displayName,
+        rootPath,
+        defaultBaseBranch: item.defaultBaseBranch || "main",
+        worktreeRoot,
+        productionProtected: item.productionProtected ?? false,
+        metadataPath: path.join(worktreeRoot, METADATA_FILE_NAME),
+      }];
+    });
+    return repos.length ? repos : defaultConfiguredRepositories;
+  } catch {
+    return defaultConfiguredRepositories;
+  }
+}
 
 function createDefaultWorktreeMeta(displayName: string | null): WorktreeMeta {
   return {
@@ -442,14 +481,14 @@ function resolveAgent(
 }
 
 function getAllowedWorkspaceRoots(): string[] {
-  return configuredRepositories.flatMap((repo) => [
+  return configuredRepositories().flatMap((repo) => [
     normalizeAbsolutePath(repo.rootPath),
     normalizeAbsolutePath(repo.worktreeRoot),
   ]);
 }
 
 function findRepository(repoId: string): WorktreeRepositoryConfig {
-  const repo = configuredRepositories.find(
+  const repo = configuredRepositories().find(
     (candidate) => candidate.id === repoId,
   );
   if (!repo) {
@@ -537,7 +576,7 @@ function parsePorcelainWorktreeList(
 }
 
 export function listConfiguredWorktreeRepositories(): WorktreeRepositoryConfig[] {
-  return configuredRepositories.map((repo) => ({ ...repo }));
+  return configuredRepositories().map((repo) => ({ ...repo }));
 }
 
 export function validateBranchName(branchName: string): BranchNameValidation {
