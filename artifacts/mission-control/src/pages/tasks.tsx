@@ -8,13 +8,11 @@ import "./tasks-simple.css";
 
 type MissionTask = Task & { status: Task["status"] };
 
-const COLUMNS: Array<{ id: Task["status"]; label: string }> = [
-  { id: "backlog", label: "To Do" },
-  { id: "ready", label: "Ready" },
-  { id: "running", label: "Working" },
-  { id: "blocked", label: "Blocked" },
-  { id: "review", label: "Review" },
-  { id: "done", label: "Done" },
+const COLUMNS: Array<{ id: Task["status"]; label: string; matches: Task["status"][] }> = [
+  { id: "backlog", label: "To do", matches: ["backlog", "ready"] },
+  { id: "running", label: "Working", matches: ["running", "in_progress"] },
+  { id: "review", label: "Owner review", matches: ["review", "blocked"] },
+  { id: "done", label: "Done", matches: ["done"] },
 ];
 
 export default function Tasks() {
@@ -43,7 +41,7 @@ export default function Tasks() {
           {isLoading ? (
             COLUMNS.map((column) => <div className="task-lane workspace-panel" key={column.id}><Skeleton className="h-5 w-20" /><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div>)
           ) : COLUMNS.map((column) => {
-            const laneTasks = filteredTasks.filter((task) => task.status === column.id || (column.id === "running" && task.status === "in_progress"));
+            const laneTasks = filteredTasks.filter((task) => column.matches.includes(task.status));
             return (
               <div className="task-lane workspace-panel" key={column.id}>
                 <div className="task-lane-head">
@@ -69,7 +67,7 @@ function TaskCard({ task, onMove }: { task: MissionTask; onMove: (task: MissionT
     <article className="task-card-minimal">
       <div className="task-card-main">
         <h3>{task.title}</h3>
-        <span>{task.assignee || "Unassigned"}</span>
+        <span>{task.assignee || "Awaiting allocation"} · {task.priority} priority</span>
       </div>
       {nextStatus && <button type="button" onClick={() => onMove(task, nextStatus)}>Move</button>}
     </article>
