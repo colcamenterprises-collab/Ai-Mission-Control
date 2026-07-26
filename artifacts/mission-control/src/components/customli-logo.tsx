@@ -10,7 +10,7 @@ export function CustomliLogo({ compact = false }: CustomliLogoProps) {
     >
       <img
         className="customli-mark mission-logo-mark"
-        src="/customli-logo-transparent.svg"
+        src="/customli-mission-control-logo.png"
         alt="Customli"
         draggable={false}
       />

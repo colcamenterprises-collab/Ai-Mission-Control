@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useListTasks, useMoveTask, getListTasksQueryKey, type Task } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ListTodo, MoreHorizontal, ArrowRight } from "lucide-react";
 import { OrchestratorIntakePanel } from "@/components/orchestrator-intake-panel";
 import "./workspaces.css";
 import "./tasks-simple.css";
@@ -35,6 +36,10 @@ export default function Tasks() {
   return (
     <div className="workspaces-shell h-full overflow-y-auto">
       <div className="workspaces-canvas tasks-canvas-simple space-y-4">
+        <header className="work-hero">
+          <div><p>Mission Control</p><h1>Work.</h1><span>Everything moving across your business, in one clear view.</span></div>
+          <div className="work-hero-summary"><ListTodo /><strong>{tasks.length}</strong><span>open items</span></div>
+        </header>
         <OrchestratorIntakePanel />
 
         <section className="task-board-grid">
@@ -45,8 +50,8 @@ export default function Tasks() {
             return (
               <div className="task-lane workspace-panel" key={column.id}>
                 <div className="task-lane-head">
-                  <div><span>{column.label}</span></div>
-                  <strong>{laneTasks.length}</strong>
+                  <div><span>{column.label}</span><small>{laneTasks.length} {laneTasks.length === 1 ? "item" : "items"}</small></div>
+                  <MoreHorizontal />
                 </div>
                 <div className="task-lane-list">
                   {laneTasks.length === 0 ? <div className="empty-visual-state">Clear</div> : laneTasks.map((task) => <TaskCard key={task.id} task={task} onMove={moveTo} />)}
@@ -67,9 +72,9 @@ function TaskCard({ task, onMove }: { task: MissionTask; onMove: (task: MissionT
     <article className="task-card-minimal">
       <div className="task-card-main">
         <h3>{task.title}</h3>
-        <span>{task.assignee || "Awaiting allocation"} · {task.priority} priority</span>
+        <span>{task.assignee || "Awaiting allocation"}</span>
       </div>
-      {nextStatus && <button type="button" onClick={() => onMove(task, nextStatus)}>Move</button>}
+      <div className="task-card-footer"><em className={`task-priority task-priority-${task.priority}`}>{task.priority}</em>{nextStatus && <button type="button" onClick={() => onMove(task, nextStatus)} aria-label="Move work forward"><ArrowRight /></button>}</div>
     </article>
   );
 }
