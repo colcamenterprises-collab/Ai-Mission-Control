@@ -60,6 +60,28 @@ function buildInstructions(params: { taskId: number; title: string; description:
   return [`Mission Control assigned task #${params.taskId}: ${params.title}`, "", `Priority: ${params.priority}`, `Project: ${params.project}`, `Assigned AI worker: ${params.assignee}`, `Routing confidence: ${params.recommendation.confidence}%`, `Routing reason: ${params.recommendation.reason}`, "", "Task brief:", params.description, "", "Expected behaviour:", "1. Review the task and attached playbook context.", "2. Identify blockers, required access, and safest next action.", "3. Use only the tools and secrets assigned to your agent token.", "4. Report progress back to Mission Control with task status and playbooks used."].join("\n");
 }
 
+async function runAssignedWork(params: { agent: AgentRecord; task: typeof tasksTable.$inferSelect; command: typeof agentCommandsTable.$inferSelect; instructions: string; context: string }): Promise<void> {
+  const { agent, task, command, instructions, context } = params;
+  if (!isRuntimeConfigured(agent)) {
+    await db.update(agentsTable).set({ currentTask: `Task #${task.id}: ${task.title}`, status: "pending", lastActive: "work queued by Mission Control" }).where(eq(agentsTable.id, agent.id));
+    return;
+  }
+
+  try {
+    await db.update(tasksTable).set({ status: "running" }).where(eq(tasksTable.id, task.id));
+    const runtimeResult = await dispatchRuntime(agent, { mode: "work", instructions, context, taskId: task.id, commandId: command.id });
+    await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: runtimeResult.ok }).where(eq(agentCommandsTable.id, command.id));
+    await db.update(tasksTable).set({ status: runtimeResult.ok ? "review" : "blocked" }).where(eq(tasksTable.id, task.id));
+    await db.update(agentsTable).set({ currentTask: runtimeResult.ok ? null : `Task #${task.id}: ${task.title}`, status: runtimeResult.ok ? (isJamesHermes(agent) ? "active" : "idle") : "error", lastActive: runtimeResult.ok ? "response received — awaiting review" : "runtime failed", lastPing: runtimeResult.ok ? new Date() : agent.lastPing }).where(eq(agentsTable.id, agent.id));
+    await db.insert(activityTable).values({ agentName: agent.name, action: runtimeResult.ok ? "Worker response received — awaiting review" : "Runtime failed orchestrated work", detail: runtimeResult.output ?? runtimeResult.error, status: runtimeResult.ok ? "pending" : "error" });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Unknown runtime dispatch error";
+    await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, task.id));
+    await db.update(agentsTable).set({ currentTask: `Task #${task.id}: ${task.title}`, status: "error", lastActive: "runtime dispatch failed" }).where(eq(agentsTable.id, agent.id));
+    await db.insert(activityTable).values({ agentName: agent.name, action: "Runtime dispatch failed", detail, status: "error" });
+  }
+}
+
 router.post("/orchestrator/intake", async (req, res): Promise<void> => {
   const body = req.body as IntakeBody;
   const title = asCleanString(body.title);
@@ -75,7 +97,7 @@ router.post("/orchestrator/intake", async (req, res): Promise<void> => {
 
   const [task] = await db.insert(tasksTable).values({ title, description, project, priority, dueDate, assignee, status: assignedAgent ? "ready" : "backlog" }).returning();
   let command: typeof agentCommandsTable.$inferSelect | null = null;
-  let runtimeResult: Awaited<ReturnType<typeof dispatchRuntime>> | null = null;
+  let dispatch: { agent: AgentRecord; task: typeof tasksTable.$inferSelect; command: typeof agentCommandsTable.$inferSelect; instructions: string; context: string } | null = null;
 
   if (assignedAgent) {
     const instructions = buildInstructions({ taskId: task.id, title, description, project, priority, assignee, recommendation });
@@ -83,20 +105,13 @@ router.post("/orchestrator/intake", async (req, res): Promise<void> => {
     const context = await buildPlaybookContext(baseContext);
     [command] = await db.insert(agentCommandsTable).values({ agentId: assignedAgent.id, taskId: task.id, instructions, context }).returning();
 
-    if (isRuntimeConfigured(assignedAgent)) {
-      await db.update(tasksTable).set({ status: "running" }).where(eq(tasksTable.id, task.id));
-      runtimeResult = await dispatchRuntime(assignedAgent, { mode: "work", instructions, context, taskId: task.id, commandId: command.id });
-      await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: runtimeResult.ok }).where(eq(agentCommandsTable.id, command.id));
-      await db.update(tasksTable).set({ status: runtimeResult.ok ? "review" : "blocked" }).where(eq(tasksTable.id, task.id));
-      await db.update(agentsTable).set({ currentTask: runtimeResult.ok ? null : `Task #${task.id}: ${title}`, status: runtimeResult.ok ? (isJamesHermes(assignedAgent) ? "active" : "idle") : "error", lastActive: runtimeResult.ok ? "response received — awaiting review" : "runtime failed", lastPing: runtimeResult.ok ? new Date() : assignedAgent.lastPing }).where(eq(agentsTable.id, assignedAgent.id));
-      await db.insert(activityTable).values({ agentName: assignedAgent.name, action: runtimeResult.ok ? "Worker response received — awaiting review" : "Runtime failed orchestrated work", detail: runtimeResult.output ?? runtimeResult.error, status: runtimeResult.ok ? "pending" : "error" });
-    } else {
-      await db.update(agentsTable).set({ currentTask: `Task #${task.id}: ${title}`, status: "pending", lastActive: "work queued by Mission Control" }).where(eq(agentsTable.id, assignedAgent.id));
-    }
+    dispatch = { agent: assignedAgent, task, command, instructions, context };
   }
 
-  await db.insert(activityTable).values({ agentName: "Mission Control", action: assignedAgent ? (runtimeResult?.ok ? "Routed work — awaiting review" : "Queued work for connected AI worker") : "Added work without connected AI worker", detail: assignedAgent ? `Task #${task.id} assigned to ${assignedAgent.name}. Reason: ${recommendation.reason}` : `Task #${task.id} created as unassigned. Reason: ${recommendation.reason}`, status: runtimeResult?.ok ? "pending" : assignedAgent ? "pending" : "idle" });
-  res.status(201).json({ accepted: true, task: serializeDates({ ...task, status: runtimeResult?.ok ? "review" : runtimeResult?.ok === false ? "blocked" : task.status }), orchestratorReview: { recommendedAgent: recommendation.name, role: recommendation.role, department: recommendation.department, reason: recommendation.reason, confidence: recommendation.confidence }, allocation: assignedAgent && command ? { agentId: assignedAgent.id, agentName: assignedAgent.name, commandId: command.id, delivery: runtimeResult?.ok ? "runtime_completed" : "queued_for_agent_ping", nextStep: runtimeResult?.ok ? "The worker response has been received and is waiting for review. Work is not marked complete until the result is checked." : "The assigned AI worker can collect this command through POST /api/agent/ping using its bearer token.", result: runtimeResult?.output ?? null, error: runtimeResult?.error ?? null } : null });
+  await db.insert(activityTable).values({ agentName: "Mission Control", action: assignedAgent ? "Queued work for AI worker" : "Added work without connected AI worker", detail: assignedAgent ? `Task #${task.id} assigned to ${assignedAgent.name}. Reason: ${recommendation.reason}` : `Task #${task.id} created as unassigned. Reason: ${recommendation.reason}`, status: assignedAgent ? "pending" : "idle" });
+  res.status(201).json({ accepted: true, task: serializeDates(task), orchestratorReview: { recommendedAgent: recommendation.name, role: recommendation.role, department: recommendation.department, reason: recommendation.reason, confidence: recommendation.confidence }, allocation: assignedAgent && command ? { agentId: assignedAgent.id, agentName: assignedAgent.name, commandId: command.id, delivery: "queued_for_worker", nextStep: "Work has been queued. The board will update when the worker responds." } : null });
+
+  if (dispatch) void runAssignedWork(dispatch);
 });
 
 export default router;
