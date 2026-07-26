@@ -29,25 +29,32 @@ export default function Dashboard() {
   return (
     <div className="mission-shell h-full overflow-y-auto">
       <div className="mission-canvas mission-home-canvas">
-        <header className="mission-home-actions" aria-label="Home actions">
-          <Button asChild className="mission-primary-action">
-            <Link href="/tasks">Add task</Link>
-          </Button>
-          <Button asChild variant="outline" className="mission-secondary-action">
-            <Link href="/agent-creation">Create agent</Link>
-          </Button>
+        <header className="mission-page-hero workspace-panel" aria-label="Overview">
+          <div>
+            <p className="workspace-eyebrow">Mission Control</p>
+            <h1 className="mission-page-title">Overview.</h1>
+            <p className="mission-page-subtitle">Direct your AI team, keep work moving, and review what needs your attention.</p>
+          </div>
+          <div className="mission-home-actions">
+            <Button asChild className="mission-primary-action">
+              <Link href="/tasks">Add work</Link>
+            </Button>
+            <Button asChild variant="outline" className="mission-secondary-action">
+              <Link href="/agent-creation">Employ AI worker</Link>
+            </Button>
+          </div>
         </header>
 
         <section className="mission-metric-grid">
-          <MetricCard title="Tasks open" value={String(totalTasks)} loading={isSummaryLoading || isTasksLoading} tone="blue" />
-          <MetricCard title="In progress" value={String(activeTasks)} loading={isSummaryLoading || isTasksLoading} tone="green" />
+          <MetricCard title="Work open" value={String(totalTasks)} loading={isSummaryLoading || isTasksLoading} tone="blue" />
+          <MetricCard title="Working now" value={String(activeTasks)} loading={isSummaryLoading || isTasksLoading} tone="green" />
           <MetricCard title="AI team" value={String(installedAgents)} loading={isSummaryLoading} tone="violet" />
           <MetricCard title="Knowledge" value={String(memories.length)} loading={false} tone="amber" />
         </section>
 
         <section className="mission-dashboard-grid">
           <article className="mission-panel mission-panel-large">
-            <PanelTitle title="Tasks" action="Open" href="/tasks" />
+            <PanelTitle title="Current work" action="View work" href="/tasks" />
             <div className="mission-work-summary">
               <WorkPill label="Working" value={activeTasks} />
               <WorkPill label="Waiting" value={waitingTasks} />
@@ -81,7 +88,7 @@ export default function Dashboard() {
           </article>
 
           <article className="mission-panel">
-            <PanelTitle title="Reports Summary" action="Open" href="/reports" />
+            <PanelTitle title="Reports" action="View reports" href="/reports" />
             <div className="mission-report-card">
               <strong>{completedTasks}</strong>
               <span>Ready</span>
