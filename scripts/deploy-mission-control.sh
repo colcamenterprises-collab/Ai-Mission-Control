@@ -8,7 +8,8 @@ set -Eeuo pipefail
 # - installs/builds/tests the app
 # - restarts only the confirmed Mission Control API systemd service
 # - verifies local and public health routes
-# - does not run database migrations, schema pushes, or Drizzle commands
+# - runs only the repository's additive, idempotent schema check; it never
+#   runs Drizzle push/force, drops tables, renames columns, or rewrites data
 # - does not edit nginx
 # - does not print secrets
 
@@ -259,6 +260,10 @@ step_name="installing dependencies"
 log "Installing dependencies"
 run_pnpm install --frozen-lockfile
 
+step_name="checking operational database schema"
+log "Checking operational database schema"
+run_pnpm run db:ensure-operational-schema
+
 step_name="building workspace"
 log "Building workspace"
 run_pnpm run build
@@ -327,4 +332,4 @@ echo "Local API: ${base_url}/api/healthz"
 echo "Public API: ${PUBLIC_ORIGIN}/api/healthz"
 echo "Frontend: ${PUBLIC_ORIGIN}/"
 echo "Frontend build output: ${FRONTEND_DIST}"
-echo "Database schema commands were not run by this deploy script."
+echo "Operational database schema check completed (additive only; no Drizzle push)."
