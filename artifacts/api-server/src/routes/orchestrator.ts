@@ -1,4 +1,3 @@
-artifacts/api-server/src/routes/agent-bridge.ts
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, tasksTable, agentsTable, agentCommandsTable, activityTable } from "@workspace/db";
