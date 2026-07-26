@@ -248,12 +248,12 @@ router.post("/agents/:id/test-task", createRateLimit("admin-agent-test-task", 10
   const result = await dispatchRuntime(agent, { mode: "work", instructions, context: contextWithSkills, taskId: task.id, commandId: command.id });
 
   await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: result.ok || result.delivery === "webhook" }).where(eq(agentCommandsTable.id, command.id));
-  await db.update(tasksTable).set({ status: result.ok ? "done" : "blocked" }).where(eq(tasksTable.id, task.id));
-  await db.update(agentsTable).set({ status: result.ok ? (isJamesHermes(agent) ? "active" : "idle") : "error", currentTask: result.ok ? null : `Task #${task.id}: ${title}`, lastActive: result.ok ? "work report saved with playbooks" : "test task failed", lastPing: result.ok ? new Date() : agent.lastPing, tasksCompleted: result.ok ? agent.tasksCompleted + 1 : agent.tasksCompleted }).where(eq(agentsTable.id, agent.id));
+  await db.update(tasksTable).set({ status: result.ok ? "review" : "blocked" }).where(eq(tasksTable.id, task.id));
+  await db.update(agentsTable).set({ status: result.ok ? (isJamesHermes(agent) ? "active" : "idle") : "error", currentTask: result.ok ? null : `Task #${task.id}: ${title}`, lastActive: result.ok ? "work response awaiting review" : "test task failed", lastPing: result.ok ? new Date() : agent.lastPing }).where(eq(agentsTable.id, agent.id));
 
   const [activity] = await db.insert(activityTable).values({
     agentName: agent.name,
-    action: result.ok ? "Completed test work with playbooks" : "Test work failed",
+    action: result.ok ? "Test work response received — awaiting review" : "Test work failed",
     detail: result.output ?? result.error,
     status: result.ok ? "active" : "error",
   }).returning();
@@ -299,14 +299,14 @@ router.post("/agents/:id/dispatch", createRateLimit("admin-dispatch", 20, 60_000
     output = result.output;
     if (dispatched) {
       await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: true }).where(eq(agentCommandsTable.id, command.id));
-      if (taskId) await db.update(tasksTable).set({ status: "done" }).where(eq(tasksTable.id, taskId));
-      await db.update(agentsTable).set({ status: isJamesHermes(agent) ? "active" : "idle", currentTask: null, lastActive: "dispatch completed with playbooks", lastPing: new Date(), tasksCompleted: agent.tasksCompleted + 1 }).where(eq(agentsTable.id, agent.id));
+      if (taskId) await db.update(tasksTable).set({ status: "review" }).where(eq(tasksTable.id, taskId));
+      await db.update(agentsTable).set({ status: isJamesHermes(agent) ? "active" : "idle", currentTask: null, lastActive: "dispatch response awaiting review", lastPing: new Date() }).where(eq(agentsTable.id, agent.id));
     }
   }
 
   await db.insert(activityTable).values({
     agentName: agent.name,
-    action: dispatched ? "Completed dispatch with playbooks" : "Command queued — waiting for worker",
+    action: dispatched ? "Worker response received — awaiting review" : "Command queued — waiting for worker",
     detail: output ?? `${instructions.slice(0, 200)}${httpError ? ` — ${httpError}` : ""}`,
     status: dispatched ? "active" : "pending",
   });
