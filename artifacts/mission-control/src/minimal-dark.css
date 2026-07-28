@@ -1,0 +1,329 @@
+/*
+ * Mission Control — minimal dark design system.
+ * This file is intentionally imported last so every workspace shares one
+ * predictable visual language regardless of older page-specific styling.
+ */
+
+:root {
+  --mc-font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mc-bg: #090a0c;
+  --mc-surface: #111317;
+  --mc-surface-raised: #16191e;
+  --mc-surface-hover: #1b1f25;
+  --mc-border: #272b32;
+  --mc-border-soft: #1d2026;
+  --mc-text: #f4f5f7;
+  --mc-muted: #949aa5;
+  --mc-accent: #8b5cf6;
+  --mc-positive: #34d399;
+  --mc-warning: #f59e0b;
+  --mc-radius-card: 4px;
+  --mc-radius-control: 4px;
+  --mc-space-1: 0.5rem;
+  --mc-space-2: 0.75rem;
+  --mc-space-3: 1rem;
+  --mc-space-4: 1.5rem;
+  --mc-space-5: 2rem;
+  --mc-space-6: 3rem;
+}
+
+html,
+html.dark {
+  color-scheme: dark;
+  --background: 220 14% 4%;
+  --foreground: 220 14% 96%;
+  --border: 218 12% 17%;
+  --input: 218 12% 17%;
+  --ring: 258 90% 66%;
+  --card: 220 15% 8%;
+  --card-foreground: 220 14% 96%;
+  --card-border: 218 12% 17%;
+  --popover: 220 15% 8%;
+  --popover-foreground: 220 14% 96%;
+  --popover-border: 218 12% 17%;
+  --primary: 258 90% 66%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 12% 13%;
+  --secondary-foreground: 220 14% 96%;
+  --muted: 220 12% 13%;
+  --muted-foreground: 218 8% 62%;
+  --accent: 258 90% 66%;
+  --accent-foreground: 0 0% 100%;
+  --sidebar: 220 16% 5%;
+  --sidebar-foreground: 220 14% 96%;
+  --sidebar-border: 218 12% 13%;
+}
+
+body,
+button,
+input,
+textarea,
+select,
+label,
+table,
+pre,
+code,
+.font-mono,
+[class*="font-mono"] {
+  font-family: var(--mc-font-ui) !important;
+}
+
+body,
+.mission-app-bg {
+  background: var(--mc-bg) !important;
+}
+
+.mission-app-bg::before,
+.mission-premium-background,
+.mission-page-hero::after {
+  display: none !important;
+}
+
+/* One invisible grid and a generous, consistent canvas. */
+.mission-canvas,
+.workspaces-canvas {
+  width: min(100%, 1520px) !important;
+  margin-inline: auto !important;
+  padding: clamp(1.5rem, 3vw, 3rem) !important;
+}
+
+.mission-canvas > *,
+.workspaces-canvas > * {
+  margin-block: 0 !important;
+}
+
+.mission-canvas,
+.workspaces-canvas,
+.tasks-canvas-simple {
+  gap: var(--mc-space-5) !important;
+}
+
+.mission-dashboard-grid,
+.mission-metric-grid,
+.dashboard-kpi-grid,
+.task-board-grid,
+.agent-directory-grid,
+.business-hub-grid,
+.settings-grid {
+  gap: var(--mc-space-4) !important;
+}
+
+/* Quiet, flat cards. Pills and true circular status controls remain circular. */
+.workspace-panel,
+.workspace-stat,
+.workspace-card,
+.workspace-hero,
+.mission-panel,
+.mission-metric-card,
+.mission-page-hero,
+.tasks-hero,
+.orchestrator-intake,
+.task-lane,
+.visual-panel,
+.metric-tile,
+.task-card-minimal,
+.mission-task-row,
+.compact-task,
+.empty-visual-state,
+.agent-card,
+.agent-directory-card,
+.team-directory-hero,
+.task-monthly-planner,
+.task-calendar-grid > div,
+.task-detail-grid > div,
+.task-detail-description,
+[data-slot="card"],
+[role="dialog"] {
+  border-radius: var(--mc-radius-card) !important;
+}
+
+.workspace-panel,
+.workspace-stat,
+.workspace-card,
+.workspace-hero,
+.mission-panel,
+.mission-metric-card,
+.mission-page-hero,
+.tasks-hero,
+.orchestrator-intake,
+.task-lane,
+.visual-panel,
+.metric-tile,
+.agent-card,
+.agent-directory-card,
+.team-directory-hero,
+.task-monthly-planner {
+  border: 1px solid var(--mc-border) !important;
+  background: var(--mc-surface) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.workspace-panel,
+.mission-panel,
+.orchestrator-intake,
+.task-lane,
+.task-monthly-planner {
+  padding: clamp(1.25rem, 2vw, 2rem) !important;
+}
+
+.mission-page-hero,
+.tasks-hero,
+.team-directory-hero,
+.work-hero {
+  min-height: auto !important;
+  padding: clamp(1.5rem, 2.5vw, 2.5rem) !important;
+}
+
+.mission-metric-card,
+.workspace-stat,
+.metric-tile {
+  min-height: 9rem !important;
+  padding: var(--mc-space-4) !important;
+}
+
+.mission-metric-card:nth-child(n) {
+  border-top: 1px solid var(--mc-border) !important;
+}
+
+.mission-task-row,
+.task-card-minimal,
+.compact-task {
+  padding: var(--mc-space-3) !important;
+  border: 1px solid var(--mc-border-soft) !important;
+  background: var(--mc-surface-raised) !important;
+  box-shadow: none !important;
+}
+
+.mission-task-row:hover,
+.task-card-minimal:hover,
+.compact-task:hover {
+  border-color: #3a404a !important;
+  background: var(--mc-surface-hover) !important;
+  transform: none !important;
+}
+
+/* Typography: restrained hierarchy, one family, no decorative tracking. */
+h1,
+h2,
+h3,
+h4,
+.mission-page-title,
+.mission-topbar h1,
+.tasks-hero h1,
+header h1 {
+  font-family: var(--mc-font-ui) !important;
+  letter-spacing: -0.035em !important;
+}
+
+.mission-page-title,
+.mission-topbar h1,
+.tasks-hero h1,
+header h1 {
+  font-size: clamp(2rem, 3vw, 3.25rem) !important;
+  line-height: 1.05 !important;
+}
+
+.workspace-eyebrow,
+.workspace-section-title,
+.dashboard-section-title,
+.dashboard-topline,
+.visual-panel-header,
+.task-lane-head,
+.mission-label,
+label,
+th {
+  font-family: var(--mc-font-ui) !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+/* Controls are compact and square-edged; status dots and avatars stay round. */
+button,
+input,
+textarea,
+select,
+[role="combobox"],
+[data-slot="button"],
+[data-slot="input"],
+[data-slot="textarea"] {
+  border-radius: var(--mc-radius-control) !important;
+}
+
+input,
+textarea,
+select,
+[role="combobox"] {
+  border-color: var(--mc-border) !important;
+  background: var(--mc-surface-raised) !important;
+}
+
+.mission-primary-action,
+.quick-launch-button,
+button.bg-primary,
+button[class*="bg-primary"] {
+  border-radius: var(--mc-radius-control) !important;
+  background: var(--mc-accent) !important;
+  box-shadow: none !important;
+}
+
+.mission-sidebar {
+  background: #0d0f12 !important;
+  border-right: 1px solid var(--mc-border-soft) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.mission-nav-item {
+  border-radius: var(--mc-radius-control) !important;
+}
+
+.mission-nav-item:hover {
+  transform: none !important;
+  background: var(--mc-surface-raised) !important;
+}
+
+.mission-nav-active {
+  border-color: var(--mc-border) !important;
+  background: var(--mc-surface-raised) !important;
+  box-shadow: inset 2px 0 0 var(--mc-accent) !important;
+}
+
+.task-calendar-grid {
+  gap: var(--mc-space-1) !important;
+}
+
+.task-calendar-grid > div {
+  min-height: 7rem !important;
+  padding: var(--mc-space-2) !important;
+  border-color: var(--mc-border-soft) !important;
+  background: #0e1013 !important;
+}
+
+.task-calendar-grid > div:hover {
+  border-color: var(--mc-border) !important;
+  background: var(--mc-surface) !important;
+}
+
+@media (max-width: 760px) {
+  .mission-canvas,
+  .workspaces-canvas {
+    padding: var(--mc-space-3) !important;
+  }
+
+  .mission-canvas,
+  .workspaces-canvas,
+  .tasks-canvas-simple {
+    gap: var(--mc-space-3) !important;
+  }
+
+  .mission-dashboard-grid,
+  .mission-metric-grid,
+  .dashboard-kpi-grid,
+  .task-board-grid,
+  .agent-directory-grid,
+  .business-hub-grid,
+  .settings-grid {
+    gap: var(--mc-space-3) !important;
+  }
+}
