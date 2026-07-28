@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getListTasksQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowUpRight, Sparkles } from "lucide-react";
 
 const DEFAULT_PROJECT = "Mission Control";
 const DEFAULT_PRIORITY = "medium";
@@ -63,14 +62,10 @@ export function OrchestratorIntakePanel() {
 
   return (
     <section className="workspace-panel orchestrator-intake task-intake-simple p-4 md:p-5">
-      <div className="task-intake-heading">
-        <div className="task-intake-icon"><Sparkles /></div>
-        <div><p>What do you need done?</p></div>
-      </div>
       <div className="task-intake-grid">
-        <Textarea aria-label="Task request" placeholder="Describe it in your own words…" value={request} onChange={(event) => setRequest(event.target.value)} rows={3} />
+        <Textarea aria-label="Task request" placeholder="Enter a task" value={request} onChange={(event) => setRequest(event.target.value)} rows={2} />
         <Button className="task-intake-button" disabled={disabled} onClick={submit}>
-          {isSubmitting ? "Reviewing" : <>Continue <ArrowUpRight /></>}
+          {isSubmitting ? "Creating" : "Create task"}
         </Button>
       </div>
 
