@@ -737,3 +737,194 @@ button[class*="bg-primary"] {
     grid-template-columns: repeat(5, minmax(7rem, 1fr));
   }
 }
+
+/* Task-first dashboard refinement. */
+.mission-home-canvas {
+  gap: 1rem !important;
+}
+
+.mission-welcome-panel {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(14rem, .62fr) minmax(25rem, 1.38fr);
+  align-items: center;
+  gap: 1.5rem;
+  min-height: 10.5rem;
+  padding: 1.5rem;
+  overflow: hidden;
+  border: 1px solid rgba(167, 139, 250, .28);
+  border-radius: 4px;
+  background:
+    radial-gradient(circle at 88% 5%, rgba(139, 92, 246, .27), transparent 38%),
+    linear-gradient(115deg, #1a1530 0%, #151526 46%, #10131c 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.07),
+    0 18px 50px rgba(3, 5, 12, .2);
+}
+
+.mission-welcome-panel > div:first-child {
+  position: relative;
+  z-index: 1;
+}
+
+.mission-welcome-panel > div:first-child span {
+  color: #c4b5fd;
+  font-size: .78rem;
+  font-weight: 650;
+}
+
+.mission-welcome-panel h1 {
+  max-width: 20rem;
+  margin: .45rem 0 0;
+  color: #fff;
+  font-size: clamp(1.55rem, 2.7vw, 2.35rem);
+  line-height: 1.05;
+  letter-spacing: -.045em;
+}
+
+.mission-welcome-panel .orchestrator-intake {
+  position: relative;
+  z-index: 1;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.mission-welcome-panel .task-intake-grid {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: .65rem;
+  align-items: stretch;
+}
+
+.mission-welcome-panel textarea {
+  min-height: 4.4rem !important;
+  resize: none;
+  border: 1px solid rgba(255,255,255,.13) !important;
+  border-radius: 4px !important;
+  background: rgba(5,7,14,.62) !important;
+}
+
+.mission-welcome-panel .task-intake-button {
+  align-self: stretch;
+  min-width: 7.5rem;
+  border-radius: 4px !important;
+}
+
+.mission-metric-card {
+  min-height: 5.75rem !important;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--metric-tone) 14%, #171a22), #101219 70%) !important;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--metric-tone) 22%, transparent),
+    0 12px 30px rgba(2,4,10,.16);
+}
+
+.mission-metric-card::after {
+  right: -1.25rem;
+  bottom: -4.2rem;
+  width: 9rem;
+  height: 9rem;
+  opacity: .8;
+}
+
+.mission-metric-card strong {
+  font-size: clamp(1.65rem, 2vw, 2rem) !important;
+}
+
+.mission-agent-strip {
+  padding: 1rem;
+  background: linear-gradient(180deg, #14171e, #101218);
+}
+
+.mission-agent-row {
+  grid-template-columns: repeat(6, minmax(5.75rem, 1fr));
+  gap: .75rem;
+}
+
+.mission-agent-card {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: .55rem;
+  min-height: 6.7rem;
+  padding: .8rem .55rem;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 10%, color-mix(in srgb, var(--agent-color, #a78bfa) 14%, transparent), transparent 52%),
+    #10131a;
+}
+
+.mission-agent-card .mission-agent-avatar {
+  width: 3.6rem;
+  height: 3.6rem;
+}
+
+.mission-agent-card .mission-agent-face {
+  width: 2.45rem;
+  height: 1.85rem;
+  font-size: .65rem;
+}
+
+.mission-agent-card > span:last-child {
+  justify-items: center;
+}
+
+.mission-agent-card strong {
+  font-size: .75rem;
+}
+
+.mission-agent-card small {
+  font-size: .62rem;
+}
+
+.mission-current-work {
+  padding: 1rem !important;
+}
+
+.mission-panel-title {
+  min-height: 1.75rem;
+}
+
+.mission-text-action {
+  color: #b8a7ef;
+  font-size: .72rem;
+  font-weight: 650;
+}
+
+.mission-work-summary {
+  gap: .65rem !important;
+  margin: .75rem 0 !important;
+}
+
+.mission-work-pill {
+  min-height: 3.25rem !important;
+  padding: .65rem .8rem !important;
+  border-radius: 4px !important;
+}
+
+.mission-task-list {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .65rem !important;
+}
+
+.mission-task-row {
+  min-height: 3.4rem !important;
+  padding: .7rem .8rem !important;
+  border-radius: 4px !important;
+}
+
+.mission-sidebar-footer {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  .mission-welcome-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .mission-agent-row {
+    grid-template-columns: repeat(6, minmax(5.25rem, 1fr));
+  }
+}
