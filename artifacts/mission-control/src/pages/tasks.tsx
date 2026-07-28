@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useListTasks, useMoveTask, useListEvents, getListTasksQueryKey, type Task } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ListTodo, ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Check, RotateCcw } from "lucide-react";
 import { OrchestratorIntakePanel } from "@/components/orchestrator-intake-panel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -42,7 +41,7 @@ export default function Tasks() {
       <div className="workspaces-canvas tasks-canvas-simple space-y-4">
         <header className="work-hero">
           <div><p>Mission Control</p><h1>Tasks.</h1><span>Tell us what you need. Follow it here.</span></div>
-          <div className="work-hero-summary"><ListTodo /><strong>{tasks.length}</strong><span>open items</span></div>
+          <div className="work-hero-summary"><strong>{tasks.length}</strong><span>open items</span></div>
         </header>
         <OrchestratorIntakePanel />
 
@@ -79,7 +78,7 @@ function TaskCard({ task, onOpen, onMove }: { task: MissionTask; onOpen: () => v
         <h3>{task.title}</h3>
         <span>{task.assignee || "Awaiting allocation"}</span>
       </div>
-      <div className="task-card-footer"><em className={`task-priority task-priority-${task.priority}`}>{task.priority}</em>{nextStatus && <button type="button" onClick={(event) => { event.stopPropagation(); onMove(task, nextStatus); }} aria-label="Move task forward"><ArrowRight /></button>}</div>
+      <div className="task-card-footer"><em className={`task-priority task-priority-${task.priority}`}>{task.priority}</em>{nextStatus && <button type="button" onClick={(event) => { event.stopPropagation(); onMove(task, nextStatus); }}>Next</button>}</div>
     </article>
   );
 }
@@ -100,8 +99,8 @@ function TaskDialog({ task, onClose, onMove }: { task: MissionTask | null; onClo
         <div className="flex flex-wrap justify-end gap-2">
           {task.status === "review" || task.status === "blocked" ? (
             <>
-              <Button variant="outline" onClick={() => onMove(task, "running")}><RotateCcw className="mr-2 h-4 w-4" />Changes</Button>
-              <Button onClick={() => onMove(task, "done")}><Check className="mr-2 h-4 w-4" />Approve</Button>
+              <Button variant="outline" onClick={() => onMove(task, "running")}>Changes</Button>
+              <Button onClick={() => onMove(task, "done")}>Approve</Button>
             </>
           ) : task.status !== "done" ? (
             <Button onClick={() => onMove(task, task.status === "backlog" ? "ready" : task.status === "ready" ? "running" : "review")}>Move forward</Button>
@@ -128,11 +127,11 @@ function MonthlyPlanner({ tasks, onOpenTask }: { tasks: Task[]; onOpenTask: (tas
   return (
     <section className="workspace-panel task-monthly-planner">
       <header>
-        <div><CalendarDays /><strong>{month.toLocaleDateString("en", { month: "long", year: "numeric" })}</strong></div>
+        <div><strong>{month.toLocaleDateString("en", { month: "long", year: "numeric" })}</strong></div>
         <div>
           <button onClick={() => setMonth(new Date())}>Today</button>
-          <button aria-label="Previous month" onClick={() => setMonth((value) => new Date(value.getFullYear(), value.getMonth() - 1, 1))}><ChevronLeft /></button>
-          <button aria-label="Next month" onClick={() => setMonth((value) => new Date(value.getFullYear(), value.getMonth() + 1, 1))}><ChevronRight /></button>
+          <button onClick={() => setMonth((value) => new Date(value.getFullYear(), value.getMonth() - 1, 1))}>Previous</button>
+          <button onClick={() => setMonth((value) => new Date(value.getFullYear(), value.getMonth() + 1, 1))}>Next</button>
         </div>
       </header>
       <div className="task-calendar-grid">

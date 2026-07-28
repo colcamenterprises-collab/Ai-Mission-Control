@@ -1,24 +1,22 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { PanelLeftClose, PanelLeftOpen, LayoutDashboard, ListTodo, Users, Library, Settings } from "lucide-react";
 import { CustomliLogo } from "@/components/customli-logo";
 import "./sidebar-accordion.css";
 
 type NavItem = {
   href: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
 };
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const navItems: NavItem[] = [
-    { href: "/", label: "Overview", icon: LayoutDashboard },
-    { href: "/tasks", label: "Tasks", icon: ListTodo },
-    { href: "/team", label: "AI Team", icon: Users },
-    { href: "/business", label: "Business Hub", icon: Library },
-    { href: "/settings", label: "Setup", icon: Settings },
+    { href: "/", label: "Overview" },
+    { href: "/tasks", label: "Tasks" },
+    { href: "/team", label: "AI Team" },
+    { href: "/business", label: "Business Hub" },
+    { href: "/settings", label: "Setup" },
   ];
 
   function renderNavItem(item: NavItem) {
@@ -30,7 +28,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         title={isCollapsed ? item.label : undefined}
         className={`mission-nav-item ${isCollapsed ? "mission-nav-collapsed" : ""} ${isActive ? "mission-nav-active" : ""}`}
       >
-        <item.icon className="mission-nav-icon" />
         {!isCollapsed && <span>{item.label}</span>}
       </Link>
     );
@@ -51,7 +48,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </nav>
         <div className={`${isCollapsed ? "p-2" : "p-3"} mission-sidebar-footer`}>
           <button onClick={() => setIsCollapsed((value) => !value)} aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"} className="mission-collapse-button">
-            {isCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            {isCollapsed ? "Open" : "Close"}
           </button>
           {!isCollapsed && <span>Ready</span>}
         </div>
