@@ -16,7 +16,7 @@
   --mc-muted: #949aa5;
   --mc-accent: #8b5cf6;
   --mc-positive: #34d399;
-  --mc-warning: #f59e0b;
+  --mc-warning: #8b5cf6;
   --mc-radius-card: 4px;
   --mc-radius-control: 4px;
   --mc-space-1: 0.5rem;
@@ -96,6 +96,14 @@ body,
 .workspaces-canvas,
 .tasks-canvas-simple {
   gap: var(--mc-space-5) !important;
+}
+
+/* Every direct section receives the same breathing room. Older page rules used
+ * negative/zero margins, which made otherwise separate cards touch. */
+.mission-canvas > * + *,
+.workspaces-canvas > * + *,
+.tasks-canvas-simple > * + * {
+  margin-top: var(--mc-space-4) !important;
 }
 
 .mission-dashboard-grid,
@@ -250,6 +258,17 @@ select,
   border-radius: var(--mc-radius-control) !important;
 }
 
+/* Mission Control uses words and position for navigation, not decorative
+ * interface glyphs. Brand artwork and agent portraits are images, not SVG UI. */
+.mission-app-bg svg {
+  display: none !important;
+}
+
+.mission-app-bg button,
+.mission-app-bg [role="button"] {
+  border-radius: var(--mc-radius-control) !important;
+}
+
 input,
 textarea,
 select,
@@ -303,6 +322,33 @@ button[class*="bg-primary"] {
 .task-calendar-grid > div:hover {
   border-color: var(--mc-border) !important;
   background: var(--mc-surface) !important;
+}
+
+/* Keep the board useful without allowing empty lanes to push the monthly
+ * planner below the first usable viewport. Task lists scroll inside a lane. */
+.task-board-grid {
+  align-items: stretch !important;
+  gap: var(--mc-space-4) !important;
+}
+
+.task-lane {
+  min-height: 12rem !important;
+  height: 16rem !important;
+  padding: var(--mc-space-3) !important;
+  overflow: hidden !important;
+}
+
+.task-lane-list {
+  max-height: 11.25rem !important;
+  overflow-y: auto !important;
+  padding-right: 2px;
+}
+
+.team-directory-hero + .agent-directory-grid,
+.team-directory-hero + *,
+.settings-grid > *,
+.business-hub-grid > * {
+  margin-top: 0 !important;
 }
 
 @media (max-width: 760px) {
