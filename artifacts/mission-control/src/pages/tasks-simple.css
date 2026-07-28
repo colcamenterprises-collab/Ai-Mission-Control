@@ -64,13 +64,14 @@
 .task-board-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(12rem, 1fr));
-  gap: 0.8rem;
+  gap: 1.5rem;
   overflow-x: auto;
   padding-bottom: .35rem;
 }
 
 .task-lane {
-  min-height: 18rem;
+  min-height: 12rem;
+  height: 16rem;
   position:relative;
 }
 
