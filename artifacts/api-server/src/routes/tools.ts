@@ -1,4 +1,4 @@
-import { encryptSecret } from "../lib/security.js";
+import { decryptSecret, encryptSecret } from "../lib/security.js";
 import { auditLog } from "../lib/audit.js";
 import { createRateLimit } from "../lib/rate-limit.js";
 import { Router, type IRouter } from "express";
@@ -32,9 +32,9 @@ function maskTool(row: typeof agentToolsTable.$inferSelect) {
   const { apiKey, username, password, ...rest } = row;
   return {
     ...rest,
-    apiKeyHint: mask(apiKey),
-    usernameHint: username ? username : null,
-    passwordHint: mask(password),
+    apiKeyHint: mask(decryptSecret(apiKey)),
+    usernameHint: mask(decryptSecret(username)),
+    passwordHint: mask(decryptSecret(password)),
   };
 }
 
@@ -59,6 +59,7 @@ router.post("/tools", createRateLimit("admin-write", 40, 60_000), async (req, re
     password: encryptSecret(password ?? null),
     isActive: true,
   }).returning();
+  await auditLog({ action: "created", entityType: "credential", entityId: row.id, actorType: "admin" });
   res.status(201).json(serializeDates(maskTool(row)));
 });
 
@@ -78,6 +79,7 @@ router.patch("/tools/:id", createRateLimit("admin-write", 40, 60_000), async (re
   const [row] = await db.update(agentToolsTable).set(updateData)
     .where(eq(agentToolsTable.id, params.data.id)).returning();
   if (!row) { res.status(404).json({ error: "Tool not found" }); return; }
+  await auditLog({ action: "updated", entityType: "credential", entityId: row.id, actorType: "admin" });
   res.json(UpdateToolResponse.parse(serializeDates(maskTool(row))));
 });
 
@@ -88,6 +90,7 @@ router.delete("/tools/:id", createRateLimit("admin-write", 40, 60_000), async (r
   await db.delete(agentToolAccessTable).where(eq(agentToolAccessTable.toolId, params.data.id));
   const [row] = await db.delete(agentToolsTable).where(eq(agentToolsTable.id, params.data.id)).returning();
   if (!row) { res.status(404).json({ error: "Tool not found" }); return; }
+  await auditLog({ action: "deleted", entityType: "credential", entityId: row.id, actorType: "admin" });
   res.sendStatus(204);
 });
 
@@ -133,6 +136,7 @@ router.post("/tools/:id/agents", createRateLimit("admin-write", 40, 60_000), asy
     agentId: parsed.data.agentId,
   }).returning();
   const [agent] = await db.select().from(agentsTable).where(eq(agentsTable.id, parsed.data.agentId));
+  await auditLog({ action: "granted", entityType: "credential access", entityId: params.data.id, actorType: "admin", metadata: `agentId=${parsed.data.agentId}` });
   res.status(201).json(serializeDates({
     ...access,
     agentName: agent?.name ?? "Unknown",
@@ -151,6 +155,7 @@ router.delete("/tools/:id/agents/:agentId", createRateLimit("admin-write", 40, 6
       eq(agentToolAccessTable.agentId, params.data.agentId),
     )
   );
+  await auditLog({ action: "revoked", entityType: "credential access", entityId: params.data.id, actorType: "admin", metadata: `agentId=${params.data.agentId}` });
   res.sendStatus(204);
 });
 
