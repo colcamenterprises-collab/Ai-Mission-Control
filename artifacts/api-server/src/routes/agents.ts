@@ -1,4 +1,4 @@
-import { encryptSecret } from "../lib/security.js";
+import { decryptSecret, encryptSecret } from "../lib/security.js";
 import { auditLog } from "../lib/audit.js";
 import { createRateLimit } from "../lib/rate-limit.js";
 import { Router, type IRouter } from "express";
@@ -26,7 +26,7 @@ function maskApiKey(apiKey: string | null | undefined): string | null {
 
 function maskAgentForResponse(agent: typeof agentsTable.$inferSelect) {
   const { apiKey, ...rest } = agent;
-  return { ...rest, apiKeyHint: maskApiKey(apiKey), assignedSkills: getAssignedSkillNamesForAgent(agent.name) };
+  return { ...rest, apiKeyHint: maskApiKey(decryptSecret(apiKey)), assignedSkills: getAssignedSkillNamesForAgent(agent.name) };
 }
 
 router.get("/agents", async (_req, res): Promise<void> => {
