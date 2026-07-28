@@ -2,8 +2,6 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListTasksQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowUpRight, Sparkles } from "lucide-react";
 
@@ -25,7 +23,7 @@ function errorMessage(error: unknown) {
 
 export function OrchestratorIntakePanel() {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ title: "", description: "" });
+  const [request, setRequest] = useState("");
   const [created, setCreated] = useState<IntakeResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,8 +43,8 @@ export function OrchestratorIntakePanel() {
           ...(token ? { Authorization: `Bearer ${token}`, "x-admin-token": token } : {}),
         },
         body: JSON.stringify({
-          title: form.title.trim(),
-          description: form.description.trim(),
+          title: request.trim().split(/\n/)[0].slice(0, 120),
+          description: request.trim(),
           project: DEFAULT_PROJECT,
           priority: DEFAULT_PRIORITY,
         }),
@@ -54,32 +52,25 @@ export function OrchestratorIntakePanel() {
       const body = await response.json() as IntakeResult | { error?: string };
       if (!response.ok) throw new Error("error" in body ? body.error : `Unable to add work (HTTP ${response.status}).`);
       setCreated(body as IntakeResult);
-      setForm({ title: "", description: "" });
+      setRequest("");
       await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
     } catch (submitError) {
       setError(errorMessage(submitError));
     } finally { setIsSubmitting(false); }
   };
 
-  const disabled = isSubmitting || !form.title.trim() || !form.description.trim();
+  const disabled = isSubmitting || !request.trim();
 
   return (
     <section className="workspace-panel orchestrator-intake task-intake-simple p-4 md:p-5">
       <div className="task-intake-heading">
         <div className="task-intake-icon"><Sparkles /></div>
-        <div><p>New work</p><span>Tell us what needs doing. The right worker will be selected for it.</span></div>
+        <div><p>What do you need done?</p></div>
       </div>
       <div className="task-intake-grid">
-        <div className="space-y-1.5">
-          <Label>What needs doing?</Label>
-          <Input placeholder="Short title" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Give it context</Label>
-          <Textarea placeholder="What does good look like? Add any useful detail." value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={3} />
-        </div>
+        <Textarea aria-label="Task request" placeholder="Describe it in your own words…" value={request} onChange={(event) => setRequest(event.target.value)} rows={3} />
         <Button className="task-intake-button" disabled={disabled} onClick={submit}>
-          {isSubmitting ? "Sending" : <>Send work <ArrowUpRight /></>}
+          {isSubmitting ? "Reviewing" : <>Continue <ArrowUpRight /></>}
         </Button>
       </div>
 
