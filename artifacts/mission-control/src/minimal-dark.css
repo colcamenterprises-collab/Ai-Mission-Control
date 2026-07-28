@@ -488,3 +488,252 @@ button[class*="bg-primary"] {
     align-items: flex-start !important;
   }
 }
+
+/* Final tablet-first visual system. */
+.mission-app-bg svg {
+  display: block !important;
+}
+
+.mission-sidebar,
+.mission-sidebar-expanded,
+.mission-sidebar-collapsed {
+  width: 4.25rem !important;
+  min-width: 4.25rem !important;
+}
+
+.mission-sidebar-top {
+  min-height: 4.5rem !important;
+  justify-content: flex-start !important;
+  padding: .75rem !important;
+}
+
+.mission-logo,
+.mission-logo-compact {
+  width: 2.5rem !important;
+  height: 2.5rem !important;
+  justify-content: flex-start !important;
+}
+
+.mission-logo-mark {
+  width: 2.25rem !important;
+  height: 2.25rem !important;
+  object-fit: contain;
+}
+
+.mission-sidebar-nav {
+  padding: .75rem .6rem !important;
+}
+
+.mission-sidebar .mission-nav-item {
+  display: grid !important;
+  place-items: center !important;
+  width: 3rem !important;
+  min-height: 3rem !important;
+  padding: 0 !important;
+}
+
+.mission-nav-icon {
+  display: block !important;
+  width: 1.2rem;
+  height: 1.2rem;
+  color: #7e8797;
+}
+
+.mission-nav-active .mission-nav-icon {
+  color: #b8a2ff;
+}
+
+.mission-sidebar .mission-nav-item span {
+  display: none !important;
+}
+
+.mission-sidebar-footer {
+  display: grid !important;
+  place-items: center;
+  padding: .6rem !important;
+}
+
+.mission-collapse-button {
+  display: grid !important;
+  place-items: center;
+  width: 3rem !important;
+  min-width: 3rem !important;
+  height: 2.75rem !important;
+  padding: 0 !important;
+}
+
+.mission-collapse-button svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.mission-canvas,
+.workspaces-canvas {
+  max-width: none !important;
+  padding: clamp(1.25rem, 2.4vw, 2.25rem) !important;
+}
+
+.mission-home-canvas {
+  display: grid !important;
+  gap: 1.25rem !important;
+}
+
+.mission-home-canvas .mission-page-hero {
+  width: 100% !important;
+  justify-content: space-between !important;
+  text-align: left !important;
+}
+
+.mission-home-canvas .mission-page-title {
+  width: auto !important;
+  text-align: left !important;
+}
+
+.mission-metric-grid {
+  gap: 1.25rem !important;
+}
+
+.mission-metric-card {
+  position: relative;
+  min-height: 7rem !important;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  background: linear-gradient(145deg, #151820, #101218) !important;
+}
+
+.mission-metric-card::after {
+  content: "";
+  position: absolute;
+  right: -2.25rem;
+  bottom: -3.5rem;
+  width: 8rem;
+  height: 8rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--metric-tone) 30%, transparent), transparent 70%);
+  pointer-events: none;
+}
+
+.mission-metric-blue { --metric-tone: #60a5fa; }
+.mission-metric-green { --metric-tone: #34d399; }
+.mission-metric-violet { --metric-tone: #a78bfa; }
+.mission-metric-amber { --metric-tone: #fbbf24; }
+
+.mission-metric-card span {
+  color: #9299a8 !important;
+  font-size: .72rem !important;
+  font-weight: 650;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.mission-agent-strip {
+  display: grid;
+  gap: .9rem;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid var(--mc-border);
+  border-radius: 4px;
+  background: var(--mc-surface);
+}
+
+.mission-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.mission-section-heading h2 {
+  margin: 0;
+  font-size: .92rem;
+  font-weight: 650;
+}
+
+.mission-agent-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(7.5rem, 1fr));
+  gap: .85rem;
+  overflow-x: auto;
+}
+
+.mission-agent-card {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  min-width: 0;
+  padding: .75rem;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 4px;
+  background: #11141a;
+}
+
+.mission-agent-card:hover {
+  border-color: rgba(167,139,250,.4);
+  background: #161923;
+}
+
+.mission-agent-card > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: .12rem;
+}
+
+.mission-agent-card strong,
+.mission-agent-card small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mission-agent-card strong { font-size: .78rem; }
+.mission-agent-card small { color: #818898; font-size: .65rem; }
+.mission-agent-empty { color: #818898; font-size: .78rem; }
+
+.mission-agent-avatar {
+  --agent-color: #a78bfa;
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--agent-color) 55%, transparent);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--agent-color) 42%, #20232d), #0c0e13 70%);
+  box-shadow: inset 0 0 16px color-mix(in srgb, var(--agent-color) 18%, transparent);
+}
+
+.mission-agent-face {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.35rem;
+  border: 1px solid color-mix(in srgb, var(--agent-color) 60%, transparent);
+  border-radius: 45% 45% 38% 38%;
+  background: #171a22;
+  color: color-mix(in srgb, var(--agent-color) 78%, white);
+  font-size: .55rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+.mission-agent-cyan { --agent-color: #22d3ee; }
+.mission-agent-blue { --agent-color: #60a5fa; }
+.mission-agent-green { --agent-color: #34d399; }
+.mission-agent-rose { --agent-color: #fb7185; }
+.mission-agent-amber { --agent-color: #fbbf24; }
+.mission-agent-violet { --agent-color: #a78bfa; }
+
+.mission-panel,
+.mission-agent-strip,
+.mission-metric-card,
+.mission-task-row {
+  margin: 0 !important;
+}
+
+@media (max-width: 980px) {
+  .mission-agent-row {
+    grid-template-columns: repeat(5, minmax(7rem, 1fr));
+  }
+}
