@@ -5,9 +5,9 @@ import {
   useListTasks,
 } from "@workspace/api-client-react";
 import { Link } from "wouter";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AgentAvatar } from "@/components/agent-avatar";
+import { AgentAvatar, agentTone } from "@/components/agent-avatar";
+import { OrchestratorIntakePanel } from "@/components/orchestrator-intake-panel";
 import "./workspaces.css";
 
 export default function Dashboard() {
@@ -28,17 +28,13 @@ export default function Dashboard() {
   return (
     <div className="mission-shell h-full overflow-y-auto">
       <div className="mission-canvas mission-home-canvas">
-        <header className="mission-page-hero workspace-panel" aria-label="Overview">
-          <h1 className="mission-page-title">Overview</h1>
-          <div className="mission-home-actions">
-            <Button asChild className="mission-primary-action">
-              <Link href="/tasks">New task</Link>
-            </Button>
-            <Button asChild variant="outline" className="mission-secondary-action">
-              <Link href="/agent-creation">Add agent</Link>
-            </Button>
+        <section className="mission-welcome-panel" aria-label="Create a task">
+          <div>
+            <span>Welcome back, Cameron</span>
+            <h1>What would you like done?</h1>
           </div>
-        </header>
+          <OrchestratorIntakePanel />
+        </section>
 
         <section className="mission-metric-grid">
           <MetricCard title="Work open" value={String(totalTasks)} loading={isSummaryLoading || isTasksLoading} tone="blue" />
@@ -48,13 +44,9 @@ export default function Dashboard() {
         </section>
 
         <section className="mission-agent-strip" aria-label="AI team">
-          <div className="mission-section-heading">
-            <h2>AI team</h2>
-            <Button asChild size="sm" variant="outline"><Link href="/agent-creation">Add agent</Link></Button>
-          </div>
           <div className="mission-agent-row">
             {agents.map((agent) => (
-              <Link href="/team" className="mission-agent-card" key={agent.id}>
+              <Link href="/team" className={`mission-agent-card mission-agent-${agentTone(agent.name)}`} key={agent.id}>
                 <AgentAvatar name={agent.name} initials={agent.avatarInitials} />
                 <span><strong>{agent.name}</strong><small>{agent.role}</small></span>
               </Link>
@@ -106,7 +98,7 @@ function PanelTitle({ title, action, href }: { title: string; action: string; hr
   return (
     <div className="mission-panel-title">
       <div><span>{title}</span></div>
-      <Button asChild size="sm" variant="ghost"><Link href={href}>{action}</Link></Button>
+      <Link href={href} className="mission-text-action">{action}</Link>
     </div>
   );
 }
