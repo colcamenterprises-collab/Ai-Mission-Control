@@ -19,6 +19,7 @@ import Contacts from "@/pages/contacts";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
 import "./visual-first.css";
+import "./minimal-dark.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
