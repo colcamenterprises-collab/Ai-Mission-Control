@@ -41,8 +41,8 @@ export default function Tasks() {
     <div className="workspaces-shell h-full overflow-y-auto">
       <div className="workspaces-canvas tasks-canvas-simple space-y-4">
         <header className="work-hero">
-          <div><p>Mission Control</p><h1>Tasks.</h1><span>Tell us what you need. Follow it here.</span></div>
-          <div className="work-hero-summary"><strong>{tasks.length}</strong><span>open items</span></div>
+          <div><h1>Tasks</h1></div>
+          <div className="work-hero-summary"><strong>{tasks.length}</strong><span>open</span></div>
         </header>
         <OrchestratorIntakePanel />
 
