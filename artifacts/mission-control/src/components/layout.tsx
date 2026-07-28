@@ -36,7 +36,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="mission-app-bg relative min-h-screen overflow-hidden flex text-foreground">
       <div className="mission-premium-background" aria-hidden="true" />
-      <aside className={`${isCollapsed ? "w-[5.5rem]" : "w-52"} mission-sidebar relative z-10 flex-shrink-0 flex flex-col transition-[width] duration-200`}>
+      <aside className={`${isCollapsed ? "mission-sidebar-collapsed" : "mission-sidebar-expanded"} mission-sidebar relative z-10 flex-shrink-0 flex flex-col transition-[width] duration-200`}>
         <div className={`mission-sidebar-top ${isCollapsed ? "justify-center px-2" : "px-4"}`}>
           <CustomliLogo compact={isCollapsed} />
           {!isCollapsed && <div className="mission-sidebar-status"><span /> Systems ready</div>}
