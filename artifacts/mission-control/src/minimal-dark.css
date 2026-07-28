@@ -383,7 +383,7 @@ button[class*="bg-primary"] {
 }
 
 .mission-home-canvas {
-  gap: var(--mc-space-4) !important;
+  gap: 1rem !important;
 }
 
 .mission-home-canvas > * + * {
@@ -392,22 +392,32 @@ button[class*="bg-primary"] {
 
 .mission-home-canvas .mission-page-hero {
   min-height: 0 !important;
-  padding: clamp(1.25rem, 2vw, 1.75rem) !important;
+  padding: 0 0 .5rem !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  gap: var(--mc-space-4) !important;
+  gap: 1rem !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.mission-home-canvas .mission-page-title {
+  margin: 0 !important;
+  font-size: clamp(1.75rem, 3vw, 2.35rem) !important;
+  line-height: 1.1 !important;
+  letter-spacing: -.035em !important;
+  text-align: left !important;
 }
 
 .mission-home-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--mc-space-2);
+  gap: .75rem;
 }
 
 .mission-metric-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  gap: var(--mc-space-3) !important;
+  gap: 1rem !important;
   margin: 0 !important;
 }
 
@@ -421,42 +431,9 @@ button[class*="bg-primary"] {
   font-size: clamp(1.8rem, 2.5vw, 2.35rem) !important;
 }
 
-.mission-overview-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(17rem, 1fr);
-  gap: var(--mc-space-4);
-}
-
-.mission-current-work,
-.mission-summary-panel {
+.mission-current-work {
   min-height: 0 !important;
-}
-
-.mission-overview-side {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--mc-space-4);
-}
-
-.mission-summary-panel {
-  padding: var(--mc-space-3) !important;
-}
-
-.mission-agent-summary {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--mc-space-3);
-}
-
-.mission-agent-summary strong {
-  font-size: 2rem;
-  line-height: 1;
-}
-
-.mission-agent-summary span {
-  color: var(--mc-muted);
-  font-size: 0.82rem;
+  padding: 1.25rem !important;
 }
 
 .mission-sidebar,
@@ -507,11 +484,7 @@ button[class*="bg-primary"] {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
-  .mission-overview-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .mission-overview-side {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .mission-home-canvas .mission-page-hero {
+    align-items: flex-start !important;
   }
 }

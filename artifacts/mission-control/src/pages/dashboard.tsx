@@ -19,9 +19,7 @@ export default function Dashboard() {
   const activeTasks = summary?.activeTaskCount ?? tasks.filter((task) => task.status === "running" || task.status === "in_progress").length;
   const waitingTasks = summary?.pendingTaskCount ?? tasks.filter((task) => ["backlog", "ready", "review"].includes(task.status)).length;
   const blockedTasks = tasks.filter((task) => task.status === "blocked").length;
-  const activeAgents = summary?.activeAgentCount ?? agents.filter((agent) => agent.status === "active").length;
-  const installedAgents = agents.length || activeAgents;
-  const completedTasks = tasks.filter((task) => task.status === "done").length;
+  const installedAgents = agents.length || (summary?.activeAgentCount ?? 0);
   const latestTasks = [...tasks]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 5);
@@ -30,11 +28,7 @@ export default function Dashboard() {
     <div className="mission-shell h-full overflow-y-auto">
       <div className="mission-canvas mission-home-canvas">
         <header className="mission-page-hero workspace-panel" aria-label="Overview">
-          <div>
-            <p className="workspace-eyebrow">Mission Control</p>
-            <h1 className="mission-page-title">Overview.</h1>
-            <p className="mission-page-subtitle">Work, approvals and your AI team.</p>
-          </div>
+          <h1 className="mission-page-title">Overview</h1>
           <div className="mission-home-actions">
             <Button asChild className="mission-primary-action">
               <Link href="/tasks">New task</Link>
@@ -52,49 +46,29 @@ export default function Dashboard() {
           <MetricCard title="Knowledge" value={String(memories.length)} loading={false} tone="amber" />
         </section>
 
-        <section className="mission-overview-grid">
-          <article className="mission-panel mission-current-work">
-            <PanelTitle title="Current work" action="View tasks" href="/tasks" />
-            <div className="mission-work-summary">
-              <WorkPill label="Working" value={activeTasks} />
-              <WorkPill label="Waiting" value={waitingTasks} />
-              <WorkPill label="Blocked" value={blockedTasks} />
-            </div>
-            <div className="mission-task-list">
-              {latestTasks.length === 0 ? (
-                <div className="mission-empty-state">
-                  <span>No tasks logged</span>
-                </div>
-              ) : latestTasks.map((task) => (
-                <Link href="/tasks" className="mission-task-row" key={task.id}>
-                  <span className={`mission-status-dot mission-status-${task.status}`} />
-                  <div>
-                    <strong>{task.title}</strong>
-                    <small>{task.assignee || "Unassigned"}</small>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </article>
-
-          <div className="mission-overview-side">
-            <article className="mission-panel mission-summary-panel">
-              <PanelTitle title="AI team" action="Manage" href="/agent-creation" />
-              <div className="mission-agent-summary">
-                <strong>{installedAgents}</strong>
-                <span>{activeAgents} active</span>
-              </div>
-            </article>
-
-            <article className="mission-panel mission-summary-panel">
-              <PanelTitle title="Completed" action="Archive" href="/reports" />
-              <div className="mission-agent-summary">
-                <strong>{completedTasks}</strong>
-                <span>Ready to view</span>
-              </div>
-            </article>
+        <article className="mission-panel mission-current-work">
+          <PanelTitle title="Current work" action="View tasks" href="/tasks" />
+          <div className="mission-work-summary">
+            <WorkPill label="Working" value={activeTasks} />
+            <WorkPill label="Waiting" value={waitingTasks} />
+            <WorkPill label="Blocked" value={blockedTasks} />
           </div>
-        </section>
+          <div className="mission-task-list">
+            {latestTasks.length === 0 ? (
+              <div className="mission-empty-state">
+                <span>No tasks logged</span>
+              </div>
+            ) : latestTasks.map((task) => (
+              <Link href="/tasks" className="mission-task-row" key={task.id}>
+                <span className={`mission-status-dot mission-status-${task.status}`} />
+                <div>
+                  <strong>{task.title}</strong>
+                  <small>{task.assignee || "Unassigned"}</small>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </article>
       </div>
     </div>
   );
