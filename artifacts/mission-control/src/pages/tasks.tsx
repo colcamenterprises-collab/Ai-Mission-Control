@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { OrchestratorIntakePanel } from "@/components/orchestrator-intake-panel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { AgentAvatar, agentTone } from "@/components/agent-avatar";
 import "./workspaces.css";
 import "./tasks-simple.css";
 
@@ -73,10 +74,10 @@ function TaskCard({ task, onOpen, onMove }: { task: MissionTask; onOpen: () => v
   const nextStatus: Task["status"] | null = task.status === "backlog" ? "ready" : task.status === "ready" ? "running" : task.status === "running" || task.status === "in_progress" ? "review" : task.status === "review" ? "done" : null;
 
   return (
-    <article className="task-card-minimal" onClick={onOpen}>
+    <article className={`task-card-minimal task-agent-${agentTone(task.assignee)}`} onClick={onOpen}>
       <div className="task-card-main">
         <h3>{task.title}</h3>
-        <span>{task.assignee || "Awaiting allocation"}</span>
+        <span className="task-agent-owner"><AgentAvatar name={task.assignee} />{task.assignee || "Awaiting allocation"}</span>
       </div>
       <div className="task-card-footer"><em className={`task-priority task-priority-${task.priority}`}>{task.priority}</em>{nextStatus && <button type="button" onClick={(event) => { event.stopPropagation(); onMove(task, nextStatus); }}>Next</button>}</div>
     </article>
