@@ -33,14 +33,14 @@ export default function Dashboard() {
           <div>
             <p className="workspace-eyebrow">Mission Control</p>
             <h1 className="mission-page-title">Overview.</h1>
-            <p className="mission-page-subtitle">Direct your AI team, keep work moving, and review what needs your attention.</p>
+            <p className="mission-page-subtitle">Work, approvals and your AI team.</p>
           </div>
           <div className="mission-home-actions">
             <Button asChild className="mission-primary-action">
-              <Link href="/tasks">Add work</Link>
+              <Link href="/tasks">New task</Link>
             </Button>
             <Button asChild variant="outline" className="mission-secondary-action">
-              <Link href="/agent-creation">Employ AI worker</Link>
+              <Link href="/agent-creation">Add agent</Link>
             </Button>
           </div>
         </header>
@@ -52,9 +52,9 @@ export default function Dashboard() {
           <MetricCard title="Knowledge" value={String(memories.length)} loading={false} tone="amber" />
         </section>
 
-        <section className="mission-dashboard-grid">
-          <article className="mission-panel mission-panel-large">
-            <PanelTitle title="Current work" action="View work" href="/tasks" />
+        <section className="mission-overview-grid">
+          <article className="mission-panel mission-current-work">
+            <PanelTitle title="Current work" action="View tasks" href="/tasks" />
             <div className="mission-work-summary">
               <WorkPill label="Working" value={activeTasks} />
               <WorkPill label="Waiting" value={waitingTasks} />
@@ -77,23 +77,23 @@ export default function Dashboard() {
             </div>
           </article>
 
-          <article className="mission-panel">
-            <PanelTitle title="AI Team" action="Manage" href="/agent-creation" />
-            <div className="mission-agent-strip" aria-label="AI team status">
-              {Array.from({ length: Math.max(3, Math.min(6, installedAgents || 3)) }).map((_, index) => (
-                <span key={index} className={index < activeAgents ? "is-active" : ""} />
-              ))}
-            </div>
-            <div className="mission-panel-number">{installedAgents}</div>
-          </article>
+          <div className="mission-overview-side">
+            <article className="mission-panel mission-summary-panel">
+              <PanelTitle title="AI team" action="Manage" href="/agent-creation" />
+              <div className="mission-agent-summary">
+                <strong>{installedAgents}</strong>
+                <span>{activeAgents} active</span>
+              </div>
+            </article>
 
-          <article className="mission-panel">
-            <PanelTitle title="Reports" action="View reports" href="/reports" />
-            <div className="mission-report-card">
-              <strong>{completedTasks}</strong>
-              <span>Ready</span>
-            </div>
-          </article>
+            <article className="mission-panel mission-summary-panel">
+              <PanelTitle title="Completed" action="Archive" href="/reports" />
+              <div className="mission-agent-summary">
+                <strong>{completedTasks}</strong>
+                <span>Ready to view</span>
+              </div>
+            </article>
+          </div>
         </section>
       </div>
     </div>
