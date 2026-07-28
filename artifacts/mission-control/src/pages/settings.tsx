@@ -946,13 +946,15 @@ export default function Settings() {
   return (
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-border">
-        <h1 className="text-xl font-mono font-semibold uppercase tracking-tight">Settings</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Setup</h1>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-10">
 
 
-        <section>
+        <details className="workspace-panel p-4">
+          <summary className="cursor-pointer text-sm text-muted-foreground">Advanced access</summary>
+        <section className="mt-4">
           <div className="flex items-center gap-2 mb-2">
             <h2 className="font-mono text-sm uppercase text-muted-foreground">Admin API Token</h2>
             <div className="flex-1 h-px bg-border" />
@@ -965,21 +967,20 @@ export default function Settings() {
             }}>Save</Button>
           </div>
         </section>
+        </details>
 
         <Separator />
         {/* ─── Agent Tool Vault ─── */}
         <section>
           <div className="flex items-center gap-2 mb-1">
-            <h2 className="font-mono text-sm uppercase text-muted-foreground">Agent Tool Vault</h2>
+            <h2 className="text-sm font-semibold">Credentials</h2>
             <div className="flex-1 h-px bg-border" />
             <Button size="sm" onClick={() => setShowAddTool(true)} className="gap-2 text-xs h-7">
               <Plus className="w-3.5 h-3.5" />
-              Add Tool
+              Add
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground/60 mb-4">
-            Credentials agents use to operate third-party tools — API keys, logins, tokens. Fetched securely at runtime via the agent bridge.
-          </p>
+          <p className="text-xs text-muted-foreground/60 mb-4">Secure logins and keys. Access is granted per agent.</p>
 
           {toolsLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -993,14 +994,14 @@ export default function Settings() {
                 <KeyRound className="w-7 h-7 text-muted-foreground/30" />
               </div>
               <div>
-                <p className="font-medium text-muted-foreground">No tools in vault yet</p>
+                <p className="font-medium text-muted-foreground">No credentials saved</p>
                 <p className="text-xs text-muted-foreground/60 mt-1 max-w-xs">
-                  Add API keys, logins, or tokens for any third-party tool your agents need to operate.
+                  Add a login or key when an agent needs external access.
                 </p>
               </div>
               <Button size="sm" onClick={() => setShowAddTool(true)} className="gap-2 text-xs">
                 <KeyRound className="w-3.5 h-3.5" />
-                Add Your First Tool
+                Add credential
               </Button>
             </div>
           ) : (
@@ -1018,7 +1019,7 @@ export default function Settings() {
                 className="h-full min-h-[160px] border border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 text-muted-foreground/50 hover:text-muted-foreground hover:border-primary/30 transition-colors"
               >
                 <Plus className="w-5 h-5" />
-                <span className="text-xs font-mono">Add Tool</span>
+                <span className="text-xs">Add credential</span>
               </button>
             </div>
           )}

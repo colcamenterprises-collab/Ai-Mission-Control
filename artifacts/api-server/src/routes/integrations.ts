@@ -1,4 +1,4 @@
-import { encryptSecret } from "../lib/security.js";
+import { decryptSecret, encryptSecret } from "../lib/security.js";
 import { auditLog } from "../lib/audit.js";
 import { createRateLimit } from "../lib/rate-limit.js";
 import { Router, type IRouter } from "express";
@@ -32,7 +32,7 @@ function maskKey(k: string | null | undefined): string | null {
 
 function maskIntegration(row: typeof integrationsTable.$inferSelect) {
   const { apiKey, ...rest } = row;
-  return { ...rest, apiKeyHint: maskKey(apiKey) };
+  return { ...rest, apiKeyHint: maskKey(decryptSecret(apiKey)) };
 }
 
 router.get("/integrations", async (_req, res): Promise<void> => {
@@ -53,6 +53,7 @@ router.post("/integrations", createRateLimit("admin-write", 40, 60_000), async (
     iconColor: rest.iconColor ?? "from-slate-600 to-slate-800",
     isPublic: rest.isPublic ?? false,
   }).returning();
+  await auditLog({ action: "created", entityType: "integration credential", entityId: row.id, actorType: "admin" });
   res.status(201).json(serializeDates(maskIntegration(row)));
 });
 
@@ -105,6 +106,7 @@ router.patch("/integrations/:id", createRateLimit("admin-write", 40, 60_000), as
     res.status(404).json({ error: "Integration not found" });
     return;
   }
+  await auditLog({ action: "updated", entityType: "integration credential", entityId: row.id, actorType: "admin" });
   res.json(UpdateIntegrationResponse.parse(serializeDates(maskIntegration(row))));
 });
 
@@ -120,6 +122,7 @@ router.delete("/integrations/:id", createRateLimit("admin-write", 40, 60_000), a
     res.status(404).json({ error: "Integration not found" });
     return;
   }
+  await auditLog({ action: "deleted", entityType: "integration credential", entityId: row.id, actorType: "admin" });
   res.sendStatus(204);
 });
 

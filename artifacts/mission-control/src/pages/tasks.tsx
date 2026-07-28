@@ -1,24 +1,28 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListTasks, useMoveTask, getListTasksQueryKey, type Task } from "@workspace/api-client-react";
+import { useListTasks, useMoveTask, useListEvents, getListTasksQueryKey, type Task } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ListTodo, MoreHorizontal, ArrowRight } from "lucide-react";
+import { ListTodo, ArrowRight, CalendarDays, ChevronLeft, ChevronRight, Check, RotateCcw } from "lucide-react";
 import { OrchestratorIntakePanel } from "@/components/orchestrator-intake-panel";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import "./workspaces.css";
 import "./tasks-simple.css";
 
 type MissionTask = Task & { status: Task["status"] };
 
 const COLUMNS: Array<{ id: Task["status"]; label: string; matches: Task["status"][] }> = [
-  { id: "backlog", label: "To do", matches: ["backlog", "ready"] },
-  { id: "running", label: "Working", matches: ["running", "in_progress"] },
-  { id: "review", label: "Owner review", matches: ["review", "blocked"] },
-  { id: "done", label: "Done", matches: ["done"] },
+  { id: "backlog", label: "New", matches: ["backlog"] },
+  { id: "ready", label: "Ready", matches: ["ready"] },
+  { id: "running", label: "In progress", matches: ["running", "in_progress"] },
+  { id: "review", label: "Your approval", matches: ["review", "blocked"] },
+  { id: "done", label: "Completed", matches: ["done"] },
 ];
 
 export default function Tasks() {
   const queryClient = useQueryClient();
   const [filter] = useState({ priority: "all", project: "all" });
+  const [selectedTask, setSelectedTask] = useState<MissionTask | null>(null);
   const { data: tasks = [], isLoading } = useListTasks();
   const moveTask = useMoveTask();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
@@ -37,7 +41,7 @@ export default function Tasks() {
     <div className="workspaces-shell h-full overflow-y-auto">
       <div className="workspaces-canvas tasks-canvas-simple space-y-4">
         <header className="work-hero">
-          <div><p>Mission Control</p><h1>Work.</h1><span>Everything moving across your business, in one clear view.</span></div>
+          <div><p>Mission Control</p><h1>Tasks.</h1><span>Tell us what you need. Follow it here.</span></div>
           <div className="work-hero-summary"><ListTodo /><strong>{tasks.length}</strong><span>open items</span></div>
         </header>
         <OrchestratorIntakePanel />
@@ -51,30 +55,103 @@ export default function Tasks() {
               <div className="task-lane workspace-panel" key={column.id}>
                 <div className="task-lane-head">
                   <div><span>{column.label}</span><small>{laneTasks.length} {laneTasks.length === 1 ? "item" : "items"}</small></div>
-                  <MoreHorizontal />
                 </div>
                 <div className="task-lane-list">
-                  {laneTasks.length === 0 ? <div className="empty-visual-state">Clear</div> : laneTasks.map((task) => <TaskCard key={task.id} task={task} onMove={moveTo} />)}
+                  {laneTasks.length === 0 ? <div className="empty-visual-state">Clear</div> : laneTasks.map((task) => <TaskCard key={task.id} task={task} onOpen={() => setSelectedTask(task)} onMove={moveTo} />)}
                 </div>
               </div>
             );
           })}
         </section>
+        <MonthlyPlanner tasks={tasks} onOpenTask={(task) => setSelectedTask(task as MissionTask)} />
       </div>
+      <TaskDialog task={selectedTask} onClose={() => setSelectedTask(null)} onMove={(task, status) => { moveTo(task, status); setSelectedTask({ ...task, status }); }} />
     </div>
   );
 }
 
-function TaskCard({ task, onMove }: { task: MissionTask; onMove: (task: MissionTask, status: Task["status"]) => void }) {
+function TaskCard({ task, onOpen, onMove }: { task: MissionTask; onOpen: () => void; onMove: (task: MissionTask, status: Task["status"]) => void }) {
   const nextStatus: Task["status"] | null = task.status === "backlog" ? "ready" : task.status === "ready" ? "running" : task.status === "running" || task.status === "in_progress" ? "review" : task.status === "review" ? "done" : null;
 
   return (
-    <article className="task-card-minimal">
+    <article className="task-card-minimal" onClick={onOpen}>
       <div className="task-card-main">
         <h3>{task.title}</h3>
         <span>{task.assignee || "Awaiting allocation"}</span>
       </div>
-      <div className="task-card-footer"><em className={`task-priority task-priority-${task.priority}`}>{task.priority}</em>{nextStatus && <button type="button" onClick={() => onMove(task, nextStatus)} aria-label="Move work forward"><ArrowRight /></button>}</div>
+      <div className="task-card-footer"><em className={`task-priority task-priority-${task.priority}`}>{task.priority}</em>{nextStatus && <button type="button" onClick={(event) => { event.stopPropagation(); onMove(task, nextStatus); }} aria-label="Move task forward"><ArrowRight /></button>}</div>
     </article>
+  );
+}
+
+function TaskDialog({ task, onClose, onMove }: { task: MissionTask | null; onClose: () => void; onMove: (task: MissionTask, status: Task["status"]) => void }) {
+  if (!task) return null;
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-2xl bg-card border-border">
+        <DialogHeader><DialogTitle>{task.title}</DialogTitle></DialogHeader>
+        <div className="task-detail-grid">
+          <div><span>Status</span><strong>{COLUMNS.find((column) => column.matches.includes(task.status))?.label ?? task.status}</strong></div>
+          <div><span>Agent</span><strong>{task.assignee || "Being assigned"}</strong></div>
+          <div><span>Due</span><strong>{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "Not set"}</strong></div>
+          <div><span>Project</span><strong>{task.project}</strong></div>
+        </div>
+        {task.description && <p className="task-detail-description">{task.description}</p>}
+        <div className="flex flex-wrap justify-end gap-2">
+          {task.status === "review" || task.status === "blocked" ? (
+            <>
+              <Button variant="outline" onClick={() => onMove(task, "running")}><RotateCcw className="mr-2 h-4 w-4" />Changes</Button>
+              <Button onClick={() => onMove(task, "done")}><Check className="mr-2 h-4 w-4" />Approve</Button>
+            </>
+          ) : task.status !== "done" ? (
+            <Button onClick={() => onMove(task, task.status === "backlog" ? "ready" : task.status === "ready" ? "running" : "review")}>Move forward</Button>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MonthlyPlanner({ tasks, onOpenTask }: { tasks: Task[]; onOpenTask: (task: Task) => void }) {
+  const [month, setMonth] = useState(() => new Date());
+  const { data: events = [] } = useListEvents();
+  const days = useMemo(() => {
+    const year = month.getFullYear();
+    const monthIndex = month.getMonth();
+    const first = new Date(year, monthIndex, 1);
+    const start = new Date(year, monthIndex, 1 - first.getDay());
+    return Array.from({ length: 42 }, (_, index) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + index));
+  }, [month]);
+  const datedTasks = tasks.filter((task) => task.dueDate);
+  const key = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+  return (
+    <section className="workspace-panel task-monthly-planner">
+      <header>
+        <div><CalendarDays /><strong>{month.toLocaleDateString("en", { month: "long", year: "numeric" })}</strong></div>
+        <div>
+          <button onClick={() => setMonth(new Date())}>Today</button>
+          <button aria-label="Previous month" onClick={() => setMonth((value) => new Date(value.getFullYear(), value.getMonth() - 1, 1))}><ChevronLeft /></button>
+          <button aria-label="Next month" onClick={() => setMonth((value) => new Date(value.getFullYear(), value.getMonth() + 1, 1))}><ChevronRight /></button>
+        </div>
+      </header>
+      <div className="task-calendar-grid">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <b key={day}>{day}</b>)}
+        {days.map((date) => {
+          const dateKey = key(date);
+          const dayTasks = datedTasks.filter((task) => task.dueDate?.slice(0, 10) === dateKey);
+          const dayEvents = events.filter((event) => event.startDate.slice(0, 10) === dateKey);
+          const isCurrent = date.getMonth() === month.getMonth();
+          return (
+            <div key={dateKey} className={isCurrent ? "" : "outside"}>
+              <span>{date.getDate()}</span>
+              {dayTasks.slice(0, 2).map((task) => <button key={task.id} onClick={() => onOpenTask(task)}>{task.title}</button>)}
+              {dayEvents.slice(0, Math.max(0, 2 - dayTasks.length)).map((event) => <em key={event.id}>{event.title}</em>)}
+              {dayTasks.length + dayEvents.length > 2 && <small>+{dayTasks.length + dayEvents.length - 2}</small>}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }

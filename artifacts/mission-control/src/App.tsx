@@ -7,7 +7,6 @@ import { ThemeProvider } from "@/lib/theme";
 import Dashboard from "@/pages/dashboard";
 import Tasks from "@/pages/tasks";
 import ContentPipeline from "@/pages/content";
-import Calendar from "@/pages/calendar";
 import Memory from "@/pages/memory";
 import Workspaces from "@/pages/workspaces";
 import Team from "@/pages/team";
@@ -15,6 +14,8 @@ import Skills from "@/pages/skills";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
 import Secrets from "@/pages/secrets";
+import BusinessHub from "@/pages/business-hub";
+import Contacts from "@/pages/contacts";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
 import "./visual-first.css";
@@ -36,7 +37,7 @@ function Router() {
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/tasks" component={Tasks} />
         <Route path="/content" component={ContentPipeline} />
-        <Route path="/calendar" component={Calendar} />
+        <Route path="/calendar">{() => { window.location.replace("/tasks"); return null; }}</Route>
         <Route path="/memory" component={Memory} />
         <Route path="/workspaces" component={Workspaces} />
         <Route path="/reports" component={Reports} />
@@ -44,6 +45,8 @@ function Router() {
         <Route path="/team" component={Team} />
         <Route path="/agent-creation" component={Team} />
         <Route path="/skills" component={Skills} />
+        <Route path="/business" component={BusinessHub} />
+        <Route path="/contacts" component={Contacts} />
         <Route path="/secrets" component={Secrets} />
         <Route path="/onboarding" component={Onboarding} />
         <Route path="/settings" component={Settings} />

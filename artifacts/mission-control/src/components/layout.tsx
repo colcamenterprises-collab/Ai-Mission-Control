@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ChevronDown, PanelLeftClose, PanelLeftOpen, LayoutDashboard, ListTodo, Users, FileText, Brain, BookOpen, Zap, Boxes, Megaphone, CalendarDays } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, LayoutDashboard, ListTodo, Users, Library, Settings } from "lucide-react";
 import { CustomliLogo } from "@/components/customli-logo";
 import "./sidebar-accordion.css";
 
@@ -10,41 +10,15 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>;
 };
 
-type NavGroup = {
-  label: string;
-  items: NavItem[];
-};
-
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const [isCollapsed, setIsCollapsed] = useState(true);
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    Operations: true,
-    Tools: true,
-  });
-
-  const homeItem: NavItem = { href: "/", label: "Overview", icon: LayoutDashboard };
-
-  const navGroups: NavGroup[] = [
-    {
-      label: "Operations",
-      items: [
-        { href: "/tasks", label: "Work", icon: ListTodo },
-        { href: "/agent-creation", label: "AI Team", icon: Users },
-        { href: "/reports", label: "Reports", icon: FileText },
-        { href: "/workspaces", label: "Projects", icon: Boxes },
-      ],
-    },
-    {
-      label: "Tools",
-      items: [
-        { href: "/memory", label: "Knowledge", icon: Brain },
-        { href: "/skills", label: "Playbooks", icon: BookOpen },
-        { href: "/settings", label: "Automations & setup", icon: Zap },
-        { href: "/content", label: "Marketing", icon: Megaphone },
-        { href: "/calendar", label: "Planner", icon: CalendarDays },
-      ],
-    },
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const navItems: NavItem[] = [
+    { href: "/", label: "Overview", icon: LayoutDashboard },
+    { href: "/tasks", label: "Tasks", icon: ListTodo },
+    { href: "/team", label: "AI Team", icon: Users },
+    { href: "/business", label: "Business Hub", icon: Library },
+    { href: "/settings", label: "Setup", icon: Settings },
   ];
 
   function renderNavItem(item: NavItem) {
@@ -62,10 +36,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  function toggleGroup(label: string) {
-    setOpenGroups((current) => ({ ...current, [label]: !current[label] }));
-  }
-
   return (
     <div className="mission-app-bg relative min-h-screen overflow-hidden flex text-foreground">
       <div className="mission-premium-background" aria-hidden="true" />
@@ -75,36 +45,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {!isCollapsed && <div className="mission-sidebar-status"><span /> Systems ready</div>}
         </div>
         <nav className="mission-sidebar-nav" aria-label="Main navigation">
-          <div className="mission-nav-home">
-            {renderNavItem(homeItem)}
-          </div>
-          {navGroups.map((group) => {
-            const isOpen = isCollapsed ? true : openGroups[group.label];
-            return (
-              <div key={group.label} className={`mission-nav-group ${isOpen ? "is-open" : "is-closed"}`}>
-                {!isCollapsed && (
-                  <button
-                    type="button"
-                    className="mission-nav-group-trigger"
-                    onClick={() => toggleGroup(group.label)}
-                    aria-expanded={isOpen}
-                  >
-                    <span>{group.label}</span>
-                    <ChevronDown className="mission-nav-chevron" />
-                  </button>
-                )}
-                {isOpen && (
-                  <ul className="space-y-1">
-                    {group.items.map((item) => (
-                      <li key={`${item.href}-${item.label}`}>
-                        {renderNavItem(item)}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            );
-          })}
+          <ul className="space-y-1">
+            {navItems.map((item) => <li key={item.href}>{renderNavItem(item)}</li>)}
+          </ul>
         </nav>
         <div className={`${isCollapsed ? "p-2" : "p-3"} mission-sidebar-footer`}>
           <button onClick={() => setIsCollapsed((value) => !value)} aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"} className="mission-collapse-button">

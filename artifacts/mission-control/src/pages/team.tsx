@@ -194,9 +194,8 @@ function AgentDirectoryCard({ agent, onOpen }: { agent: Agent; onOpen: () => voi
       <div className="agent-card-copy">
         <h3>{agent.name}</h3>
         <p>{agent.role}</p>
-        <small>{agent.provider ? `${agent.provider}${agent.model ? ` · ${agent.model}` : ""}` : "No provider set"}</small>
       </div>
-      <span className={online ? "agent-status-pill online" : "agent-status-pill"}>{statusLabel(agent)}</span>
+      <span className={online ? "agent-status-pill online" : "agent-status-pill"}>{online ? "Working" : "Ready"}</span>
     </button>
   );
 }
@@ -379,7 +378,7 @@ function AgentDetailDialog({ agent, onClose, onChanged }: { agent: Agent | null;
     setLastReport(null);
     try {
       const result = await authedFetch(`/api/agents/${agent.id}/test-task`, { method: "POST", body: JSON.stringify({ instructions }) }, agent.provider === "hermes" ? 190_000 : 70_000);
-      const reportText = runtimeOutput(result) || await findSavedActivityDetail(agent.name, result.activityId) || "Work completed and saved to Reports. Open Reports to review the full response.";
+      const reportText = runtimeOutput(result) || await findSavedActivityDetail(agent.name, result.activityId) || "Work completed and saved to the task.";
       addChatEntry({ role: "agent", text: reportText, taskId: result.taskId, activityId: result.activityId });
       setLastReport({ label: "Work report saved", taskId: result.taskId, activityId: result.activityId });
       await onChanged();
@@ -427,7 +426,7 @@ function AgentDetailDialog({ agent, onClose, onChanged }: { agent: Agent | null;
           )) : <div className="agent-chat-empty">{online ? "Active and ready." : "Ready when connected."}</div>}
         </div>
 
-        {lastReport && <div className="agent-report-strip"><Zap className="h-3.5 w-3.5" /><span>{lastReport.label}{lastReport.taskId ? ` · Task #${lastReport.taskId}` : ""}{lastReport.activityId ? ` · Activity #${lastReport.activityId}` : ""}</span><a href="/reports">View Reports</a></div>}
+        {lastReport && <div className="agent-report-strip"><Zap className="h-3.5 w-3.5" /><span>{lastReport.label}{lastReport.taskId ? ` · Task #${lastReport.taskId}` : ""}</span>{lastReport.taskId && <a href="/tasks">Open task</a>}</div>}
         {error && <div className="agent-error-strip"><AlertCircle className="h-3.5 w-3.5" />{error}</div>}
 
         <div className="agent-chat-composer">
@@ -453,16 +452,16 @@ export default function Team() {
     <div className="workspaces-shell h-full overflow-y-auto">
       <div className="workspaces-canvas space-y-4">
         <header className="team-directory-hero workspace-panel">
-          <div><span className="dashboard-topline"><Users className="h-3.5 w-3.5" /> AI workers</span><h1 className="mission-page-title">AI Team</h1></div>
-          <div className="team-hero-stats"><span><strong>{agents.length}</strong> workers</span><span><strong>{onlineCount}</strong> online</span></div>
-          <Button size="sm" onClick={() => setShowAdd(true)} className="gap-2"><Plus className="h-3.5 w-3.5" /> Employ worker</Button>
+          <div><h1 className="mission-page-title">AI Team</h1></div>
+          <div className="team-hero-stats"><span><strong>{onlineCount}</strong> working</span></div>
+          <Button size="sm" onClick={() => setShowAdd(true)} className="gap-2"><Plus className="h-3.5 w-3.5" /> Add agent</Button>
         </header>
         <section className="agent-directory-grid">
           {isLoading ? Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-56 rounded-2xl" />) : (
             <>
               {agents.map((agent) => <AgentDirectoryCard key={`${agent.id}-${agent.name}`} agent={agent} onOpen={() => setSelectedAgentId(agent.id)} />)}
               {!hasJames && <button type="button" className="agent-directory-card agent-add-card" onClick={() => setShowAdd(true)}><div className="agent-add-icon"><Zap className="h-7 w-7" /></div><div className="agent-card-copy"><h3>Restore James Hermes</h3><p>Connect the Hostinger execution worker first.</p></div><span className="agent-status-pill online">Priority</span></button>}
-              <button type="button" className="agent-directory-card agent-add-card" onClick={() => setShowAdd(true)}><div className="agent-add-icon"><Plus className="h-7 w-7" /></div><div className="agent-card-copy"><h3>Employ AI worker</h3><p>Connect James Hermes, OpenRouter, Claude, OpenAI or a webhook.</p></div><span className="agent-status-pill">Ready</span></button>
+              <button type="button" className="agent-directory-card agent-add-card" onClick={() => setShowAdd(true)}><div className="agent-add-icon"><Plus className="h-7 w-7" /></div><div className="agent-card-copy"><h3>Add agent</h3></div></button>
             </>
           )}
         </section>
