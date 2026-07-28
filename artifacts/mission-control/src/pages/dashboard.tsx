@@ -7,6 +7,7 @@ import {
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AgentAvatar } from "@/components/agent-avatar";
 import "./workspaces.css";
 
 export default function Dashboard() {
@@ -44,6 +45,22 @@ export default function Dashboard() {
           <MetricCard title="Working now" value={String(activeTasks)} loading={isSummaryLoading || isTasksLoading} tone="green" />
           <MetricCard title="AI team" value={String(installedAgents)} loading={isSummaryLoading} tone="violet" />
           <MetricCard title="Knowledge" value={String(memories.length)} loading={false} tone="amber" />
+        </section>
+
+        <section className="mission-agent-strip" aria-label="AI team">
+          <div className="mission-section-heading">
+            <h2>AI team</h2>
+            <Button asChild size="sm" variant="outline"><Link href="/agent-creation">Add agent</Link></Button>
+          </div>
+          <div className="mission-agent-row">
+            {agents.map((agent) => (
+              <Link href="/team" className="mission-agent-card" key={agent.id}>
+                <AgentAvatar name={agent.name} initials={agent.avatarInitials} />
+                <span><strong>{agent.name}</strong><small>{agent.role}</small></span>
+              </Link>
+            ))}
+            {agents.length === 0 && <span className="mission-agent-empty">No agents added</span>}
+          </div>
         </section>
 
         <article className="mission-panel mission-current-work">
