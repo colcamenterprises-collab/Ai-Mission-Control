@@ -373,3 +373,145 @@ button[class*="bg-primary"] {
     gap: var(--mc-space-3) !important;
   }
 }
+
+/* Compact overview and explicit sidebar states. These final rules replace
+ * legacy visual-first overrides that forced the navigation rail closed and
+ * inflated dashboard cards. */
+.mission-canvas,
+.workspaces-canvas {
+  padding: clamp(1.25rem, 2vw, 2rem) !important;
+}
+
+.mission-home-canvas {
+  gap: var(--mc-space-4) !important;
+}
+
+.mission-home-canvas > * + * {
+  margin-top: 0 !important;
+}
+
+.mission-home-canvas .mission-page-hero {
+  min-height: 0 !important;
+  padding: clamp(1.25rem, 2vw, 1.75rem) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: var(--mc-space-4) !important;
+}
+
+.mission-home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mc-space-2);
+}
+
+.mission-metric-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: var(--mc-space-3) !important;
+  margin: 0 !important;
+}
+
+.mission-metric-card {
+  min-height: 6.5rem !important;
+  padding: var(--mc-space-3) !important;
+}
+
+.mission-metric-card strong {
+  margin-top: var(--mc-space-1) !important;
+  font-size: clamp(1.8rem, 2.5vw, 2.35rem) !important;
+}
+
+.mission-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(17rem, 1fr);
+  gap: var(--mc-space-4);
+}
+
+.mission-current-work,
+.mission-summary-panel {
+  min-height: 0 !important;
+}
+
+.mission-overview-side {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--mc-space-4);
+}
+
+.mission-summary-panel {
+  padding: var(--mc-space-3) !important;
+}
+
+.mission-agent-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mc-space-3);
+}
+
+.mission-agent-summary strong {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.mission-agent-summary span {
+  color: var(--mc-muted);
+  font-size: 0.82rem;
+}
+
+.mission-sidebar,
+.mission-sidebar-expanded {
+  width: 13rem !important;
+}
+
+.mission-sidebar-collapsed {
+  width: 4.5rem !important;
+}
+
+.mission-sidebar .mission-sidebar-footer {
+  display: flex !important;
+}
+
+.mission-sidebar .mission-nav-item span {
+  display: inline !important;
+}
+
+.mission-sidebar-expanded .mission-nav-item {
+  justify-content: flex-start !important;
+  min-height: 2.5rem !important;
+  padding: 0 var(--mc-space-2) !important;
+}
+
+.mission-sidebar-collapsed .mission-nav-item {
+  min-height: 2.5rem !important;
+  padding: 0 !important;
+}
+
+.mission-sidebar-collapsed .mission-nav-item span,
+.mission-sidebar-collapsed .mission-sidebar-status,
+.mission-sidebar-collapsed .mission-sidebar-footer > span {
+  display: none !important;
+}
+
+.mission-primary-action,
+.quick-launch-button,
+button.bg-primary,
+button[class*="bg-primary"] {
+  border: 1px solid #a78bfa !important;
+  background: linear-gradient(180deg, #925df7 0%, #7138dc 100%) !important;
+  color: #fff !important;
+}
+
+@media (max-width: 980px) {
+  .mission-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .mission-overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mission-overview-side {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
