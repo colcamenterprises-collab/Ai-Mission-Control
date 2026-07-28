@@ -174,6 +174,100 @@
   font-weight: 620;
 }
 
+/* Reference-led compact Kanban cards. */
+.task-board-grid {
+  align-items: start;
+  gap: 1rem;
+}
+
+.task-lane {
+  height: auto;
+  min-height: 8.5rem;
+  max-height: 27rem;
+  padding: .85rem !important;
+  border-radius: 4px !important;
+}
+
+.task-lane-list {
+  max-height: 22rem;
+  overflow-y: auto;
+  padding-right: .15rem;
+}
+
+.task-card-minimal {
+  --agent-color: #a78bfa;
+  border: 1px solid color-mix(in srgb, var(--agent-color) 32%, rgba(255,255,255,.12)) !important;
+  border-left: 0 !important;
+  border-radius: 4px !important;
+  background:
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--agent-color) 42%, #252634),
+      color-mix(in srgb, var(--agent-color) 17%, #161923)
+    ) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.15),
+    0 9px 24px color-mix(in srgb, var(--agent-color) 10%, transparent);
+}
+
+.task-card-minimal + .task-card-minimal {
+  margin-top: .65rem !important;
+}
+
+.task-card-main h3 {
+  color: #fff;
+}
+
+.task-agent-owner {
+  color: rgba(255,255,255,.74) !important;
+}
+
+.task-card-footer {
+  border-top-color: rgba(255,255,255,.14);
+}
+
+.task-priority {
+  border-radius: 4px;
+  background: rgba(4, 7, 14, .25);
+  color: rgba(255,255,255,.82);
+}
+
+.task-card-minimal button {
+  width: auto;
+  height: auto;
+  border-radius: 4px !important;
+  background: rgba(4,7,14,.25);
+}
+
+.work-hero {
+  align-items: center;
+  padding: 0;
+}
+
+.work-hero h1 {
+  font-size: clamp(1.65rem, 3vw, 2.15rem);
+  letter-spacing: -.04em;
+}
+
+.work-hero-summary {
+  min-width: 6.5rem;
+  padding: .65rem .8rem;
+  border-radius: 4px;
+}
+
+.task-intake-simple {
+  border-radius: 4px !important;
+}
+
+.task-intake-grid textarea,
+.task-intake-button,
+.task-monthly-planner,
+.task-calendar-grid > div,
+.task-monthly-planner header button,
+.task-calendar-grid button,
+.task-calendar-grid em {
+  border-radius: 4px !important;
+}
+
 @media (max-width: 1180px) {
   .task-intake-grid {
     grid-template-columns: 1fr;
