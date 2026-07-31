@@ -28,7 +28,9 @@ type PlaceholderItem = Omit<NavItem, "href">;
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 1180px)").matches,
+  );
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -56,6 +58,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
     () => otherItems.filter((item) => item.label.toLowerCase().includes(normalizedQuery)),
     [normalizedQuery],
   );
+
+  useEffect(() => {
+    const tabletQuery = window.matchMedia("(max-width: 1180px)");
+
+    function syncSidebarToViewport(event: MediaQueryListEvent) {
+      setIsCollapsed(event.matches);
+    }
+
+    tabletQuery.addEventListener("change", syncSidebarToViewport);
+    return () => tabletQuery.removeEventListener("change", syncSidebarToViewport);
+  }, []);
 
   useEffect(() => {
     function focusSearch(event: KeyboardEvent) {
@@ -97,7 +110,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
       >
         <div className="mission-sidebar-top">
           <CustomliLogo compact={isCollapsed} />
-          {!isCollapsed && <span className="mission-brand-name">Mission Control</span>}
           <button
             type="button"
             className="mission-collapse-button"

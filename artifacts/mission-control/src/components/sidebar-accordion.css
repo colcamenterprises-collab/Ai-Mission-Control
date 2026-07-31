@@ -87,25 +87,17 @@
 
 .mission-sidebar .mission-logo,
 .mission-sidebar .mission-logo-compact {
-  width: 2.1rem !important;
-  height: 2.1rem !important;
-  flex: 0 0 2.1rem;
+  width: 2.65rem !important;
+  height: 2.65rem !important;
+  flex: 0 0 2.65rem;
   overflow: hidden;
 }
 
 .mission-sidebar .mission-logo-mark {
-  width: 2.1rem !important;
-  height: 2.1rem !important;
+  width: 2.65rem !important;
+  height: 2.65rem !important;
   object-fit: contain;
   filter: drop-shadow(0 5px 14px rgba(124, 92, 251, .34)) !important;
-}
-
-.mission-brand-name {
-  min-width: 0;
-  font-size: .94rem;
-  font-weight: 690;
-  letter-spacing: -.025em;
-  white-space: nowrap;
 }
 
 .mission-sidebar .mission-collapse-button {
@@ -307,6 +299,7 @@
 
 .mission-sidebar .mission-sidebar-footer {
   display: block !important;
+  flex: 0 0 auto;
   padding: 0 !important;
 }
 
@@ -425,6 +418,24 @@
   display: none !important;
 }
 
+@media (max-height: 820px) {
+  .mission-ai-boost {
+    padding: .7rem;
+  }
+
+  .mission-ai-boost p {
+    display: none;
+  }
+
+  .mission-ai-boost button {
+    margin-top: .55rem;
+  }
+
+  .mission-sidebar-account {
+    display: none;
+  }
+}
+
 @media (max-width: 760px) {
   .mission-sidebar,
   .mission-sidebar-expanded {
@@ -436,4 +447,8 @@
     width: 4.5rem !important;
     min-width: 4.5rem !important;
   }
+}
+
+.mission-main-canvas {
+  min-width: 0;
 }
