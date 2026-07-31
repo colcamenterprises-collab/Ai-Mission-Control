@@ -101,6 +101,10 @@
 }
 
 .mission-sidebar .mission-collapse-button {
+  position: relative;
+  z-index: 20;
+  pointer-events: auto;
+  touch-action: manipulation;
   display: grid !important;
   place-items: center;
   width: 1.9rem !important;
@@ -127,9 +131,11 @@
 
 .mission-sidebar-collapsed .mission-collapse-button {
   position: absolute;
-  top: 3.8rem;
-  right: .35rem;
+  top: 5.35rem;
+  left: 50%;
+  right: auto;
   margin: 0;
+  transform: translateX(-50%);
 }
 
 .mission-sidebar-collapsed .mission-collapse-button svg {
@@ -402,7 +408,7 @@
 }
 
 .mission-sidebar-collapsed .mission-sidebar-nav {
-  padding-top: 1.35rem !important;
+  padding-top: 3rem !important;
 }
 
 .mission-sidebar-collapsed .mission-nav-item {
