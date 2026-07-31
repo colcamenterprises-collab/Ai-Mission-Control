@@ -47,7 +47,7 @@
 .approval-alert { background: #262119; border-color: #55451b; color: #e6c45d; }
 
 .task-board-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   gap: 0.55rem;
@@ -91,11 +91,23 @@
 .task-card-minimal h3 { font-size: 0.68rem; font-weight: 600; line-height: 1.3; }
 .task-card-minimal > p { margin: 0.26rem 0 0.45rem; color: #aaa9b0; font-size: 0.59rem; line-height: 1.4; }
 .task-card-minimal footer { padding-top: 0.38rem; border-top-color: #303036; }
+.task-james-avatar { object-fit: cover; border-radius: 50%; background: #10131b; }
 .task-lane-add { flex: 0 0 auto; margin-top: 0.4rem; padding: 0.42rem; border-radius: 3px; background: #34333a; color: #aaa9b0; font-size: 0.6rem; }
+
+.automation-calendar { color: #f0eff2; }
+.automation-calendar-title,.automation-calendar-nav{display:flex;align-items:center;justify-content:space-between}.automation-calendar-title{min-height:1.8rem;padding:.1rem .15rem .4rem;border-bottom:1px solid #38373e}.automation-calendar-title>strong{font-size:.68rem}.automation-calendar-title>div{display:flex;padding:.12rem;border-radius:4px;background:#202027}.automation-calendar-title button{padding:.25rem .38rem;border:0;border-radius:3px;background:transparent;color:#777680;font-size:.5rem}.automation-calendar-title button.active{background:#393740;color:#f2f1f4}.automation-calendar-nav{padding:.65rem .1rem .5rem}.automation-calendar-nav span{font-size:.59rem;font-weight:600}.automation-calendar-nav button{display:grid;place-items:center;width:1.35rem;height:1.35rem;border:0;border-radius:3px;background:#222127;color:#87868e}.automation-calendar-nav svg{width:.7rem}.automation-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.22rem}.automation-weekday{padding-bottom:.18rem;color:#6f6e77;font-size:.47rem;text-align:center}.automation-calendar-grid>button{position:relative;display:grid;place-items:center;aspect-ratio:1;border:1px solid #35343b;border-radius:4px;background:#222127;color:#85848d;font-size:.53rem}.automation-calendar-grid>button.outside{opacity:.32}.automation-calendar-grid>button.today{border-color:#6657b5;color:#ddd8ff}.automation-calendar-grid>button.has-automation{border-color:#744cff;background:linear-gradient(145deg,#6d47ec,#4520bd);color:#fff;box-shadow:0 4px 12px rgba(78,41,200,.25);cursor:pointer}.automation-calendar-grid>button small{position:absolute;right:2px;bottom:1px;font-size:.38rem;opacity:.75}.automation-calendar-grid.week>button{aspect-ratio:auto;min-height:4.2rem}.automation-calendar-key{display:flex;align-items:center;gap:.35rem;margin-top:auto;padding:.6rem .1rem .1rem;color:#777680;font-size:.5rem}.automation-calendar-key span{width:.45rem;height:.45rem;border-radius:2px;background:#6540dc}.automation-detail-dialog{max-width:30rem!important;background:#18191f!important;border-color:#34353d!important}.automation-detail-list{display:grid;gap:.55rem}.automation-detail-list article{padding:.7rem;border:1px solid #34353d;border-radius:5px;background:#202127}.automation-detail-list article>div{display:flex;align-items:flex-start;justify-content:space-between;gap:.6rem}.automation-detail-list h3{margin:0;color:#eee;font-size:.78rem}.automation-detail-list span{order:2;color:#9a87ff;font-size:.58rem;white-space:nowrap}.automation-detail-list p{margin:.35rem 0 0;color:#999aa3;font-size:.67rem;line-height:1.45}
+
+.task-create-dialog{width:min(42rem,calc(100vw - 2rem))!important;max-width:42rem!important;max-height:88dvh!important;padding:1rem!important;border-radius:7px!important}.task-create-dialog [data-slot="dialog-title"]{font-size:1rem}.task-create-dialog .task-form{grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}.task-create-dialog .task-form>label:nth-child(1),.task-create-dialog .task-form>label:nth-child(2),.task-create-dialog .task-form>.task-form-row,.task-create-dialog .task-form>.task-check,.task-create-dialog .task-form>small,.task-create-dialog .task-form>.task-error,.task-create-dialog .task-form>button{grid-column:1/-1}.task-create-dialog textarea{min-height:5rem;max-height:7rem}.task-create-dialog .task-form>button{justify-self:end;width:auto;min-width:7rem;padding:.5rem 1rem}
 
 @media (max-width: 900px) {
   .workspaces-canvas.tasks-canvas-simple { padding: 0.55rem !important; }
   .task-board-grid { gap: 0.45rem; }
   .task-page-header { min-height: 2.15rem; }
   .task-page-header h1 { font-size: 0.92rem; }
+}
+
+@media (max-width: 1100px) {
+  .task-board-grid { gap: .38rem; }
+  .task-board-grid > .task-lane { padding: .38rem !important; }
+  .automation-calendar-grid { gap: .14rem; }
 }

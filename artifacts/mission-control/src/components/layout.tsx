@@ -3,7 +3,6 @@ import { Link, useLocation } from "wouter";
 import {
   Bot,
   BookOpenText,
-  BriefcaseBusiness,
   ChevronLeft,
   FileText,
   Gauge,
@@ -174,17 +173,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <Sparkles aria-hidden="true" />
                 <span>Boost with AI</span>
               </div>
-              <p>Sharper automation, insights, and tools that save hours.</p>
               <button type="button" onClick={() => window.location.assign("/settings")}>
                 Explore AI Setup
               </button>
-            </div>
-            <div className="mission-sidebar-account">
-              <BriefcaseBusiness aria-hidden="true" />
-              <div>
-                <strong>Customli</strong>
-                <span>Mission Control</span>
-              </div>
             </div>
           </div>
         )}
