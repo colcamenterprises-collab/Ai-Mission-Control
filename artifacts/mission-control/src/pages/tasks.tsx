@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AgentAvatar, agentTone } from "@/components/agent-avatar";
 import "./workspaces.css";
 import "./tasks-simple.css";
+import "./tasks-reference.css";
 
 type TaskMeta = Task & { recurrence?: string; approvalRequired?: boolean; unreadMessages?: number; attachments?: Array<{name:string;url?:string}>; report?: string; archivedAt?: string | null };
 type TaskMessage = { id:number; author:string; body:string; createdAt:string };
@@ -43,7 +44,7 @@ export default function Tasks() {
   return <div className="workspaces-shell task-page-shell">
     <div className="workspaces-canvas tasks-canvas-simple">
       <header className="task-page-header">
-        <div><span className="task-page-kicker">Mission Control</span><h1>Task Automate</h1><p>The orchestrator owns every task and coordinates all agent work.</p></div>
+        <h1>Task</h1>
         <div className="task-header-actions">
           {approvalCount > 0 && <button className="approval-alert" onClick={() => setSelectedTask(tasks.find(t => ["review","blocked"].includes(t.status)) ?? null)}><AlertTriangle />{approvalCount} approval{approvalCount === 1 ? "" : "s"} needed</button>}
           <Button onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" /> Add task</Button>
