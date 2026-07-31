@@ -8,7 +8,7 @@ import { formatSkillsForPrompt, readSkillsForDelegation } from "../services/skil
 const router: IRouter = Router();
 const CORE_PLAYBOOK_CATEGORIES = ["Product", "Standard", "Spec"];
 
-type IntakeBody = { title?: unknown; description?: unknown; project?: unknown; priority?: unknown; requestedAgent?: unknown; dueDate?: unknown };
+type IntakeBody = { title?: unknown; description?: unknown; project?: unknown; priority?: unknown; requestedAgent?: unknown; dueDate?: unknown; recurrence?: unknown; approvalRequired?: unknown; attachments?: unknown };
 type AgentRecord = typeof agentsTable.$inferSelect;
 type AgentCandidate = { agent: AgentRecord | null; name: string; role: string; department: string; reason: string; confidence: number };
 
@@ -91,11 +91,14 @@ router.post("/orchestrator/intake", async (req, res): Promise<void> => {
   const project = asCleanString(body.project) ?? DEFAULT_PROJECT;
   const priority = normalizePriority(body.priority);
   const dueDate = asCleanString(body.dueDate);
+  const recurrence = asCleanString(body.recurrence) ?? "one_off";
+  const approvalRequired = body.approvalRequired === true;
+  const attachments = Array.isArray(body.attachments) ? body.attachments.filter((item): item is { name: string; url?: string } => Boolean(item && typeof item === "object" && "name" in item && typeof item.name === "string")) : [];
   const recommendation = await chooseAgent({ title, description, project, priority, requestedAgent: body.requestedAgent, dueDate });
   const assignedAgent = recommendation.agent;
   const assignee = assignedAgent?.name ?? UNASSIGNED_AGENT_NAME;
 
-  const [task] = await db.insert(tasksTable).values({ title, description, project, priority, dueDate, assignee, status: assignedAgent ? "ready" : "backlog" }).returning();
+  const [task] = await db.insert(tasksTable).values({ title, description, project, priority, dueDate, recurrence, approvalRequired, attachments, assignee, status: assignedAgent ? "ready" : "backlog" }).returning();
   let command: typeof agentCommandsTable.$inferSelect | null = null;
   let dispatch: { agent: AgentRecord; task: typeof tasksTable.$inferSelect; command: typeof agentCommandsTable.$inferSelect; instructions: string; context: string } | null = null;
 
