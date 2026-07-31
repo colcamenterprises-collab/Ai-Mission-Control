@@ -48,6 +48,14 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
       created_at timestamptz NOT NULL DEFAULT now()
     );
 
+    CREATE TABLE IF NOT EXISTS project_task_archives (
+      id serial PRIMARY KEY,
+      task_id integer NOT NULL UNIQUE,
+      project text NOT NULL,
+      archive jsonb NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+
     CREATE TABLE IF NOT EXISTS memories (
       id serial PRIMARY KEY,
       title text NOT NULL,
@@ -431,6 +439,7 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
     CREATE INDEX IF NOT EXISTS events_start_date_idx ON events (start_date);
     CREATE INDEX IF NOT EXISTS tasks_assignee_status_idx ON tasks (assignee, status);
     CREATE INDEX IF NOT EXISTS task_messages_task_created_idx ON task_messages (task_id, created_at);
+    CREATE INDEX IF NOT EXISTS project_task_archives_project_idx ON project_task_archives (project, created_at);
     CREATE INDEX IF NOT EXISTS agent_commands_agent_ack_idx ON agent_commands (agent_id, acknowledged_at);
     CREATE INDEX IF NOT EXISTS agent_tool_access_agent_idx ON agent_tool_access (agent_id);
     CREATE INDEX IF NOT EXISTS activity_created_at_idx ON activity (created_at);

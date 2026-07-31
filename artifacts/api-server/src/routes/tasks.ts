@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, asc } from "drizzle-orm";
-import { db, tasksTable, taskMessagesTable, projectsTable } from "@workspace/db";
+import { db, tasksTable, taskMessagesTable, projectsTable, projectTaskArchivesTable } from "@workspace/db";
 import { serializeDates } from "../utils/serialize.js";
 import {
   ListTasksResponse,
@@ -138,6 +138,14 @@ router.patch("/tasks/:id/move", async (req, res): Promise<void> => {
   if (!task) {
     res.status(404).json({ error: "Task not found" });
     return;
+  }
+  if (completing) {
+    const messages = await db.select().from(taskMessagesTable).where(eq(taskMessagesTable.taskId, task.id)).orderBy(asc(taskMessagesTable.createdAt));
+    await db.insert(projectTaskArchivesTable).values({
+      taskId: task.id,
+      project: task.project,
+      archive: serializeDates({ task, messages, attachments: task.attachments, report: task.report, archivedAt: task.archivedAt }),
+    }).onConflictDoUpdate({ target: projectTaskArchivesTable.taskId, set: { project: task.project, archive: serializeDates({ task, messages, attachments: task.attachments, report: task.report, archivedAt: task.archivedAt }) } });
   }
   res.json(MoveTaskResponse.parse(serializeDates(task)));
 });

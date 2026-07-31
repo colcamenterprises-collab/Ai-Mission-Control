@@ -36,6 +36,14 @@ export const projectsTable = pgTable("projects", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const projectTaskArchivesTable = pgTable("project_task_archives", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").notNull().unique(),
+  project: text("project").notNull(),
+  archive: jsonb("archive").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const insertTaskSchema = createInsertSchema(tasksTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertTask = z.infer<typeof insertTaskSchema>;
 export type Task = typeof tasksTable.$inferSelect;
