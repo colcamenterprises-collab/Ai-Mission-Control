@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { DndContext, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { useListEvents, useListTasks, useMoveTask, getListTasksQueryKey, type CalendarEvent, type Task } from "@workspace/api-client-react";
 import { AlertTriangle, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, MessageCircle, Paperclip, Plus, Send } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -42,6 +43,17 @@ export default function Tasks() {
 
   useEffect(() => { fetch("/api/projects", { headers: authHeaders() }).then(r => r.ok ? r.json() : []).then(setProjects).catch(() => setProjects([])); }, []);
   const approvalCount = tasks.filter(task => ["review", "blocked"].includes(task.status) || task.approvalRequired && ["running", "in_progress"].includes(task.status)).length;
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+  );
+  const moveToColumn = (event: DragEndEvent) => {
+    const taskId = Number(String(event.active.id).replace("task-", ""));
+    const columnId = event.over?.id as (typeof COLUMNS)[number]["id"] | undefined;
+    if (!taskId || !columnId || !COLUMNS.some(column => column.id === columnId)) return;
+    const status = columnId === "todo" ? "ready" : columnId === "doing" ? "running" : "done";
+    moveTask.mutate({ id: taskId, data: { status: status as Task["status"] } }, { onSuccess: invalidate });
+  };
 
   return <div className="workspaces-shell task-page-shell">
     <div className="workspaces-canvas tasks-canvas-simple">
@@ -53,29 +65,35 @@ export default function Tasks() {
         </div>
       </header>
 
-      <section className="task-board-grid" aria-label="Task Kanban board and automation calendar">
-        {isLoading ? COLUMNS.map(c => <div className="task-lane" key={c.id}><Skeleton className="h-8 w-full" /><Skeleton className="mt-3 h-32 w-full" /></div>) : COLUMNS.map(column => {
-          const laneTasks = tasks.filter(task => column.matches.includes(task.status as never));
-          return <div className="task-lane" key={column.id}>
-            <div className="task-lane-head"><strong>{column.label}</strong><span>{laneTasks.length}</span></div>
-            <div className="task-lane-list">
-              {laneTasks.map(task => <TaskCard key={task.id} task={task} onOpen={() => setSelectedTask(task)} />)}
-              {!laneTasks.length && <div className="task-lane-empty">No tasks</div>}
-            </div>
-            <button className="task-lane-add" onClick={() => setCreateOpen(true)}><Plus /> Add task</button>
-          </div>;
-        })}
-        <AutomationCalendar tasks={tasks} events={calendarEvents} />
-      </section>
+      <DndContext sensors={sensors} onDragEnd={moveToColumn}>
+        <section className="task-board-grid" aria-label="Task Kanban board and automation calendar">
+          {isLoading ? COLUMNS.map(c => <div className="task-lane" key={c.id}><Skeleton className="h-8 w-full" /><Skeleton className="mt-3 h-32 w-full" /></div>) : COLUMNS.map(column => <TaskLane key={column.id} column={column} tasks={tasks.filter(task => column.matches.includes(task.status as never))} onOpen={setSelectedTask} onAdd={() => setCreateOpen(true)} />)}
+          <div className="task-side-column">
+            <AutomationCalendar tasks={tasks} events={calendarEvents} />
+            <OrchestratorChat />
+          </div>
+        </section>
+      </DndContext>
     </div>
     <CreateTaskDialog open={createOpen} projects={projects} onClose={() => setCreateOpen(false)} onCreated={async project => { setCreateOpen(false); if (project && !projects.some(p => p.name === project)) setProjects(v => [...v, { id: Date.now(), name: project }]); await invalidate(); }} />
     <TaskDetailDialog task={selectedTask} onClose={() => setSelectedTask(null)} onMove={(task,status) => moveTask.mutate({ id: task.id, data: { status: status as Task["status"] } }, { onSuccess: async () => { await invalidate(); setSelectedTask(null); } })} />
   </div>;
 }
 
+function TaskLane({ column, tasks, onOpen, onAdd }: { column:(typeof COLUMNS)[number]; tasks:TaskMeta[]; onOpen:(task:TaskMeta)=>void; onAdd:()=>void }) {
+  const { setNodeRef, isOver } = useDroppable({ id:column.id });
+  return <div ref={setNodeRef} className={`task-lane ${isOver ? "is-over" : ""}`}>
+    <div className="task-lane-head"><strong>{column.label}</strong><span>{tasks.length}</span></div>
+    <div className="task-lane-list">{tasks.map(task => <TaskCard key={task.id} task={task} onOpen={() => onOpen(task)} />)}{!tasks.length && <div className="task-lane-empty">No tasks</div>}</div>
+    <button className="task-lane-add" onClick={onAdd}><Plus /> Add task</button>
+  </div>;
+}
+
 function TaskCard({ task, onOpen }: { task: TaskMeta; onOpen: () => void }) {
   const approval = ["review", "blocked"].includes(task.status) || Boolean(task.approvalRequired && ["running", "in_progress"].includes(task.status));
-  return <article className={`task-card-minimal task-agent-${agentTone(task.assignee)} ${approval ? "needs-approval" : ""}`} onClick={onOpen}>
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id:`task-${task.id}` });
+  const style = transform ? { transform:`translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
+  return <article ref={setNodeRef} style={style} className={`task-card-minimal task-agent-${agentTone(task.assignee)} ${approval ? "needs-approval" : ""} ${isDragging ? "is-dragging" : ""}`} onClick={onOpen} {...listeners} {...attributes}>
     {approval && <span className="card-approval"><AlertTriangle /> Approval required</span>}
     <h3>{task.title}</h3>
     <p>{task.description || "No description provided."}</p>
@@ -85,6 +103,38 @@ function TaskCard({ task, onOpen }: { task: TaskMeta; onOpen: () => void }) {
       {task.assignee?.toLowerCase().includes("james") ? <JamesAvatar className="mission-agent-avatar task-james-avatar" /> : <AgentAvatar name={task.assignee} />}
     </footer>
   </article>;
+}
+
+type OrchestratorChatMessage = { role: "user" | "james" | "error"; content: string; timestamp: string };
+const ORCHESTRATOR_CHAT_KEY = "mission-control:james-chat-history";
+
+function OrchestratorChat() {
+  const [messages, setMessages] = useState<OrchestratorChatMessage[]>(() => {
+    try { return JSON.parse(localStorage.getItem(ORCHESTRATOR_CHAT_KEY) ?? "[]") as OrchestratorChatMessage[]; }
+    catch { return []; }
+  });
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  useEffect(() => { localStorage.setItem(ORCHESTRATOR_CHAT_KEY, JSON.stringify(messages)); }, [messages]);
+  const send = async () => {
+    const content = message.trim();
+    if (!content || sending) return;
+    setMessages(value => [...value, { role:"user", content, timestamp:new Date().toISOString() }]);
+    setMessage(""); setSending(true);
+    try {
+      const response = await fetch("/api/james/message", { method:"POST", headers:authHeaders(), body:JSON.stringify({ message:content }) });
+      const result = await response.json() as { success?:boolean; response?:string; stdout?:string; error?:string; details?:string };
+      const reply = result.response || result.stdout || result.error || result.details || "James received the message.";
+      setMessages(value => [...value, { role:response.ok && result.success !== false ? "james" : "error", content:reply, timestamp:new Date().toISOString() }]);
+    } catch {
+      setMessages(value => [...value, { role:"error", content:"Unable to reach the orchestrator.", timestamp:new Date().toISOString() }]);
+    } finally { setSending(false); }
+  };
+  return <section className="orchestrator-chat-widget">
+    <header><div><JamesAvatar className="orchestrator-chat-avatar" /><span><strong>James</strong><small>Orchestrator</small></span></div><i aria-label={sending ? "James is responding" : "James is available"} /></header>
+    <div className="orchestrator-chat-messages">{messages.length ? messages.slice(-8).map((item,index) => <p key={`${item.timestamp}-${index}`} className={item.role}><span>{item.role === "user" ? "You" : "James"}</span>{item.content}</p>) : <p className="empty">Message the orchestrator about any task.</p>}</div>
+    <div className="orchestrator-chat-compose"><Textarea value={message} onChange={event => setMessage(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="Message James…" rows={2} /><Button onClick={send} disabled={sending || !message.trim()} aria-label="Send message"><Send /></Button></div>
+  </section>;
 }
 
 function CreateTaskDialog({ open, projects, onClose, onCreated }: { open:boolean; projects:Project[]; onClose:()=>void; onCreated:(project:string)=>void }) {
