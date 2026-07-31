@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListTasks, useMoveTask, getListTasksQueryKey, type Task } from "@workspace/api-client-react";
-import { AlertTriangle, CalendarDays, CheckCircle2, MessageCircle, Paperclip, Plus, Send, X } from "lucide-react";
+import { useListEvents, useListTasks, useMoveTask, getListTasksQueryKey, type CalendarEvent, type Task } from "@workspace/api-client-react";
+import { AlertTriangle, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, MessageCircle, Paperclip, Plus, Send } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AgentAvatar, agentTone } from "@/components/agent-avatar";
+import { JamesAvatar } from "@/components/james-avatar";
 import "./workspaces.css";
 import "./tasks-simple.css";
 import "./tasks-reference.css";
@@ -31,6 +32,7 @@ function authHeaders() {
 export default function Tasks() {
   const queryClient = useQueryClient();
   const { data: rawTasks = [], isLoading } = useListTasks();
+  const { data: calendarEvents = [] } = useListEvents();
   const tasks = rawTasks as TaskMeta[];
   const moveTask = useMoveTask();
   const [selectedTask, setSelectedTask] = useState<TaskMeta | null>(null);
@@ -51,7 +53,7 @@ export default function Tasks() {
         </div>
       </header>
 
-      <section className="task-board-grid" aria-label="Task Kanban board">
+      <section className="task-board-grid" aria-label="Task Kanban board and automation calendar">
         {isLoading ? COLUMNS.map(c => <div className="task-lane" key={c.id}><Skeleton className="h-8 w-full" /><Skeleton className="mt-3 h-32 w-full" /></div>) : COLUMNS.map(column => {
           const laneTasks = tasks.filter(task => column.matches.includes(task.status as never));
           return <div className="task-lane" key={column.id}>
@@ -63,6 +65,7 @@ export default function Tasks() {
             <button className="task-lane-add" onClick={() => setCreateOpen(true)}><Plus /> Add task</button>
           </div>;
         })}
+        <AutomationCalendar tasks={tasks} events={calendarEvents} />
       </section>
     </div>
     <CreateTaskDialog open={createOpen} projects={projects} onClose={() => setCreateOpen(false)} onCreated={async project => { setCreateOpen(false); if (project && !projects.some(p => p.name === project)) setProjects(v => [...v, { id: Date.now(), name: project }]); await invalidate(); }} />
@@ -79,7 +82,7 @@ function TaskCard({ task, onOpen }: { task: TaskMeta; onOpen: () => void }) {
     {task.dueDate && <span className="task-due"><CalendarDays />{new Date(task.dueDate).toLocaleString([], { dateStyle:"medium", timeStyle:"short" })}</span>}
     <footer>
       <div className="task-card-icons"><span><MessageCircle />{task.unreadMessages ?? 0}</span>{Boolean(task.attachments?.length) && <span><Paperclip />{task.attachments!.length}</span>}</div>
-      <AgentAvatar name={task.assignee} />
+      {task.assignee?.toLowerCase().includes("james") ? <JamesAvatar className="mission-agent-avatar task-james-avatar" /> : <AgentAvatar name={task.assignee} />}
     </footer>
   </article>;
 }
@@ -97,15 +100,68 @@ function CreateTaskDialog({ open, projects, onClose, onCreated }: { open:boolean
       setForm({ title:"",description:"",date:"",time:"",recurrence:"one_off",project:"Mission Control",newProject:"",approvalRequired:false }); setFiles([]); onCreated(project);
     } catch(e) { setError(e instanceof Error ? e.message : "Unable to create task"); } finally { setBusy(false); }
   };
-  return <Dialog open={open} onOpenChange={v => !v && onClose()}><DialogContent className="task-create-dialog"><DialogHeader><DialogTitle>Create a task</DialogTitle></DialogHeader>
+  return <Dialog open={open} onOpenChange={v => !v && onClose()}><DialogContent className="task-create-dialog"><DialogHeader><DialogTitle>Add Task</DialogTitle></DialogHeader>
     <div className="task-form"><label>Title<Input value={form.title} onChange={e=>setForm(v=>({...v,title:e.target.value}))} /></label><label>Description<Textarea rows={4} value={form.description} onChange={e=>setForm(v=>({...v,description:e.target.value}))} /></label>
       <div className="task-form-row"><label>Due date<Input type="date" value={form.date} onChange={e=>setForm(v=>({...v,date:e.target.value}))} /></label><label>Due time<Input type="time" value={form.time} onChange={e=>setForm(v=>({...v,time:e.target.value}))} /></label></div>
       <div className="task-form-row"><label>Schedule<select value={form.recurrence} onChange={e=>setForm(v=>({...v,recurrence:e.target.value}))}><option value="one_off">One off</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label><label>Project<select value={form.project} onChange={e=>setForm(v=>({...v,project:e.target.value}))}><option>Mission Control</option>{projects.map(p=><option key={p.id}>{p.name}</option>)}<option value="__new">+ Create project</option></select></label></div>
       {form.project === "__new" && <label>New project name<Input value={form.newProject} onChange={e=>setForm(v=>({...v,newProject:e.target.value}))} /></label>}
       <label className="task-check"><input type="checkbox" checked={form.approvalRequired} onChange={e=>setForm(v=>({...v,approvalRequired:e.target.checked}))} /> This task requires owner approval</label>
       <label>Attachments<Input type="file" multiple onChange={e=>setFiles(Array.from(e.target.files ?? []).map(f=>f.name))} /></label>{files.length > 0 && <small>{files.join(", ")}</small>}{error && <p className="task-error">{error}</p>}
-      <Button onClick={submit} disabled={busy}>{busy ? "Sending to orchestrator…" : "Create and send to orchestrator"}</Button>
+      <Button onClick={submit} disabled={busy}>{busy ? "Adding…" : "Add Task"}</Button>
     </div></DialogContent></Dialog>;
+}
+
+type AutomationItem = { id: string; title: string; description: string; date: Date; schedule: string };
+
+function dateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function AutomationCalendar({ tasks, events }: { tasks: TaskMeta[]; events: CalendarEvent[] }) {
+  const [view, setView] = useState<"week" | "month">("month");
+  const [cursor, setCursor] = useState(() => new Date());
+  const [selected, setSelected] = useState<{ date: Date; items: AutomationItem[] } | null>(null);
+  const today = new Date();
+  const visibleDays = useMemo(() => {
+    if (view === "week") {
+      const start = new Date(cursor); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - start.getDay());
+      return Array.from({ length: 7 }, (_, index) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + index));
+    }
+    const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+    const gridStart = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay());
+    return Array.from({ length: 42 }, (_, index) => new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + index));
+  }, [cursor, view]);
+  const itemsByDay = useMemo(() => {
+    const result = new Map<string, AutomationItem[]>();
+    const add = (item: AutomationItem) => result.set(dateKey(item.date), [...(result.get(dateKey(item.date)) ?? []), item]);
+    const automationEvents = events.filter(event => event.category === "automation");
+    for (const day of visibleDays) {
+      const dayStart = new Date(day); dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(day); dayEnd.setHours(23, 59, 59, 999);
+      automationEvents.forEach(event => {
+        const start = new Date(event.startDate); const end = event.endDate ? new Date(event.endDate) : start;
+        if (start <= dayEnd && end >= dayStart) add({ id:`event-${event.id}`, title:event.title, description:event.description ?? "Automation event", date:day, schedule:start.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}) });
+      });
+      tasks.filter(task => task.recurrence && task.recurrence !== "one_off" && task.dueDate).forEach(task => {
+        const due = new Date(task.dueDate!);
+        const active = task.recurrence === "daily" || task.recurrence === "weekly" && due.getDay() === day.getDay() || task.recurrence === "monthly" && due.getDate() === day.getDate();
+        if (active && dayStart >= new Date(due.getFullYear(), due.getMonth(), due.getDate())) add({ id:`task-${task.id}`, title:task.title, description:task.description ?? "Recurring task", date:day, schedule:`${task.recurrence} · ${due.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}` });
+      });
+    }
+    return result;
+  }, [events, tasks, visibleDays]);
+  const navigate = (direction: number) => setCursor(value => { const next = new Date(value); if (view === "month") next.setMonth(next.getMonth() + direction); else next.setDate(next.getDate() + 7 * direction); return next; });
+  const label = view === "month" ? cursor.toLocaleDateString([], { month:"long", year:"numeric" }) : `${visibleDays[0].toLocaleDateString([], {month:"short",day:"numeric"})} – ${visibleDays[6].toLocaleDateString([], {month:"short",day:"numeric"})}`;
+  return <div className="automation-calendar task-lane">
+    <div className="automation-calendar-title"><strong>Calendar</strong><div><button className={view === "month" ? "active" : ""} onClick={() => setView("month")}>Monthly</button><button className={view === "week" ? "active" : ""} onClick={() => setView("week")}>Weekly</button></div></div>
+    <div className="automation-calendar-nav"><button onClick={() => navigate(-1)} aria-label="Previous"><ChevronLeft /></button><span>{label}</span><button onClick={() => navigate(1)} aria-label="Next"><ChevronRight /></button></div>
+    <div className={`automation-calendar-grid ${view}`}>{["S","M","T","W","T","F","S"].map((day,index) => <span className="automation-weekday" key={`${day}-${index}`}>{day}</span>)}{visibleDays.map(day => { const items = itemsByDay.get(dateKey(day)) ?? []; const active = items.length > 0; const outside = view === "month" && day.getMonth() !== cursor.getMonth(); const isToday = dateKey(day) === dateKey(today); return <button key={dateKey(day)} className={`${active ? "has-automation" : ""} ${outside ? "outside" : ""} ${isToday ? "today" : ""}`} onClick={() => active && setSelected({date:day,items})} disabled={!active}><span>{day.getDate()}</span>{active && <small>{items.length}</small>}</button>; })}</div>
+    <div className="automation-calendar-key"><span /> Active automation</div>
+    <Dialog open={Boolean(selected)} onOpenChange={open => !open && setSelected(null)}><DialogContent className="automation-detail-dialog"><DialogHeader><DialogTitle>{selected?.date.toLocaleDateString([], {weekday:"long",month:"long",day:"numeric"})}</DialogTitle></DialogHeader><div className="automation-detail-list">{selected?.items.map(item => <article key={item.id}><div><span>{item.schedule}</span><h3>{item.title}</h3></div><p>{item.description}</p></article>)}</div></DialogContent></Dialog>
+  </div>;
 }
 
 function TaskDetailDialog({ task, onClose, onMove }: { task:TaskMeta|null; onClose:()=>void; onMove:(task:TaskMeta,status:string)=>void }) {

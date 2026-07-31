@@ -80,7 +80,7 @@
   display: flex !important;
   align-items: center;
   justify-content: flex-start !important;
-  gap: .7rem;
+  gap: 1.05rem;
   padding: .9rem 0 !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
@@ -107,6 +107,7 @@
   min-width: 1.9rem !important;
   height: 1.9rem !important;
   margin-left: auto;
+  margin-right: .18rem;
   padding: 0 !important;
   border: 1px solid rgba(255, 255, 255, .15) !important;
   border-radius: .48rem !important;
@@ -300,11 +301,13 @@
 .mission-sidebar .mission-sidebar-footer {
   display: block !important;
   flex: 0 0 auto;
-  padding: 0 !important;
+  padding: .95rem 0 0 !important;
+  border-top: 1px solid rgba(255,255,255,.07);
 }
 
 .mission-ai-boost {
-  padding: .9rem;
+  width: 100%;
+  padding: .78rem;
   border: 1px solid rgba(255, 255, 255, .11);
   border-radius: .8rem;
   background:
@@ -329,10 +332,7 @@
 }
 
 .mission-ai-boost p {
-  margin: .45rem 0 .72rem;
-  color: #7e7e88;
-  font-size: .68rem;
-  line-height: 1.5;
+  display: none;
 }
 
 .mission-ai-boost button {
@@ -346,6 +346,7 @@
   font-size: .73rem;
   font-weight: 580;
   box-shadow: 0 0 16px rgba(86, 48, 255, .42), inset 0 1px rgba(255, 255, 255, .18) !important;
+  margin-top: .65rem;
 }
 
 .mission-sidebar-account {
