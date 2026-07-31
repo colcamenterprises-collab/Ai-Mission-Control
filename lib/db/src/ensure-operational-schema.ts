@@ -23,8 +23,29 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
       status text NOT NULL DEFAULT 'backlog',
       project text NOT NULL,
       due_date text,
+      recurrence text NOT NULL DEFAULT 'one_off',
+      approval_required boolean NOT NULL DEFAULT false,
+      unread_messages integer NOT NULL DEFAULT 0,
+      attachments jsonb NOT NULL DEFAULT '[]'::jsonb,
+      report text,
+      archived_at timestamptz,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS task_messages (
+      id serial PRIMARY KEY,
+      task_id integer NOT NULL,
+      author text NOT NULL,
+      body text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS projects (
+      id serial PRIMARY KEY,
+      name text NOT NULL UNIQUE,
+      description text,
+      created_at timestamptz NOT NULL DEFAULT now()
     );
 
     CREATE TABLE IF NOT EXISTS memories (
@@ -166,6 +187,12 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS status text DEFAULT 'backlog';
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS project text;
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date text;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence text DEFAULT 'one_off';
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS approval_required boolean DEFAULT false;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS unread_messages integer DEFAULT 0;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS attachments jsonb DEFAULT '[]'::jsonb;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS report text;
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS archived_at timestamptz;
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
 
@@ -270,6 +297,10 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
     UPDATE tasks SET project = 'UNMAPPED' WHERE project IS NULL;
     UPDATE tasks SET created_at = now() WHERE created_at IS NULL;
     UPDATE tasks SET updated_at = created_at WHERE updated_at IS NULL;
+    UPDATE tasks SET recurrence = 'one_off' WHERE recurrence IS NULL;
+    UPDATE tasks SET approval_required = false WHERE approval_required IS NULL;
+    UPDATE tasks SET unread_messages = 0 WHERE unread_messages IS NULL;
+    UPDATE tasks SET attachments = '[]'::jsonb WHERE attachments IS NULL;
 
     UPDATE memories SET content = '' WHERE content IS NULL;
     UPDATE memories SET category = 'UNMAPPED' WHERE category IS NULL;
@@ -331,6 +362,10 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
     ALTER TABLE tasks ALTER COLUMN project SET NOT NULL;
     ALTER TABLE tasks ALTER COLUMN created_at SET NOT NULL;
     ALTER TABLE tasks ALTER COLUMN updated_at SET NOT NULL;
+    ALTER TABLE tasks ALTER COLUMN recurrence SET NOT NULL;
+    ALTER TABLE tasks ALTER COLUMN approval_required SET NOT NULL;
+    ALTER TABLE tasks ALTER COLUMN unread_messages SET NOT NULL;
+    ALTER TABLE tasks ALTER COLUMN attachments SET NOT NULL;
 
     ALTER TABLE memories ALTER COLUMN content SET NOT NULL;
     ALTER TABLE memories ALTER COLUMN category SET NOT NULL;
@@ -395,6 +430,7 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
     CREATE INDEX IF NOT EXISTS content_created_at_idx ON content (created_at);
     CREATE INDEX IF NOT EXISTS events_start_date_idx ON events (start_date);
     CREATE INDEX IF NOT EXISTS tasks_assignee_status_idx ON tasks (assignee, status);
+    CREATE INDEX IF NOT EXISTS task_messages_task_created_idx ON task_messages (task_id, created_at);
     CREATE INDEX IF NOT EXISTS agent_commands_agent_ack_idx ON agent_commands (agent_id, acknowledged_at);
     CREATE INDEX IF NOT EXISTS agent_tool_access_agent_idx ON agent_tool_access (agent_id);
     CREATE INDEX IF NOT EXISTS activity_created_at_idx ON activity (created_at);

@@ -1,157 +1,122 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useListTasks, useMoveTask, useListEvents, getListTasksQueryKey, type Task } from "@workspace/api-client-react";
+import { useListTasks, useMoveTask, getListTasksQueryKey, type Task } from "@workspace/api-client-react";
+import { AlertTriangle, CalendarDays, CheckCircle2, MessageCircle, Paperclip, Plus, Send, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { OrchestratorIntakePanel } from "@/components/orchestrator-intake-panel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { AgentAvatar, agentTone } from "@/components/agent-avatar";
 import "./workspaces.css";
 import "./tasks-simple.css";
 
-type MissionTask = Task & { status: Task["status"] };
+type TaskMeta = Task & { recurrence?: string; approvalRequired?: boolean; unreadMessages?: number; attachments?: Array<{name:string;url?:string}>; report?: string; archivedAt?: string | null };
+type TaskMessage = { id:number; author:string; body:string; createdAt:string };
+type TaskDetails = TaskMeta & { messages: TaskMessage[] };
+type Project = { id:number; name:string };
 
-const COLUMNS: Array<{ id: Task["status"]; label: string; matches: Task["status"][] }> = [
-  { id: "backlog", label: "New", matches: ["backlog"] },
-  { id: "ready", label: "Ready", matches: ["ready"] },
-  { id: "running", label: "In progress", matches: ["running", "in_progress"] },
-  { id: "review", label: "Your approval", matches: ["review", "blocked"] },
-  { id: "done", label: "Completed", matches: ["done"] },
-];
+const COLUMNS = [
+  { id: "todo", label: "To-Do", matches: ["backlog", "ready"] },
+  { id: "doing", label: "Doing", matches: ["running", "in_progress", "review", "blocked"] },
+  { id: "done", label: "Done", matches: ["done"] },
+] as const;
+
+function authHeaders() {
+  const token = localStorage.getItem("mission_control_admin_token") ?? localStorage.getItem("missionControlAdminToken");
+  return { "Content-Type": "application/json", Accept: "application/json", ...(token ? { Authorization: `Bearer ${token}`, "x-admin-token": token } : {}) };
+}
 
 export default function Tasks() {
   const queryClient = useQueryClient();
-  const [filter] = useState({ priority: "all", project: "all" });
-  const [selectedTask, setSelectedTask] = useState<MissionTask | null>(null);
-  const { data: tasks = [], isLoading } = useListTasks();
+  const { data: rawTasks = [], isLoading } = useListTasks();
+  const tasks = rawTasks as TaskMeta[];
   const moveTask = useMoveTask();
+  const [selectedTask, setSelectedTask] = useState<TaskMeta | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
 
-  const filteredTasks = tasks.filter((task) => {
-    if (filter.priority !== "all" && task.priority !== filter.priority) return false;
-    if (filter.project !== "all" && task.project !== filter.project) return false;
-    return true;
-  });
+  useEffect(() => { fetch("/api/projects", { headers: authHeaders() }).then(r => r.ok ? r.json() : []).then(setProjects).catch(() => setProjects([])); }, []);
+  const approvalCount = tasks.filter(task => ["review", "blocked"].includes(task.status) || task.approvalRequired && ["running", "in_progress"].includes(task.status)).length;
 
-  const moveTo = (task: MissionTask, status: Task["status"]) => {
-    moveTask.mutate({ id: task.id, data: { status } }, { onSuccess: invalidate });
-  };
-
-  return (
-    <div className="workspaces-shell h-full overflow-y-auto">
-      <div className="workspaces-canvas tasks-canvas-simple space-y-4">
-        <header className="work-hero">
-          <div><h1>Tasks</h1></div>
-          <div className="work-hero-summary"><strong>{tasks.length}</strong><span>open</span></div>
-        </header>
-        <OrchestratorIntakePanel />
-
-        <section className="task-board-grid">
-          {isLoading ? (
-            COLUMNS.map((column) => <div className="task-lane workspace-panel" key={column.id}><Skeleton className="h-5 w-20" /><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div>)
-          ) : COLUMNS.map((column) => {
-            const laneTasks = filteredTasks.filter((task) => column.matches.includes(task.status));
-            return (
-              <div className="task-lane workspace-panel" key={column.id}>
-                <div className="task-lane-head">
-                  <div><span>{column.label}</span><small>{laneTasks.length} {laneTasks.length === 1 ? "item" : "items"}</small></div>
-                </div>
-                <div className="task-lane-list">
-                  {laneTasks.length === 0 ? <div className="empty-visual-state">Clear</div> : laneTasks.map((task) => <TaskCard key={task.id} task={task} onOpen={() => setSelectedTask(task)} onMove={moveTo} />)}
-                </div>
-              </div>
-            );
-          })}
-        </section>
-        <MonthlyPlanner tasks={tasks} onOpenTask={(task) => setSelectedTask(task as MissionTask)} />
-      </div>
-      <TaskDialog task={selectedTask} onClose={() => setSelectedTask(null)} onMove={(task, status) => { moveTo(task, status); setSelectedTask({ ...task, status }); }} />
-    </div>
-  );
-}
-
-function TaskCard({ task, onOpen, onMove }: { task: MissionTask; onOpen: () => void; onMove: (task: MissionTask, status: Task["status"]) => void }) {
-  const nextStatus: Task["status"] | null = task.status === "backlog" ? "ready" : task.status === "ready" ? "running" : task.status === "running" || task.status === "in_progress" ? "review" : task.status === "review" ? "done" : null;
-
-  return (
-    <article className={`task-card-minimal task-agent-${agentTone(task.assignee)}`} onClick={onOpen}>
-      <div className="task-card-main">
-        <h3>{task.title}</h3>
-        <span className="task-agent-owner"><AgentAvatar name={task.assignee} />{task.assignee || "Awaiting allocation"}</span>
-      </div>
-      <div className="task-card-footer"><em className={`task-priority task-priority-${task.priority}`}>{task.priority}</em>{nextStatus && <button type="button" onClick={(event) => { event.stopPropagation(); onMove(task, nextStatus); }}>Next</button>}</div>
-    </article>
-  );
-}
-
-function TaskDialog({ task, onClose, onMove }: { task: MissionTask | null; onClose: () => void; onMove: (task: MissionTask, status: Task["status"]) => void }) {
-  if (!task) return null;
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl bg-card border-border">
-        <DialogHeader><DialogTitle>{task.title}</DialogTitle></DialogHeader>
-        <div className="task-detail-grid">
-          <div><span>Status</span><strong>{COLUMNS.find((column) => column.matches.includes(task.status))?.label ?? task.status}</strong></div>
-          <div><span>Agent</span><strong>{task.assignee || "Being assigned"}</strong></div>
-          <div><span>Due</span><strong>{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "Not set"}</strong></div>
-          <div><span>Project</span><strong>{task.project}</strong></div>
-        </div>
-        {task.description && <p className="task-detail-description">{task.description}</p>}
-        <div className="flex flex-wrap justify-end gap-2">
-          {task.status === "review" || task.status === "blocked" ? (
-            <>
-              <Button variant="outline" onClick={() => onMove(task, "running")}>Changes</Button>
-              <Button onClick={() => onMove(task, "done")}>Approve</Button>
-            </>
-          ) : task.status !== "done" ? (
-            <Button onClick={() => onMove(task, task.status === "backlog" ? "ready" : task.status === "ready" ? "running" : "review")}>Move forward</Button>
-          ) : null}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function MonthlyPlanner({ tasks, onOpenTask }: { tasks: Task[]; onOpenTask: (task: Task) => void }) {
-  const [month, setMonth] = useState(() => new Date());
-  const { data: events = [] } = useListEvents();
-  const days = useMemo(() => {
-    const year = month.getFullYear();
-    const monthIndex = month.getMonth();
-    const first = new Date(year, monthIndex, 1);
-    const start = new Date(year, monthIndex, 1 - first.getDay());
-    return Array.from({ length: 42 }, (_, index) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + index));
-  }, [month]);
-  const datedTasks = tasks.filter((task) => task.dueDate);
-  const key = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-
-  return (
-    <section className="workspace-panel task-monthly-planner">
-      <header>
-        <div><strong>{month.toLocaleDateString("en", { month: "long", year: "numeric" })}</strong></div>
-        <div>
-          <button onClick={() => setMonth(new Date())}>Today</button>
-          <button onClick={() => setMonth((value) => new Date(value.getFullYear(), value.getMonth() - 1, 1))}>Previous</button>
-          <button onClick={() => setMonth((value) => new Date(value.getFullYear(), value.getMonth() + 1, 1))}>Next</button>
+  return <div className="workspaces-shell task-page-shell">
+    <div className="workspaces-canvas tasks-canvas-simple">
+      <header className="task-page-header">
+        <div><span className="task-page-kicker">Mission Control</span><h1>Task Automate</h1><p>The orchestrator owns every task and coordinates all agent work.</p></div>
+        <div className="task-header-actions">
+          {approvalCount > 0 && <button className="approval-alert" onClick={() => setSelectedTask(tasks.find(t => ["review","blocked"].includes(t.status)) ?? null)}><AlertTriangle />{approvalCount} approval{approvalCount === 1 ? "" : "s"} needed</button>}
+          <Button onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" /> Add task</Button>
         </div>
       </header>
-      <div className="task-calendar-grid">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <b key={day}>{day}</b>)}
-        {days.map((date) => {
-          const dateKey = key(date);
-          const dayTasks = datedTasks.filter((task) => task.dueDate?.slice(0, 10) === dateKey);
-          const dayEvents = events.filter((event) => event.startDate.slice(0, 10) === dateKey);
-          const isCurrent = date.getMonth() === month.getMonth();
-          return (
-            <div key={dateKey} className={isCurrent ? "" : "outside"}>
-              <span>{date.getDate()}</span>
-              {dayTasks.slice(0, 2).map((task) => <button key={task.id} onClick={() => onOpenTask(task)}>{task.title}</button>)}
-              {dayEvents.slice(0, Math.max(0, 2 - dayTasks.length)).map((event) => <em key={event.id}>{event.title}</em>)}
-              {dayTasks.length + dayEvents.length > 2 && <small>+{dayTasks.length + dayEvents.length - 2}</small>}
+
+      <section className="task-board-grid" aria-label="Task Kanban board">
+        {isLoading ? COLUMNS.map(c => <div className="task-lane" key={c.id}><Skeleton className="h-8 w-full" /><Skeleton className="mt-3 h-32 w-full" /></div>) : COLUMNS.map(column => {
+          const laneTasks = tasks.filter(task => column.matches.includes(task.status as never));
+          return <div className="task-lane" key={column.id}>
+            <div className="task-lane-head"><strong>{column.label}</strong><span>{laneTasks.length}</span></div>
+            <div className="task-lane-list">
+              {laneTasks.map(task => <TaskCard key={task.id} task={task} onOpen={() => setSelectedTask(task)} />)}
+              {!laneTasks.length && <div className="task-lane-empty">No tasks</div>}
             </div>
-          );
+            <button className="task-lane-add" onClick={() => setCreateOpen(true)}><Plus /> Add task</button>
+          </div>;
         })}
-      </div>
-    </section>
-  );
+      </section>
+    </div>
+    <CreateTaskDialog open={createOpen} projects={projects} onClose={() => setCreateOpen(false)} onCreated={async project => { setCreateOpen(false); if (project && !projects.some(p => p.name === project)) setProjects(v => [...v, { id: Date.now(), name: project }]); await invalidate(); }} />
+    <TaskDetailDialog task={selectedTask} onClose={() => setSelectedTask(null)} onMove={(task,status) => moveTask.mutate({ id: task.id, data: { status: status as Task["status"] } }, { onSuccess: async () => { await invalidate(); setSelectedTask(null); } })} />
+  </div>;
+}
+
+function TaskCard({ task, onOpen }: { task: TaskMeta; onOpen: () => void }) {
+  const approval = ["review", "blocked"].includes(task.status) || Boolean(task.approvalRequired && ["running", "in_progress"].includes(task.status));
+  return <article className={`task-card-minimal task-agent-${agentTone(task.assignee)} ${approval ? "needs-approval" : ""}`} onClick={onOpen}>
+    {approval && <span className="card-approval"><AlertTriangle /> Approval required</span>}
+    <h3>{task.title}</h3>
+    <p>{task.description || "No description provided."}</p>
+    {task.dueDate && <span className="task-due"><CalendarDays />{new Date(task.dueDate).toLocaleString([], { dateStyle:"medium", timeStyle:"short" })}</span>}
+    <footer>
+      <div className="task-card-icons"><span><MessageCircle />{task.unreadMessages ?? 0}</span>{Boolean(task.attachments?.length) && <span><Paperclip />{task.attachments!.length}</span>}</div>
+      <AgentAvatar name={task.assignee} />
+    </footer>
+  </article>;
+}
+
+function CreateTaskDialog({ open, projects, onClose, onCreated }: { open:boolean; projects:Project[]; onClose:()=>void; onCreated:(project:string)=>void }) {
+  const [form,setForm] = useState({ title:"",description:"",date:"",time:"",recurrence:"one_off",project:"Mission Control",newProject:"",approvalRequired:false });
+  const [files,setFiles] = useState<string[]>([]); const [busy,setBusy] = useState(false); const [error,setError] = useState("");
+  const project = form.project === "__new" ? form.newProject.trim() : form.project;
+  const submit = async () => { setError(""); if (!form.title.trim() || !form.description.trim() || !project) { setError("Title, description and project are required."); return; } setBusy(true);
+    try {
+      if (form.project === "__new") { const pr = await fetch("/api/projects", { method:"POST", headers:authHeaders(), body:JSON.stringify({name:project}) }); if (!pr.ok && pr.status !== 409) throw new Error("Unable to create project"); }
+      const dueDate = form.date ? new Date(`${form.date}T${form.time || "17:00"}`).toISOString() : null;
+      const response = await fetch("/api/orchestrator/intake", { method:"POST", headers:authHeaders(), body:JSON.stringify({ title:form.title, description:form.description, project, dueDate, recurrence:form.recurrence, approvalRequired:form.approvalRequired, attachments:files.map(name => ({name})) }) });
+      if (!response.ok) throw new Error((await response.json()).error || "Unable to create task");
+      setForm({ title:"",description:"",date:"",time:"",recurrence:"one_off",project:"Mission Control",newProject:"",approvalRequired:false }); setFiles([]); onCreated(project);
+    } catch(e) { setError(e instanceof Error ? e.message : "Unable to create task"); } finally { setBusy(false); }
+  };
+  return <Dialog open={open} onOpenChange={v => !v && onClose()}><DialogContent className="task-create-dialog"><DialogHeader><DialogTitle>Create a task</DialogTitle></DialogHeader>
+    <div className="task-form"><label>Title<Input value={form.title} onChange={e=>setForm(v=>({...v,title:e.target.value}))} /></label><label>Description<Textarea rows={4} value={form.description} onChange={e=>setForm(v=>({...v,description:e.target.value}))} /></label>
+      <div className="task-form-row"><label>Due date<Input type="date" value={form.date} onChange={e=>setForm(v=>({...v,date:e.target.value}))} /></label><label>Due time<Input type="time" value={form.time} onChange={e=>setForm(v=>({...v,time:e.target.value}))} /></label></div>
+      <div className="task-form-row"><label>Schedule<select value={form.recurrence} onChange={e=>setForm(v=>({...v,recurrence:e.target.value}))}><option value="one_off">One off</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label><label>Project<select value={form.project} onChange={e=>setForm(v=>({...v,project:e.target.value}))}><option>Mission Control</option>{projects.map(p=><option key={p.id}>{p.name}</option>)}<option value="__new">+ Create project</option></select></label></div>
+      {form.project === "__new" && <label>New project name<Input value={form.newProject} onChange={e=>setForm(v=>({...v,newProject:e.target.value}))} /></label>}
+      <label className="task-check"><input type="checkbox" checked={form.approvalRequired} onChange={e=>setForm(v=>({...v,approvalRequired:e.target.checked}))} /> This task requires owner approval</label>
+      <label>Attachments<Input type="file" multiple onChange={e=>setFiles(Array.from(e.target.files ?? []).map(f=>f.name))} /></label>{files.length > 0 && <small>{files.join(", ")}</small>}{error && <p className="task-error">{error}</p>}
+      <Button onClick={submit} disabled={busy}>{busy ? "Sending to orchestrator…" : "Create and send to orchestrator"}</Button>
+    </div></DialogContent></Dialog>;
+}
+
+function TaskDetailDialog({ task, onClose, onMove }: { task:TaskMeta|null; onClose:()=>void; onMove:(task:TaskMeta,status:string)=>void }) {
+  const [details,setDetails]=useState<TaskDetails|null>(null); const [message,setMessage]=useState(""); const [sending,setSending]=useState(false);
+  useEffect(()=>{ setDetails(null); if(task) fetch(`/api/tasks/${task.id}/details`,{headers:authHeaders()}).then(r=>r.json()).then(setDetails).catch(()=>setDetails({...task,messages:[]})); },[task]);
+  const send=async()=>{ if(!task||!message.trim())return; setSending(true); const r=await fetch(`/api/tasks/${task.id}/messages`,{method:"POST",headers:authHeaders(),body:JSON.stringify({body:message})}); if(r.ok){const created=await r.json();setDetails(v=>v?{...v,messages:[...v.messages,created]}:v);setMessage("");}setSending(false); };
+  if(!task)return null; const value=details??({...task,messages:[]} as TaskDetails); const doing=["running","in_progress","review","blocked"].includes(value.status);
+  return <Dialog open onOpenChange={v=>!v&&onClose()}><DialogContent className="task-detail-dialog"><DialogHeader><DialogTitle>{value.title}</DialogTitle></DialogHeader>
+    <div className="task-detail-layout"><main><p className="detail-description">{value.description}</p><div className="task-detail-grid"><div><span>Status</span><strong>{COLUMNS.find(c=>c.matches.includes(value.status as never))?.label}</strong></div><div><span>Agent</span><strong>{value.assignee}</strong></div><div><span>Project</span><strong>{value.project}</strong></div><div><span>Due</span><strong>{value.dueDate?new Date(value.dueDate).toLocaleString():"Not set"}</strong></div><div><span>Schedule</span><strong>{value.recurrence?.replace("_"," ")||"One off"}</strong></div><div><span>Attachments</span><strong>{value.attachments?.length??0}</strong></div></div>
+      <section className="task-report"><h3>Agent report</h3><p>{value.report || (doing ? "The orchestrator is collecting progress and agent reports for this task." : value.status === "done" ? "Task completed and archived with its project record." : "No report has been submitted yet.")}</p></section>
+      {value.attachments?.length ? <section className="task-attachments"><h3>Attachments</h3>{value.attachments.map((a,i)=><span key={i}><Paperclip />{a.name}</span>)}</section>:null}</main>
+      <aside><h3>Task conversation</h3><p className="orchestrator-note">Messages go to the orchestrator. Assigned agents report through the orchestrator—not directly to the owner.</p><div className="task-messages">{value.messages.length?value.messages.map(m=><div key={m.id}><strong>{m.author}</strong><p>{m.body}</p><time>{new Date(m.createdAt).toLocaleString()}</time></div>):<span>No messages yet.</span>}</div><div className="message-compose"><Textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Message the orchestrator…"/><Button onClick={send} disabled={sending||!message.trim()}><Send /></Button></div></aside></div>
+    <footer className="task-detail-actions">{value.status === "done" ? <span><CheckCircle2 /> Archived in {value.project}</span> : <><Button variant="outline" onClick={()=>onMove(value,"running")}>Move to Doing</Button><Button onClick={()=>onMove(value,"done")}>Mark Done & Archive</Button></>}</footer>
+  </DialogContent></Dialog>;
 }
