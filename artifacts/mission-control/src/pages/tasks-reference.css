@@ -1,0 +1,101 @@
+/* Visual lock for the approved tablet Kanban reference. */
+.workspaces-shell.task-page-shell {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #1b1a20;
+}
+
+.workspaces-canvas.tasks-canvas-simple {
+  box-sizing: border-box;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.65rem;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0.65rem 0.8rem !important;
+}
+
+.task-page-header {
+  flex: 0 0 auto;
+  min-height: 2.35rem;
+  padding: 0 0.1rem;
+  border-bottom: 1px solid #323138;
+}
+
+.task-page-header h1 {
+  margin: 0;
+  color: #f5f4f7;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.task-header-actions { gap: 0.45rem; }
+.task-header-actions button {
+  min-height: 2rem;
+  padding: 0.42rem 0.7rem;
+  border-radius: 5px;
+  font-size: 0.68rem;
+}
+.approval-alert { background: #262119; border-color: #55451b; color: #e6c45d; }
+
+.task-board-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0.55rem;
+  flex: 1;
+  min-height: 0;
+  padding-top: 0.1rem;
+}
+
+.task-board-grid > .task-lane {
+  box-sizing: border-box;
+  align-self: stretch;
+  height: 100%;
+  min-height: 0;
+  padding: 0.45rem !important;
+  background: #29282f !important;
+  border: 1px solid #35343b !important;
+  border-radius: 5px !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.task-lane-head {
+  min-height: 1.8rem;
+  padding: 0.1rem 0.15rem 0.4rem;
+  border-bottom: 1px solid #38373e;
+  color: #f0eff2;
+}
+.task-lane-head strong { font-size: 0.68rem; font-weight: 600; }
+.task-lane-head span { min-width: 1.15rem; height: 1.1rem; background: #37363e; color: #9998a0; font-size: 0.56rem; }
+.task-lane-list { padding-top: 0.4rem; scrollbar-color: #55545b transparent; scrollbar-width: thin; }
+.task-lane-empty { min-height: 100%; border: 1px dashed #4b4a52; background: #242329; color: #7f7e86; }
+
+.task-card-minimal {
+  margin-bottom: 0.38rem;
+  padding: 0.52rem;
+  background: #19191f;
+  border: 1px solid #39383f;
+  border-radius: 4px;
+  box-shadow: none;
+}
+.task-card-minimal h3 { font-size: 0.68rem; font-weight: 600; line-height: 1.3; }
+.task-card-minimal > p { margin: 0.26rem 0 0.45rem; color: #aaa9b0; font-size: 0.59rem; line-height: 1.4; }
+.task-card-minimal footer { padding-top: 0.38rem; border-top-color: #303036; }
+.task-lane-add { flex: 0 0 auto; margin-top: 0.4rem; padding: 0.42rem; border-radius: 3px; background: #34333a; color: #aaa9b0; font-size: 0.6rem; }
+
+@media (max-width: 900px) {
+  .workspaces-canvas.tasks-canvas-simple { padding: 0.55rem !important; }
+  .task-board-grid { gap: 0.45rem; }
+  .task-page-header { min-height: 2.15rem; }
+  .task-page-header h1 { font-size: 0.92rem; }
+}
