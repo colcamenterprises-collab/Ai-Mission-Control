@@ -11,7 +11,7 @@ export function CustomliLogo({ compact = false }: CustomliLogoProps) {
       <img
         className="customli-mark mission-logo-mark"
         src="/customli-mission-control-logo.png"
-        alt="Customli"
+        alt="Customli Mission Control"
         draggable={false}
       />
       {!compact && <span className="sr-only">Customli Mission Control</span>}
