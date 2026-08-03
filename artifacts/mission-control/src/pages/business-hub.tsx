@@ -23,7 +23,7 @@ type BusinessSection = {
 const SOURCES = [
   { key: "knowledge", title: "Knowledge", icon: Brain, endpoint: "/api/memories" },
   { key: "playbooks", title: "Playbooks", icon: BookOpen, endpoint: "/api/skills" },
-  { key: "projects", title: "Projects", icon: Boxes, endpoint: "/api/workspaces" },
+  { key: "projects", title: "Projects", icon: Boxes, endpoint: "/api/projects" },
   { key: "people", title: "People", icon: Users, endpoint: "/api/contacts" },
 ];
 
@@ -39,7 +39,7 @@ function normalizePayload(payload: unknown): BusinessItem[] {
   if (Array.isArray(payload)) return payload as BusinessItem[];
   if (!payload || typeof payload !== "object") return [];
   const record = payload as Record<string, unknown>;
-  for (const key of ["items", "data", "results", "skills", "workspaces", "contacts", "memories"]) {
+  for (const key of ["items", "data", "results", "skills", "projects", "contacts", "memories"]) {
     if (Array.isArray(record[key])) return record[key] as BusinessItem[];
   }
   return [];
