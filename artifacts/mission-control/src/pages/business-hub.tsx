@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Brain, BookOpen, Boxes, Users } from "lucide-react";
 
 type BusinessItem = {
   id?: number | string;
@@ -15,16 +14,15 @@ type BusinessItem = {
 type BusinessSection = {
   key: string;
   title: string;
-  icon: React.ComponentType<{ className?: string }>;
   endpoint: string;
   items: BusinessItem[];
 };
 
 const SOURCES = [
-  { key: "knowledge", title: "Knowledge", icon: Brain, endpoint: "/api/memories" },
-  { key: "playbooks", title: "Playbooks", icon: BookOpen, endpoint: "/api/skills" },
-  { key: "projects", title: "Projects", icon: Boxes, endpoint: "/api/projects" },
-  { key: "people", title: "People", icon: Users, endpoint: "/api/contacts" },
+  { key: "knowledge", title: "Knowledge", endpoint: "/api/memories" },
+  { key: "playbooks", title: "Playbooks", endpoint: "/api/skills" },
+  { key: "projects", title: "Projects", endpoint: "/api/projects" },
+  { key: "people", title: "People", endpoint: "/api/contacts" },
 ];
 
 function authHeaders() {
@@ -84,34 +82,29 @@ export default function BusinessHub() {
       <div className="mission-business-canvas">
         <header className="mission-business-header">
           <h1>Business</h1>
-          <span>Shared data available to your AI team</span>
         </header>
 
         <section className="mission-business-grid" aria-label="Business data overview">
-          {sections.map((section) => {
-            const Icon = section.icon;
-            return (
-              <article className="mission-business-card" key={section.key}>
-                <header>
-                  <Icon aria-hidden="true" />
-                  <h2>{section.title}</h2>
-                  <b>{section.items.length}</b>
-                </header>
-                <div className="mission-business-list">
-                  {section.items.length ? (
-                    section.items.slice(0, 6).map((item, index) => (
-                      <div className="mission-business-row" key={`${section.key}-${item.id ?? index}`}>
-                        <strong>{itemTitle(item)}</strong>
-                        {itemMeta(item) && <small>{itemMeta(item)}</small>}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="mission-business-empty">No {section.title.toLowerCase()} added yet.</div>
-                  )}
-                </div>
-              </article>
-            );
-          })}
+          {sections.map((section) => (
+            <article className="mission-business-card" key={section.key}>
+              <header>
+                <h2>{section.title}</h2>
+                <b>{section.items.length}</b>
+              </header>
+              <div className="mission-business-list">
+                {section.items.length ? (
+                  section.items.slice(0, 6).map((item, index) => (
+                    <div className="mission-business-row" key={`${section.key}-${item.id ?? index}`}>
+                      <strong>{itemTitle(item)}</strong>
+                      {itemMeta(item) && <small>{itemMeta(item)}</small>}
+                    </div>
+                  ))
+                ) : (
+                  <div className="mission-business-empty">No {section.title.toLowerCase()} added yet.</div>
+                )}
+              </div>
+            </article>
+          ))}
         </section>
       </div>
     </div>
