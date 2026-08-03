@@ -74,13 +74,14 @@
 /* Homepage: task-first, no separate AI roster row. */
 .mission-route-dashboard .mission-agent-strip { display: none !important; }
 
-/* Task cards: clamp display copy and keep the active card visually above its lane. */
+/* Task cards: clamp display copy, provide small controls, and render drag copies above every lane. */
 .mission-route-tasks .mc-task-card h3 {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
   max-height: 1.95rem;
+  padding-right: 2.8rem;
 }
 
 .mission-route-tasks .mc-task-card > p {
@@ -92,13 +93,62 @@
 }
 
 .mission-route-tasks .mc-task-card-dragging {
-  z-index: 9999 !important;
-  opacity: .92 !important;
-  box-shadow: 0 18px 44px rgba(0,0,0,.62) !important;
+  opacity: .28 !important;
 }
 
-.mission-route-tasks .mc-task-workspace,
-.mission-route-tasks .mc-task-lane { isolation: auto !important; }
+.mc-task-card-overlay {
+  width: min(17rem, 28vw) !important;
+  z-index: 10000 !important;
+  opacity: .98 !important;
+  pointer-events: none !important;
+  box-shadow: 0 22px 52px rgba(0,0,0,.62) !important;
+  transform: rotate(1deg);
+}
+
+.mc-task-card-actions {
+  position: absolute;
+  top: .42rem;
+  right: .42rem;
+  z-index: 5;
+  display: flex;
+  gap: .2rem;
+}
+
+.mc-task-card-actions button {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  border: 1px solid #3b3942;
+  border-radius: .3rem;
+  background: #242329;
+  color: #8e8a95;
+  cursor: pointer;
+}
+
+.mc-task-card-actions button:hover { color: #f0edf4; border-color: #5b5666; }
+.mc-task-card-actions button:last-child:hover { color: #ef8c8c; border-color: #744343; }
+.mc-task-card-actions svg { width: .66rem; height: .66rem; }
+
+.mc-task-danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  min-height: 2rem;
+  padding: .42rem .65rem;
+  border: 1px solid #653d3d;
+  border-radius: .35rem;
+  background: #2f1f22;
+  color: #e98b8b;
+  font-size: .68rem;
+  font-weight: 650;
+}
+.mc-task-danger-button svg,
+.mc-task-detail-admin svg { width: .72rem; height: .72rem; }
+.mc-task-detail-admin,
+.mc-task-detail-move { display: flex; align-items: center; gap: .35rem; }
 
 /* AI Team: same scale and density as Dashboard. */
 .mission-route-team .workspaces-shell {
@@ -206,7 +256,6 @@
   border-bottom: 1px solid rgba(255,255,255,.055);
 }
 
-/* Direct section #4 is the legacy Cron Job Manager. Recurring work belongs on Tasks. */
 .mission-route-settings > .flex.flex-col.h-full > .flex-1 > section:nth-of-type(4) {
   display: none !important;
 }
@@ -322,4 +371,5 @@
 @media (max-width: 820px) {
   .mission-business-grid { grid-template-columns: 1fr; }
   .mission-route-team .agent-directory-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .mc-task-card-overlay { width: 15rem !important; }
 }
