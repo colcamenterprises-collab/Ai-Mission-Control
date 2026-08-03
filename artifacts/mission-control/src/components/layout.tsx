@@ -120,9 +120,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
             onClick={() => setIsCollapsed((value) => !value)}
             aria-label={isCollapsed ? "Open sidebar" : "Close sidebar"}
             aria-expanded={!isCollapsed}
+            title={isCollapsed ? "Open sidebar" : "Close sidebar"}
           >
             <ChevronLeft aria-hidden="true" />
-            {!isCollapsed && <span>Collapse</span>}
           </button>
         </div>
       </aside>
