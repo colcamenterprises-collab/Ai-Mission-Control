@@ -1,0 +1,342 @@
+.mission-operations-home {
+  display: grid;
+  gap: .8rem;
+  padding-bottom: 4rem;
+}
+
+.mission-ops-grid {
+  display: grid;
+  gap: .8rem;
+}
+
+.mission-ops-grid-primary {
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, .75fr);
+}
+
+.mission-ops-grid-secondary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.mission-ops-panel,
+.mission-briefing-panel {
+  min-width: 0;
+}
+
+.mission-panel-title > div {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+
+.mission-panel-title svg {
+  width: .82rem;
+  height: .82rem;
+  color: #8f7cff;
+}
+
+.mission-ops-title b {
+  display: inline-grid;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  place-items: center;
+  border: 1px solid rgba(153, 117, 255, .28);
+  border-radius: .35rem;
+  background: rgba(111, 67, 255, .13);
+  color: #cbbdff;
+  font-size: .58rem;
+  font-weight: 650;
+}
+
+.mission-ops-list {
+  display: grid;
+  gap: .32rem;
+  padding-top: .25rem;
+}
+
+.mission-ops-row {
+  display: grid;
+  grid-template-columns: .45rem minmax(0, 1fr) .85rem;
+  align-items: center;
+  gap: .55rem;
+  min-height: 3rem;
+  padding: .52rem .58rem;
+  border: 1px solid rgba(255,255,255,.055);
+  border-radius: .5rem;
+  background: rgba(255,255,255,.018);
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+
+.mission-ops-row:hover {
+  border-color: rgba(138,111,255,.28);
+  background: rgba(118,85,255,.055);
+  transform: translateY(-1px);
+}
+
+.mission-ops-row > div {
+  min-width: 0;
+  display: grid;
+  gap: .18rem;
+}
+
+.mission-ops-row strong {
+  overflow: hidden;
+  color: #efedf5;
+  font-size: .69rem;
+  font-weight: 590;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mission-ops-row small {
+  overflow: hidden;
+  color: #85818d;
+  font-size: .56rem;
+  text-overflow: ellipsis;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.mission-ops-row > svg {
+  width: .72rem;
+  color: #625f69;
+}
+
+.mission-ops-indicator {
+  width: .4rem;
+  height: .4rem;
+  border-radius: 50%;
+  background: #77727e;
+  box-shadow: 0 0 0 3px rgba(255,255,255,.025);
+}
+
+.mission-ops-approval .mission-ops-indicator {
+  background: #e5bc57;
+  box-shadow: 0 0 0 3px rgba(229,188,87,.09);
+}
+
+.mission-ops-activity .mission-ops-indicator {
+  background: #53c98d;
+  box-shadow: 0 0 0 3px rgba(83,201,141,.09);
+}
+
+.mission-ops-automation .mission-ops-indicator {
+  background: #8c69ff;
+  box-shadow: 0 0 0 3px rgba(140,105,255,.09);
+}
+
+.mission-ops-empty {
+  display: flex;
+  min-height: 5rem;
+  align-items: center;
+  justify-content: center;
+  gap: .42rem;
+  border: 1px dashed rgba(255,255,255,.06);
+  border-radius: .5rem;
+  color: #706d77;
+  font-size: .62rem;
+}
+
+.mission-ops-empty svg {
+  width: .78rem;
+  color: #4ca77a;
+}
+
+.mission-briefing-head {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .28rem 0 .65rem;
+}
+
+.mission-briefing-avatar {
+  width: 2.35rem;
+  height: 2.35rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #111118;
+}
+
+.mission-briefing-head > div {
+  display: grid;
+  gap: .12rem;
+}
+
+.mission-briefing-head strong {
+  color: #f2eff6;
+  font-size: .73rem;
+  font-weight: 620;
+}
+
+.mission-briefing-head small {
+  color: #7f7b87;
+  font-size: .55rem;
+}
+
+.mission-briefing-copy {
+  display: grid;
+  gap: .4rem;
+}
+
+.mission-briefing-copy p {
+  margin: 0;
+  padding: .46rem .55rem;
+  border-left: 2px solid rgba(127,92,255,.42);
+  border-radius: 0 .35rem .35rem 0;
+  background: rgba(255,255,255,.018);
+  color: #aaa6b2;
+  font-size: .61rem;
+  line-height: 1.45;
+}
+
+.mission-briefing-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: .58rem;
+  padding-top: .58rem;
+  border-top: 1px solid rgba(255,255,255,.055);
+  color: #9b89ed;
+  font-size: .61rem;
+  font-weight: 600;
+}
+
+.mission-briefing-action svg {
+  width: .75rem;
+}
+
+.mission-command-trigger {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  min-height: 2.2rem;
+  padding: .48rem .62rem;
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: .55rem;
+  background: rgba(24,23,30,.94);
+  color: #aaa7b3;
+  font-size: .62rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,.28);
+  backdrop-filter: blur(14px);
+}
+
+.mission-command-trigger:hover {
+  border-color: rgba(133,101,255,.34);
+  color: #ece8f4;
+}
+
+.mission-command-trigger svg {
+  width: .76rem;
+}
+
+.mission-command-trigger kbd,
+.mission-command-palette kbd {
+  padding: .13rem .28rem;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: .28rem;
+  background: #111116;
+  color: #77737e;
+  font-size: .5rem;
+  font-family: inherit;
+}
+
+.mission-command-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: start center;
+  padding-top: min(18vh, 10rem);
+  background: rgba(3,3,7,.68);
+  backdrop-filter: blur(5px);
+}
+
+.mission-command-palette {
+  width: min(31rem, calc(100vw - 2rem));
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: .7rem;
+  background: #15141a;
+  box-shadow: 0 24px 70px rgba(0,0,0,.5);
+}
+
+.mission-command-palette > header {
+  display: grid;
+  grid-template-columns: 1rem 1fr auto;
+  align-items: center;
+  gap: .55rem;
+  min-height: 2.8rem;
+  padding: .55rem .7rem;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  color: #b8b4c1;
+  font-size: .67rem;
+}
+
+.mission-command-palette > header svg {
+  width: .82rem;
+  color: #8d72ef;
+}
+
+.mission-command-palette > div {
+  display: grid;
+  padding: .35rem;
+}
+
+.mission-command-palette a {
+  display: grid;
+  grid-template-columns: 1.3rem minmax(0,1fr) .8rem;
+  align-items: center;
+  gap: .55rem;
+  min-height: 3rem;
+  padding: .5rem .55rem;
+  border-radius: .42rem;
+}
+
+.mission-command-palette a:hover {
+  background: rgba(115,79,235,.1);
+}
+
+.mission-command-palette a > svg {
+  width: .82rem;
+  color: #817b8e;
+}
+
+.mission-command-palette a > span {
+  display: grid;
+  gap: .15rem;
+}
+
+.mission-command-palette a strong {
+  color: #ece9f1;
+  font-size: .66rem;
+  font-weight: 590;
+}
+
+.mission-command-palette a small {
+  color: #7b7783;
+  font-size: .54rem;
+}
+
+@media (max-width: 1100px) {
+  .mission-ops-grid-primary {
+    grid-template-columns: minmax(0,1.2fr) minmax(16rem,.8fr);
+  }
+  .mission-ops-grid-secondary {
+    grid-template-columns: repeat(3,minmax(0,1fr));
+    gap: .55rem;
+  }
+}
+
+@media (max-width: 820px) {
+  .mission-ops-grid-primary,
+  .mission-ops-grid-secondary {
+    grid-template-columns: 1fr;
+  }
+  .mission-command-trigger span {
+    display: none;
+  }
+}
