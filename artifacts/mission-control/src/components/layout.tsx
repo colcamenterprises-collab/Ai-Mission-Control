@@ -12,6 +12,7 @@ import {
 import { CustomliLogo } from "@/components/customli-logo";
 import "./sidebar-accordion.css";
 import "./ui-cleanup.css";
+import "./page-consistency.css";
 
 type NavItem = {
   href: string;
