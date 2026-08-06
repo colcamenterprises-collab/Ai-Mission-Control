@@ -29,6 +29,21 @@ import {
 
 const router: IRouter = Router();
 
+function workflowLane(status: string): "To-Do" | "Doing" | "Done" {
+  if (status === "done" || status === "completed" || status === "archived") return "Done";
+  if (["running", "in_progress", "review", "blocked"].includes(status)) return "Doing";
+  return "To-Do";
+}
+
+function humanizeStoredTaskMessage<T extends { body: string }>(message: T): T {
+  const match = message.body.match(/^Task moved from ([a-z_]+) to ([a-z_]+)\.$/i);
+  if (!match) return message;
+  return {
+    ...message,
+    body: `Task moved from ${workflowLane(match[1].toLowerCase())} to ${workflowLane(match[2].toLowerCase())}.`,
+  };
+}
+
 async function addTaskMessage(taskId: number, author: string, body: string) {
   const [message] = await db.insert(taskMessagesTable).values({ taskId, author, body }).returning();
   await db.update(tasksTable).set({ unreadMessages: author === "Cameron" ? 0 : 1 }).where(eq(tasksTable.id, taskId));
@@ -148,7 +163,8 @@ router.get("/tasks/:id/details", async (req, res): Promise<void> => {
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid task id" }); return; }
   const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, id));
   if (!task) { res.status(404).json({ error: "Task not found" }); return; }
-  const messages = await db.select().from(taskMessagesTable).where(eq(taskMessagesTable.taskId, id)).orderBy(asc(taskMessagesTable.createdAt));
+  const storedMessages = await db.select().from(taskMessagesTable).where(eq(taskMessagesTable.taskId, id)).orderBy(asc(taskMessagesTable.createdAt));
+  const messages = storedMessages.map(humanizeStoredTaskMessage);
   await db.update(tasksTable).set({ unreadMessages: 0 }).where(eq(tasksTable.id, id));
   res.json(serializeDates({ ...task, unreadMessages: 0, messages }));
 });
@@ -274,7 +290,11 @@ router.patch("/tasks/:id/move", async (req, res): Promise<void> => {
   const [existing] = await db.select().from(tasksTable).where(eq(tasksTable.id, params.data.id));
   if (!existing) { res.status(404).json({ error: "Task not found" }); return; }
   const [task] = await db.update(tasksTable).set({ status: parsed.data.status, archivedAt: null }).where(eq(tasksTable.id, params.data.id)).returning();
-  await addTaskMessage(task.id, "Mission Control", `Task moved from ${existing.status} to ${task.status}.`);
+  const fromLane = workflowLane(existing.status);
+  const toLane = workflowLane(task.status);
+  if (fromLane !== toLane) {
+    await addTaskMessage(task.id, "Mission Control", `Task moved from ${fromLane} to ${toLane}.`);
+  }
   res.json(MoveTaskResponse.parse(serializeDates(task)));
 });
 
