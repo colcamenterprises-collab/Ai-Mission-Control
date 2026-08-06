@@ -12,6 +12,7 @@ import integrationsRouter from "./integrations";
 import toolsRouter from "./tools";
 import agentBridgeRouter from "./agent-bridge";
 import jamesRouter from "./james";
+import jamesDetachedRouter from "./james-detached";
 import worktreesRouter from "./worktrees";
 import skillsRouter from "./skills";
 import orchestratorRouter from "./orchestrator";
@@ -20,8 +21,6 @@ import { requireAdminAuth } from "../lib/auth.js";
 const router: IRouter = Router();
 
 router.use(healthRouter);
-// Bridge runtime routes remain bearer-token gated inside agent-bridge router.
-// Explicitly protect admin bridge routes before mounting bridge router.
 router.use("/agents/:id/dispatch", requireAdminAuth);
 router.use("/agents/:id/token", requireAdminAuth);
 router.use("/agents/:id/test", requireAdminAuth);
@@ -30,6 +29,7 @@ router.use(agentBridgeRouter);
 router.use(requireAdminAuth);
 router.use(dashboardRouter);
 router.use(jamesRouter);
+router.use(jamesDetachedRouter);
 router.use(worktreesRouter);
 router.use(skillsRouter);
 router.use(orchestratorRouter);
