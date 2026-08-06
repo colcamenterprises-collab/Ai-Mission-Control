@@ -83,11 +83,7 @@ async function dispatchOpenAi(agent: RuntimeAgent, input: RuntimeDispatchInput):
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: defaultModel("openai", agent.model),
-      messages: [{ role: "user", content: buildPrompt(input) }],
-      temperature: 0.2,
-    }),
+    body: JSON.stringify({ model: defaultModel("openai", agent.model), messages: [{ role: "user", content: buildPrompt(input) }], temperature: 0.2 }),
     signal: AbortSignal.timeout(input.mode === "test" ? 10_000 : 60_000),
   });
   const output = await readResponseText(response);
@@ -99,17 +95,8 @@ async function dispatchOpenRouter(agent: RuntimeAgent, input: RuntimeDispatchInp
   if (!apiKey) return { ok: false, provider: "openrouter", delivery: "queued", output: null, statusCode: null, error: "OpenRouter API key is missing." };
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.MISSION_CONTROL_PUBLIC_ORIGIN ?? "https://mission.customli.io",
-      "X-Title": "Customli Mission Control",
-    },
-    body: JSON.stringify({
-      model: defaultModel("openrouter", agent.model),
-      messages: [{ role: "user", content: buildPrompt(input) }],
-      temperature: 0.2,
-    }),
+    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json", "HTTP-Referer": process.env.MISSION_CONTROL_PUBLIC_ORIGIN ?? "https://mission.customli.io", "X-Title": "Customli Mission Control" },
+    body: JSON.stringify({ model: defaultModel("openrouter", agent.model), messages: [{ role: "user", content: buildPrompt(input) }], temperature: 0.2 }),
     signal: AbortSignal.timeout(input.mode === "test" ? 10_000 : 60_000),
   });
   const output = await readResponseText(response);
@@ -122,11 +109,7 @@ async function dispatchClaude(agent: RuntimeAgent, input: RuntimeDispatchInput):
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: defaultModel("claude", agent.model),
-      max_tokens: input.mode === "test" ? 256 : 1200,
-      messages: [{ role: "user", content: buildPrompt(input) }],
-    }),
+    body: JSON.stringify({ model: defaultModel("claude", agent.model), max_tokens: input.mode === "test" ? 256 : 1200, messages: [{ role: "user", content: buildPrompt(input) }] }),
     signal: AbortSignal.timeout(input.mode === "test" ? 10_000 : 60_000),
   });
   const output = await readResponseText(response);
@@ -136,11 +119,12 @@ async function dispatchClaude(agent: RuntimeAgent, input: RuntimeDispatchInput):
 async function dispatchWebhook(agent: RuntimeAgent, input: RuntimeDispatchInput): Promise<RuntimeDispatchResult> {
   if (!agent.endpoint) return { ok: false, provider: cleanProvider(agent.provider), delivery: "queued", output: null, statusCode: null, error: "Webhook/Hermes endpoint is missing." };
   const provider = cleanProvider(agent.provider);
-  const endpoint = resolveEndpoint(agent.endpoint, provider);
+  const isJames = isJamesHermesTarget(agent);
+  const endpoint = resolveEndpoint(isJames && input.mode !== "test" ? "/api/james/task-job" : agent.endpoint, provider);
   const apiKey = decryptSecret(agent.apiKey);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-  if (isJamesHermesTarget(agent)) {
+  if (isJames) {
     const adminToken = process.env.MISSION_CONTROL_ADMIN_TOKEN?.trim();
     if (adminToken) {
       headers.Authorization = `Bearer ${adminToken}`;
@@ -148,25 +132,17 @@ async function dispatchWebhook(agent: RuntimeAgent, input: RuntimeDispatchInput)
     }
   }
   const prompt = buildPrompt(input);
-  const body = isJamesHermesTarget(agent)
-    ? { message: prompt, project: "Mission Control", environment: "production", workspacePath: "/opt/apps/ai-mission-control" }
-    : {
-        commandId: input.commandId ?? null,
-        taskId: input.taskId ?? null,
-        instructions: input.instructions,
-        context: input.context ?? null,
-        source: "mission-control",
-        mode: input.mode ?? "work",
-        timestamp: new Date().toISOString(),
-      };
+  const body = isJames
+    ? { message: prompt, taskId: input.taskId ?? null, commandId: input.commandId ?? null, project: "Mission Control", environment: "production", workspacePath: "/opt/apps/ai-mission-control" }
+    : { commandId: input.commandId ?? null, taskId: input.taskId ?? null, instructions: input.instructions, context: input.context ?? null, source: "mission-control", mode: input.mode ?? "work", timestamp: new Date().toISOString() };
   const response = await fetch(endpoint, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(input.mode === "test" ? 10_000 : 180_000),
+    signal: AbortSignal.timeout(input.mode === "test" ? 10_000 : 30_000),
   });
   const output = await readResponseText(response);
-  return { ok: response.ok, provider, delivery: "webhook", output: output || null, statusCode: response.status, error: response.ok ? null : output || `Webhook returned HTTP ${response.status}` };
+  return { ok: response.ok, provider, delivery: isJames && input.mode !== "test" && response.ok ? "queued" : "webhook", output: output || null, statusCode: response.status, error: response.ok ? null : output || `Webhook returned HTTP ${response.status}` };
 }
 
 export async function dispatchRuntime(agent: RuntimeAgent, input: RuntimeDispatchInput): Promise<RuntimeDispatchResult> {
@@ -177,14 +153,7 @@ export async function dispatchRuntime(agent: RuntimeAgent, input: RuntimeDispatc
     if (provider === "claude" || provider === "anthropic") return await dispatchClaude(agent, input);
     return await dispatchWebhook(agent, input);
   } catch (error: unknown) {
-    return {
-      ok: false,
-      provider,
-      delivery: agent.endpoint ? "webhook" : "provider",
-      output: null,
-      statusCode: null,
-      error: error instanceof Error ? error.message : "Agent runtime dispatch failed.",
-    };
+    return { ok: false, provider, delivery: agent.endpoint ? "webhook" : "provider", output: null, statusCode: null, error: error instanceof Error ? error.message : "Agent runtime dispatch failed." };
   }
 }
 
