@@ -103,9 +103,7 @@ export default function Tasks() {
   }, []);
 
   const approvalTasks = tasks.filter(
-    (task) =>
-      ["review", "blocked"].includes(task.status) ||
-      Boolean(task.approvalRequired && ["running", "in_progress"].includes(task.status)),
+    (task) => Boolean(task.approvalRequired && !["done"].includes(task.status)),
   );
 
   function moveToColumn(event: DragEndEvent) {
@@ -150,7 +148,6 @@ export default function Tasks() {
           ))}
           <aside className="mc-task-tools-column">
             <AutomationCalendar tasks={tasks} events={calendarEvents} />
-            <OrchestratorChat />
           </aside>
         </main>
       </DndContext>
@@ -221,9 +218,7 @@ function TaskLane({
 }
 
 function TaskCard({ task, onOpen }: { task: TaskMeta; onOpen: () => void }) {
-  const approval =
-    ["review", "blocked"].includes(task.status) ||
-    Boolean(task.approvalRequired && ["running", "in_progress"].includes(task.status));
+  const approval = Boolean(task.approvalRequired && task.status !== "done");
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `task-${task.id}` });
   const dueDate = formatDueDate(task.dueDate);
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
@@ -607,23 +602,46 @@ function AutomationModal({ selection, onClose }: { selection: { date: Date; item
 }
 
 function TaskDetailModal({ task, onClose, onMove }: { task: TaskMeta | null; onClose: () => void; onMove: (task: TaskMeta, status: string) => void }) {
+  const queryClient = useQueryClient();
   const [details, setDetails] = useState<TaskDetails | null>(null);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     setDetails(null);
+    setActionError("");
     if (!task) return;
-    fetch(`/api/tasks/${task.id}/details`, { headers: authHeaders() })
-      .then((response) => response.json())
-      .then(setDetails)
-      .catch(() => setDetails({ ...task, messages: [] }));
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const response = await fetch(`/api/tasks/${task.id}/details`, { headers: authHeaders() });
+        if (!response.ok) return;
+        const next = await response.json() as TaskDetails;
+        if (!cancelled) setDetails(next);
+      } catch {
+        if (!cancelled && !details) setDetails({ ...task, messages: [] });
+      }
+    };
+    void load();
+    const interval = window.setInterval(() => void load(), 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [task]);
 
   if (!task) return null;
   const value = details ?? ({ ...task, messages: [] } as TaskDetails);
   const taskId = task.id;
   const doing = ["running", "in_progress", "review", "blocked"].includes(value.status);
+
+  async function refresh() {
+    const response = await fetch(`/api/tasks/${taskId}/details`, { headers: authHeaders() });
+    if (response.ok) setDetails(await response.json() as TaskDetails);
+    await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
+  }
 
   async function send() {
     if (!message.trim()) return;
@@ -638,9 +656,55 @@ function TaskDetailModal({ task, onClose, onMove }: { task: TaskMeta | null; onC
         const created = (await response.json()) as TaskMessage;
         setDetails((current) => current ? { ...current, messages: [...current.messages, created] } : current);
         setMessage("");
+        await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
       }
     } finally {
       setSending(false);
+    }
+  }
+
+  async function approve() {
+    setActionBusy(true);
+    setActionError("");
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/approve`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ note: "Approved by owner from task card." }) });
+      if (!response.ok) throw new Error("Unable to approve task");
+      await refresh();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Unable to approve task");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function requestChanges() {
+    const note = window.prompt("What needs to change?");
+    if (!note?.trim()) return;
+    setActionBusy(true);
+    setActionError("");
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/request-changes`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ note }) });
+      if (!response.ok) throw new Error("Unable to send change request");
+      await refresh();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Unable to send change request");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function archive() {
+    setActionBusy(true);
+    setActionError("");
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/archive`, { method: "POST", headers: authHeaders(), body: "{}" });
+      if (!response.ok) throw new Error("Unable to archive task");
+      await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
+      onClose();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Unable to archive task");
+    } finally {
+      setActionBusy(false);
     }
   }
 
@@ -657,16 +721,25 @@ function TaskDetailModal({ task, onClose, onMove }: { task: TaskMeta | null; onC
             <div><dt>Due</dt><dd>{formatDueDate(value.dueDate) || "Not set"}</dd></div>
             <div><dt>Schedule</dt><dd>{value.recurrence?.replace("_", " ") || "One off"}</dd></div>
           </dl>
-          <section className="mc-task-detail-section"><h3>Agent Report</h3><p>{value.report || (doing ? "The orchestrator is collecting progress and agent reports for this task." : value.status === "done" ? "Task completed and archived with its project record." : "No report has been submitted yet.")}</p></section>
+          <section className="mc-task-detail-section"><h3>Agent Report</h3><p>{value.report || (doing ? "Live work and agent updates are recorded in the task conversation." : value.status === "done" ? "Task is complete and awaiting final owner sign-off before archive." : "No report has been submitted yet.")}</p></section>
           {Boolean(value.attachments?.length) && <section className="mc-task-detail-section"><h3>Attachments</h3><div className="mc-task-attachment-list">{value.attachments!.map((attachment, index) => <span key={`${attachment.name}-${index}`}><Paperclip aria-hidden="true" /> {attachment.name}</span>)}</div></section>}
         </main>
         <aside className="mc-task-conversation">
-          <header><JamesAvatar className="mc-task-conversation-avatar" /><div><h3>Task Conversation</h3><span>Messages route through James</span></div></header>
+          <header><JamesAvatar className="mc-task-conversation-avatar" /><div><h3>Task Conversation</h3><span>Complete task record · updates refresh automatically</span></div></header>
           <div className="mc-task-conversation-messages">{value.messages.length > 0 ? value.messages.map((item) => <article key={item.id}><strong>{item.author}</strong><p>{item.body}</p><time>{new Date(item.createdAt).toLocaleString()}</time></article>) : <p className="mc-task-conversation-empty">No messages yet.</p>}</div>
-          <div className="mc-task-conversation-compose"><textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Add a message" rows={2} /><button onClick={() => void send()} disabled={sending || !message.trim()} aria-label="Send message"><Send aria-hidden="true" /></button></div>
+          <div className="mc-task-conversation-compose"><textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Reply inside this task" rows={2} /><button onClick={() => void send()} disabled={sending || !message.trim()} aria-label="Send message"><Send aria-hidden="true" /></button></div>
         </aside>
       </div>
-      <footer className="mc-task-modal-footer mc-task-detail-footer">{value.status === "done" ? <span className="mc-task-archived"><Check aria-hidden="true" /> Archived in {value.project}</span> : <><button className="mc-task-secondary-button" onClick={() => onMove(value, "running")}>Move to Doing</button><button className="mc-task-primary-button" onClick={() => onMove(value, "done")}>Mark Done</button></>}</footer>
+      {actionError && <p className="mc-task-form-error">{actionError}</p>}
+      <footer className="mc-task-modal-footer mc-task-detail-footer">
+        {value.status === "done" ? (
+          <><span className="mc-task-archived"><Check aria-hidden="true" /> Work complete · final sign-off required</span><button className="mc-task-primary-button" onClick={() => void archive()} disabled={actionBusy}><Check aria-hidden="true" /> Approve & Archive</button></>
+        ) : value.approvalRequired ? (
+          <><button className="mc-task-secondary-button" onClick={() => void requestChanges()} disabled={actionBusy}>Request Changes</button><button className="mc-task-primary-button" onClick={() => void approve()} disabled={actionBusy}><Check aria-hidden="true" /> Approve</button></>
+        ) : (
+          <><button className="mc-task-secondary-button" onClick={() => onMove(value, "running")}>Move to Doing</button><button className="mc-task-primary-button" onClick={() => onMove(value, "done")}>Mark Done</button></>
+        )}
+      </footer>
     </Modal>
   );
 }
