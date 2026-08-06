@@ -38,10 +38,7 @@ function workflowLane(status: string): "To-Do" | "Doing" | "Done" {
 function humanizeStoredTaskMessage<T extends { body: string }>(message: T): T {
   const match = message.body.match(/^Task moved from ([a-z_]+) to ([a-z_]+)\.$/i);
   if (!match) return message;
-  return {
-    ...message,
-    body: `Task moved from ${workflowLane(match[1].toLowerCase())} to ${workflowLane(match[2].toLowerCase())}.`,
-  };
+  return { ...message, body: `Task moved from ${workflowLane(match[1].toLowerCase())} to ${workflowLane(match[2].toLowerCase())}.` };
 }
 
 async function addTaskMessage(taskId: number, author: string, body: string) {
@@ -54,26 +51,10 @@ async function queueTaskFollowUp(task: typeof tasksTable.$inferSelect, instructi
   if (!task.assignee || task.assignee === "Unassigned") return null;
   const [agent] = await db.select().from(agentsTable).where(eq(agentsTable.name, task.assignee));
   if (!agent) return null;
-  const context = JSON.stringify({
-    source: "task-conversation",
-    taskId: task.id,
-    taskTitle: task.title,
-    project: task.project,
-    reason,
-  }, null, 2);
-  const [command] = await db.insert(agentCommandsTable).values({
-    agentId: agent.id,
-    taskId: task.id,
-    instructions,
-    context,
-  }).returning();
+  const context = JSON.stringify({ source: "task-conversation", taskId: task.id, taskTitle: task.title, project: task.project, reason }, null, 2);
+  const [command] = await db.insert(agentCommandsTable).values({ agentId: agent.id, taskId: task.id, instructions, context }).returning();
   await db.update(tasksTable).set({ status: "running" }).where(eq(tasksTable.id, task.id));
-  await db.insert(activityTable).values({
-    agentName: agent.name,
-    action: reason,
-    detail: `Task #${task.id}: ${instructions.slice(0, 220)}`,
-    status: "pending",
-  });
+  await db.insert(activityTable).values({ agentName: agent.name, action: reason, detail: `Task #${task.id}: ${instructions.slice(0, 220)}`, status: "pending" });
 
   if (isRuntimeConfigured(agent)) {
     void (async () => {
@@ -81,14 +62,14 @@ async function queueTaskFollowUp(task: typeof tasksTable.$inferSelect, instructi
         await addTaskMessage(task.id, agent.name, "Update received. I am reviewing the task conversation and continuing the work.");
         const result = await dispatchRuntime(agent, { mode: "work", instructions, context, taskId: task.id, commandId: command.id });
         await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: result.ok }).where(eq(agentCommandsTable.id, command.id));
+        if (result.delivery === "queued" && result.ok) {
+          await db.update(tasksTable).set({ status: "running" }).where(eq(tasksTable.id, task.id));
+          await db.insert(activityTable).values({ agentName: agent.name, action: "Detached task follow-up started", detail: result.output ?? `Task #${task.id} queued for detached execution`, status: "active" });
+          return;
+        }
         if (result.output) await addTaskMessage(task.id, agent.name, result.output);
         await db.update(tasksTable).set({ status: result.ok ? "review" : "blocked" }).where(eq(tasksTable.id, task.id));
-        await db.insert(activityTable).values({
-          agentName: agent.name,
-          action: result.ok ? "Task follow-up response recorded" : "Task follow-up failed",
-          detail: result.output ?? result.error,
-          status: result.ok ? "active" : "error",
-        });
+        await db.insert(activityTable).values({ agentName: agent.name, action: result.ok ? "Task follow-up response recorded" : "Task follow-up failed", detail: result.output ?? result.error, status: result.ok ? "active" : "error" });
         if (!result.ok) await addTaskMessage(task.id, "Mission Control", `BLOCKED — ${result.error ?? "agent runtime failed"}`);
       } catch (error) {
         const detail = error instanceof Error ? error.message : "Unknown task follow-up error";
@@ -97,7 +78,6 @@ async function queueTaskFollowUp(task: typeof tasksTable.$inferSelect, instructi
       }
     })();
   }
-
   return command;
 }
 
@@ -124,8 +104,7 @@ router.get("/tasks", async (req, res): Promise<void> => {
     if (query.data.project) filters.push(eq(tasksTable.project, query.data.project));
   }
   const tasks = await db.select().from(tasksTable).where(filters.length ? and(...filters) : undefined).orderBy(tasksTable.createdAt);
-  const activeTasks = tasks.filter(task => task.archivedAt === null);
-  res.json(ListTasksResponse.parse(serializeDates(activeTasks)));
+  res.json(ListTasksResponse.parse(serializeDates(tasks.filter(task => task.archivedAt === null))));
 });
 
 router.get("/tasks/archived", async (_req, res): Promise<void> => {
@@ -135,10 +114,7 @@ router.get("/tasks/archived", async (_req, res): Promise<void> => {
 
 router.post("/tasks", async (req, res): Promise<void> => {
   const parsed = CreateTaskBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const [task] = await db.insert(tasksTable).values(parsed.data).returning();
   await addTaskMessage(task.id, "Mission Control", "Task created. Awaiting orchestrator review.");
   res.status(201).json(GetTaskResponse.parse(serializeDates(task)));
@@ -146,15 +122,9 @@ router.post("/tasks", async (req, res): Promise<void> => {
 
 router.get("/tasks/:id", async (req, res): Promise<void> => {
   const params = GetTaskParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, params.data.id));
-  if (!task) {
-    res.status(404).json({ error: "Task not found" });
-    return;
-  }
+  if (!task) { res.status(404).json({ error: "Task not found" }); return; }
   res.json(GetTaskResponse.parse(serializeDates(task)));
 });
 
@@ -178,11 +148,7 @@ router.post("/tasks/:id/messages", async (req, res): Promise<void> => {
   const message = await addTaskMessage(id, "Cameron", body);
   const history = await db.select().from(taskMessagesTable).where(eq(taskMessagesTable.taskId, id)).orderBy(asc(taskMessagesTable.createdAt));
   const recentContext = history.slice(-12).map(item => `${item.author}: ${item.body}`).join("\n");
-  const command = await queueTaskFollowUp(
-    task,
-    `Owner added a new message to task #${id}. Review the task and conversation, respond inside the task, and continue the work if possible.\n\nOwner message:\n${body}\n\nRecent task conversation:\n${recentContext}`,
-    "Owner message queued to assigned worker",
-  );
+  const command = await queueTaskFollowUp(task, `Owner added a new message to task #${id}. Review the task and conversation, respond inside the task, and continue the work if possible.\n\nOwner message:\n${body}\n\nRecent task conversation:\n${recentContext}`, "Owner message queued to assigned worker");
   if (command) await addTaskMessage(id, "Mission Control", `Owner message sent to ${task.assignee}.`);
   res.status(201).json(serializeDates(message));
 });
@@ -225,11 +191,7 @@ router.post("/tasks/:id/archive", async (req, res): Promise<void> => {
   await addTaskMessage(id, "Mission Control", `Task archived after final sign-off at ${archivedAt.toISOString()}.`);
   const messages = await db.select().from(taskMessagesTable).where(eq(taskMessagesTable.taskId, id)).orderBy(asc(taskMessagesTable.createdAt));
   const [updatedTask] = await db.select().from(tasksTable).where(eq(tasksTable.id, id));
-  await db.insert(projectTaskArchivesTable).values({
-    taskId: id,
-    project: task.project,
-    archive: serializeDates({ task: updatedTask, messages, attachments: task.attachments, report: task.report, archivedAt }),
-  }).onConflictDoUpdate({ target: projectTaskArchivesTable.taskId, set: { project: task.project, archive: serializeDates({ task: updatedTask, messages, attachments: task.attachments, report: task.report, archivedAt }) } });
+  await db.insert(projectTaskArchivesTable).values({ taskId: id, project: task.project, archive: serializeDates({ task: updatedTask, messages, attachments: task.attachments, report: task.report, archivedAt }) }).onConflictDoUpdate({ target: projectTaskArchivesTable.taskId, set: { project: task.project, archive: serializeDates({ task: updatedTask, messages, attachments: task.attachments, report: task.report, archivedAt }) } });
   res.json({ archived: true, taskId: id, archivedAt: archivedAt.toISOString() });
 });
 
@@ -245,56 +207,33 @@ router.post("/tasks/:id/restore", async (req, res): Promise<void> => {
 
 router.patch("/tasks/:id", async (req, res): Promise<void> => {
   const params = UpdateTaskParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = UpdateTaskBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const [task] = await db.update(tasksTable).set(parsed.data).where(eq(tasksTable.id, params.data.id)).returning();
-  if (!task) {
-    res.status(404).json({ error: "Task not found" });
-    return;
-  }
+  if (!task) { res.status(404).json({ error: "Task not found" }); return; }
   res.json(UpdateTaskResponse.parse(serializeDates(task)));
 });
 
 router.delete("/tasks/:id", async (req, res): Promise<void> => {
   const params = DeleteTaskParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const [task] = await db.delete(tasksTable).where(eq(tasksTable.id, params.data.id)).returning();
-  if (!task) {
-    res.status(404).json({ error: "Task not found" });
-    return;
-  }
+  if (!task) { res.status(404).json({ error: "Task not found" }); return; }
   res.sendStatus(204);
 });
 
 router.patch("/tasks/:id/move", async (req, res): Promise<void> => {
   const params = MoveTaskParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = MoveTaskBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const [existing] = await db.select().from(tasksTable).where(eq(tasksTable.id, params.data.id));
   if (!existing) { res.status(404).json({ error: "Task not found" }); return; }
   const [task] = await db.update(tasksTable).set({ status: parsed.data.status, archivedAt: null }).where(eq(tasksTable.id, params.data.id)).returning();
   const fromLane = workflowLane(existing.status);
   const toLane = workflowLane(task.status);
-  if (fromLane !== toLane) {
-    await addTaskMessage(task.id, "Mission Control", `Task moved from ${fromLane} to ${toLane}.`);
-  }
+  if (fromLane !== toLane) await addTaskMessage(task.id, "Mission Control", `Task moved from ${fromLane} to ${toLane}.`);
   res.json(MoveTaskResponse.parse(serializeDates(task)));
 });
 
