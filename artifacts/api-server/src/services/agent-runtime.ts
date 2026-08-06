@@ -136,11 +136,12 @@ async function dispatchClaude(agent: RuntimeAgent, input: RuntimeDispatchInput):
 async function dispatchWebhook(agent: RuntimeAgent, input: RuntimeDispatchInput): Promise<RuntimeDispatchResult> {
   if (!agent.endpoint) return { ok: false, provider: cleanProvider(agent.provider), delivery: "queued", output: null, statusCode: null, error: "Webhook/Hermes endpoint is missing." };
   const provider = cleanProvider(agent.provider);
-  const endpoint = resolveEndpoint(agent.endpoint, provider);
+  const isJames = isJamesHermesTarget(agent);
+  const endpoint = resolveEndpoint(isJames && input.mode !== "test" ? "/api/james/task-job" : agent.endpoint, provider);
   const apiKey = decryptSecret(agent.apiKey);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-  if (isJamesHermesTarget(agent)) {
+  if (isJames) {
     const adminToken = process.env.MISSION_CONTROL_ADMIN_TOKEN?.trim();
     if (adminToken) {
       headers.Authorization = `Bearer ${adminToken}`;
@@ -148,8 +149,8 @@ async function dispatchWebhook(agent: RuntimeAgent, input: RuntimeDispatchInput)
     }
   }
   const prompt = buildPrompt(input);
-  const body = isJamesHermesTarget(agent)
-    ? { message: prompt, project: "Mission Control", environment: "production", workspacePath: "/opt/apps/ai-mission-control" }
+  const body = isJames
+    ? { message: prompt, taskId: input.taskId ?? null, commandId: input.commandId ?? null, project: "Mission Control", environment: "production", workspacePath: "/opt/apps/ai-mission-control" }
     : {
         commandId: input.commandId ?? null,
         taskId: input.taskId ?? null,
@@ -163,10 +164,10 @@ async function dispatchWebhook(agent: RuntimeAgent, input: RuntimeDispatchInput)
     method: "POST",
     headers,
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(input.mode === "test" ? 10_000 : 180_000),
+    signal: AbortSignal.timeout(input.mode === "test" ? 10_000 : 30_000),
   });
   const output = await readResponseText(response);
-  return { ok: response.ok, provider, delivery: "webhook", output: output || null, statusCode: response.status, error: response.ok ? null : output || `Webhook returned HTTP ${response.status}` };
+  return { ok: response.ok, provider, delivery: isJames && input.mode !== "test" && response.ok ? "queued" : "webhook", output: output || null, statusCode: response.status, error: response.ok ? null : output || `Webhook returned HTTP ${response.status}` };
 }
 
 export async function dispatchRuntime(agent: RuntimeAgent, input: RuntimeDispatchInput): Promise<RuntimeDispatchResult> {
