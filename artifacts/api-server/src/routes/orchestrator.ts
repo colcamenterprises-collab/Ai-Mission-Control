@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, tasksTable, agentsTable, agentCommandsTable, activityTable } from "@workspace/db";
+import { db, tasksTable, agentsTable, agentCommandsTable, activityTable, taskMessagesTable } from "@workspace/db";
 import { serializeDates } from "../utils/serialize.js";
 import { dispatchRuntime, isRuntimeConfigured } from "../services/agent-runtime.js";
 import { formatSkillsForPrompt, readSkillsForDelegation } from "../services/skills.js";
@@ -23,6 +23,11 @@ function isRealConnectedAgent(agent: AgentRecord): boolean { return Boolean(agen
 function isJamesHermes(agent: AgentRecord): boolean { return agent.provider === "hermes" || agent.name.toLowerCase().includes("james hermes"); }
 function agentSearchText(agent: AgentRecord): string { return [agent.name, agent.role, agent.department, agent.responsibilities, agent.provider, agent.model].filter(Boolean).join(" ").toLowerCase(); }
 function buildAgentReason(agent: AgentRecord, score: number): string { if (score > 0) return "Best matching connected AI worker for this work brief."; if (agent.isLead) return "Lead connected AI worker selected because no specialist matched strongly."; return "Connected AI worker selected for review and routing."; }
+
+async function addTaskMessage(taskId: number, author: string, body: string) {
+  await db.insert(taskMessagesTable).values({ taskId, author, body });
+  if (author !== "Cameron") await db.update(tasksTable).set({ unreadMessages: 1 }).where(eq(tasksTable.id, taskId));
+}
 
 async function buildPlaybookContext(context: string): Promise<string> {
   const playbooks = await readSkillsForDelegation({ categories: CORE_PLAYBOOK_CATEGORIES });
@@ -57,26 +62,34 @@ async function chooseAgent(body: Required<Pick<IntakeBody, "title" | "descriptio
 }
 
 function buildInstructions(params: { taskId: number; title: string; description: string; project: string; priority: string; assignee: string; recommendation: AgentCandidate }): string {
-  return [`Mission Control assigned task #${params.taskId}: ${params.title}`, "", `Priority: ${params.priority}`, `Project: ${params.project}`, `Assigned AI worker: ${params.assignee}`, `Routing confidence: ${params.recommendation.confidence}%`, `Routing reason: ${params.recommendation.reason}`, "", "Task brief:", params.description, "", "Expected behaviour:", "1. Review the task and attached playbook context.", "2. Identify blockers, required access, and safest next action.", "3. Use only the tools and secrets assigned to your agent token.", "4. Report progress back to Mission Control with task status and playbooks used."].join("\n");
+  return [`Mission Control assigned task #${params.taskId}: ${params.title}`, "", `Priority: ${params.priority}`, `Project: ${params.project}`, `Assigned AI worker: ${params.assignee}`, `Routing confidence: ${params.recommendation.confidence}%`, `Routing reason: ${params.recommendation.reason}`, "", "Task brief:", params.description, "", "Operating rules:", "1. Review the task and attached playbook context.", "2. Keep every task-specific question, finding, action and result inside the Mission Control task conversation.", "3. Identify blockers, required access, and safest next action.", "4. If owner approval is required, clearly state what needs approval and why; do not continue past that approval gate.", "5. Use only the tools and secrets assigned to your agent token.", "6. Report progress and completion back to Mission Control. Never claim work you did not perform."].join("\n");
 }
 
 async function runAssignedWork(params: { agent: AgentRecord; task: typeof tasksTable.$inferSelect; command: typeof agentCommandsTable.$inferSelect; instructions: string; context: string }): Promise<void> {
   const { agent, task, command, instructions, context } = params;
   if (!isRuntimeConfigured(agent)) {
     await db.update(agentsTable).set({ currentTask: `Task #${task.id}: ${task.title}`, status: "pending", lastActive: "work queued by Mission Control" }).where(eq(agentsTable.id, agent.id));
+    await addTaskMessage(task.id, "Mission Control", `${agent.name} has been allocated this task. Work is queued for agent pickup.`);
     return;
   }
 
   try {
     await db.update(tasksTable).set({ status: "running" }).where(eq(tasksTable.id, task.id));
+    await addTaskMessage(task.id, agent.name, "Task received. I am reviewing the brief and beginning work.");
     const runtimeResult = await dispatchRuntime(agent, { mode: "work", instructions, context, taskId: task.id, commandId: command.id });
     await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: runtimeResult.ok }).where(eq(agentCommandsTable.id, command.id));
-    await db.update(tasksTable).set({ status: runtimeResult.ok ? "review" : "blocked" }).where(eq(tasksTable.id, task.id));
-    await db.update(agentsTable).set({ currentTask: runtimeResult.ok ? null : `Task #${task.id}: ${task.title}`, status: runtimeResult.ok ? (isJamesHermes(agent) ? "active" : "idle") : "error", lastActive: runtimeResult.ok ? "response received — awaiting review" : "runtime failed", lastPing: runtimeResult.ok ? new Date() : agent.lastPing }).where(eq(agentsTable.id, agent.id));
-    await db.insert(activityTable).values({ agentName: agent.name, action: runtimeResult.ok ? "Worker response received — awaiting review" : "Runtime failed orchestrated work", detail: runtimeResult.output ?? runtimeResult.error, status: runtimeResult.ok ? "pending" : "error" });
+    if (runtimeResult.output) await addTaskMessage(task.id, agent.name, runtimeResult.output);
+    const nextStatus = runtimeResult.ok ? (task.approvalRequired ? "review" : "running") : "blocked";
+    await db.update(tasksTable).set({ status: nextStatus }).where(eq(tasksTable.id, task.id));
+    if (task.approvalRequired && runtimeResult.ok) {
+      await addTaskMessage(task.id, "Mission Control", "OWNER APPROVAL REQUIRED — review the agent notes above, then approve or request changes from this task.");
+    }
+    await db.update(agentsTable).set({ currentTask: runtimeResult.ok ? (task.approvalRequired ? null : `Task #${task.id}: ${task.title}`) : `Task #${task.id}: ${task.title}`, status: runtimeResult.ok ? "active" : "error", lastActive: runtimeResult.ok ? (task.approvalRequired ? "response received — awaiting owner approval" : "task active — response recorded") : "runtime failed", lastPing: runtimeResult.ok ? new Date() : agent.lastPing }).where(eq(agentsTable.id, agent.id));
+    await db.insert(activityTable).values({ agentName: agent.name, action: runtimeResult.ok ? "Worker response recorded in task" : "Runtime failed orchestrated work", detail: runtimeResult.output ?? runtimeResult.error, status: runtimeResult.ok ? "pending" : "error" });
   } catch (error) {
     const detail = error instanceof Error ? error.message : "Unknown runtime dispatch error";
     await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, task.id));
+    await addTaskMessage(task.id, "Mission Control", `BLOCKED — runtime dispatch failed: ${detail}`);
     await db.update(agentsTable).set({ currentTask: `Task #${task.id}: ${task.title}`, status: "error", lastActive: "runtime dispatch failed" }).where(eq(agentsTable.id, agent.id));
     await db.insert(activityTable).values({ agentName: agent.name, action: "Runtime dispatch failed", detail, status: "error" });
   }
@@ -99,6 +112,9 @@ router.post("/orchestrator/intake", async (req, res): Promise<void> => {
   const assignee = assignedAgent?.name ?? UNASSIGNED_AGENT_NAME;
 
   const [task] = await db.insert(tasksTable).values({ title, description, project, priority, dueDate, recurrence, approvalRequired, attachments, assignee, status: assignedAgent ? "ready" : "backlog" }).returning();
+  await addTaskMessage(task.id, "Cameron", description);
+  await addTaskMessage(task.id, "Mission Control", `Orchestrator reviewed the task. ${recommendation.reason} ${assignedAgent ? `Allocated to ${assignee}.` : "Task remains unassigned."}`);
+
   let command: typeof agentCommandsTable.$inferSelect | null = null;
   let dispatch: { agent: AgentRecord; task: typeof tasksTable.$inferSelect; command: typeof agentCommandsTable.$inferSelect; instructions: string; context: string } | null = null;
 
@@ -107,12 +123,11 @@ router.post("/orchestrator/intake", async (req, res): Promise<void> => {
     const baseContext = JSON.stringify({ source: "orchestrator-intake", recommendation: { recommendedAgent: recommendation.name, role: recommendation.role, department: recommendation.department, reason: recommendation.reason, confidence: recommendation.confidence }, createdBy: "Mission Control Orchestrator" }, null, 2);
     const context = await buildPlaybookContext(baseContext);
     [command] = await db.insert(agentCommandsTable).values({ agentId: assignedAgent.id, taskId: task.id, instructions, context }).returning();
-
     dispatch = { agent: assignedAgent, task, command, instructions, context };
   }
 
   await db.insert(activityTable).values({ agentName: "Mission Control", action: assignedAgent ? "Queued work for AI worker" : "Added work without connected AI worker", detail: assignedAgent ? `Task #${task.id} assigned to ${assignedAgent.name}. Reason: ${recommendation.reason}` : `Task #${task.id} created as unassigned. Reason: ${recommendation.reason}`, status: assignedAgent ? "pending" : "idle" });
-  res.status(201).json({ accepted: true, task: serializeDates(task), orchestratorReview: { recommendedAgent: recommendation.name, role: recommendation.role, department: recommendation.department, reason: recommendation.reason, confidence: recommendation.confidence }, allocation: assignedAgent && command ? { agentId: assignedAgent.id, agentName: assignedAgent.name, commandId: command.id, delivery: "queued_for_worker", nextStep: "Work has been queued. The board will update when the worker responds." } : null });
+  res.status(201).json({ accepted: true, task: serializeDates(task), orchestratorReview: { recommendedAgent: recommendation.name, role: recommendation.role, department: recommendation.department, reason: recommendation.reason, confidence: recommendation.confidence }, allocation: assignedAgent && command ? { agentId: assignedAgent.id, agentName: assignedAgent.name, commandId: command.id, delivery: "queued_for_worker", nextStep: "Work has been queued. All worker responses will be recorded inside this task." } : null });
 
   if (dispatch) void runAssignedWork(dispatch);
 });
