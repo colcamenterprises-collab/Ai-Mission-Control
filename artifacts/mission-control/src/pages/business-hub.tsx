@@ -1,27 +1,109 @@
-import { Link } from "wouter";
-import { Brain, BookOpen, Boxes, Users } from "lucide-react";
-import "./workspaces.css";
+import { useEffect, useState } from "react";
 
-const areas = [
-  { href: "/memory", label: "Knowledge", icon: Brain },
-  { href: "/skills", label: "Playbooks", icon: BookOpen },
-  { href: "/workspaces", label: "Projects", icon: Boxes },
-  { href: "/contacts", label: "People", icon: Users },
+type BusinessItem = {
+  id?: number | string;
+  title?: string;
+  name?: string;
+  role?: string;
+  description?: string;
+  preview?: string;
+  category?: string;
+  status?: string;
+};
+
+type BusinessSection = {
+  key: string;
+  title: string;
+  endpoint: string;
+  items: BusinessItem[];
+};
+
+const SOURCES = [
+  { key: "knowledge", title: "Knowledge", endpoint: "/api/memories" },
+  { key: "playbooks", title: "Playbooks", endpoint: "/api/skills" },
+  { key: "projects", title: "Projects", endpoint: "/api/projects" },
+  { key: "people", title: "People", endpoint: "/api/contacts" },
 ];
 
+function authHeaders() {
+  const token = localStorage.getItem("mission_control_admin_token") ?? localStorage.getItem("missionControlAdminToken");
+  return {
+    Accept: "application/json",
+    ...(token ? { Authorization: `Bearer ${token}`, "x-admin-token": token } : {}),
+  };
+}
+
+function normalizePayload(payload: unknown): BusinessItem[] {
+  if (Array.isArray(payload)) return payload as BusinessItem[];
+  if (!payload || typeof payload !== "object") return [];
+  const record = payload as Record<string, unknown>;
+  for (const key of ["items", "data", "results", "skills", "projects", "contacts", "memories"]) {
+    if (Array.isArray(record[key])) return record[key] as BusinessItem[];
+  }
+  return [];
+}
+
+function itemTitle(item: BusinessItem) {
+  return item.title || item.name || "Untitled";
+}
+
+function itemMeta(item: BusinessItem) {
+  return item.role || item.category || item.status || item.description || item.preview || "";
+}
+
 export default function BusinessHub() {
+  const [sections, setSections] = useState<BusinessSection[]>(
+    SOURCES.map((source) => ({ ...source, items: [] })),
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(
+      SOURCES.map(async (source) => {
+        try {
+          const response = await fetch(source.endpoint, { headers: authHeaders() });
+          if (!response.ok) return { ...source, items: [] };
+          const payload = await response.json();
+          return { ...source, items: normalizePayload(payload) };
+        } catch {
+          return { ...source, items: [] };
+        }
+      }),
+    ).then((next) => {
+      if (!cancelled) setSections(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
-    <div className="workspaces-shell h-full overflow-y-auto">
-      <div className="workspaces-canvas space-y-4">
-        <header className="work-hero">
-          <div><p>Business Hub</p><h1>Everything agents need.</h1></div>
+    <div className="mission-business-page">
+      <div className="mission-business-canvas">
+        <header className="mission-business-header">
+          <h1>Business</h1>
         </header>
-        <section className="grid gap-3 sm:grid-cols-2">
-          {areas.map((area) => (
-            <Link key={area.href} href={area.href} className="workspace-panel flex items-center gap-4 p-5 transition hover:border-primary/40">
-              <area.icon className="h-6 w-6 text-primary" />
-              <strong>{area.label}</strong>
-            </Link>
+
+        <section className="mission-business-grid" aria-label="Business data overview">
+          {sections.map((section) => (
+            <article className="mission-business-card" key={section.key}>
+              <header>
+                <h2>{section.title}</h2>
+                <b>{section.items.length}</b>
+              </header>
+              <div className="mission-business-list">
+                {section.items.length ? (
+                  section.items.slice(0, 6).map((item, index) => (
+                    <div className="mission-business-row" key={`${section.key}-${item.id ?? index}`}>
+                      <strong>{itemTitle(item)}</strong>
+                      {itemMeta(item) && <small>{itemMeta(item)}</small>}
+                    </div>
+                  ))
+                ) : (
+                  <div className="mission-business-empty">No {section.title.toLowerCase()} added yet.</div>
+                )}
+              </div>
+            </article>
           ))}
         </section>
       </div>
