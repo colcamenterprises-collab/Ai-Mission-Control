@@ -1,0 +1,67 @@
+/* Shared UI cleanup from tablet review. Keep this focused on layout consistency. */
+.mission-sidebar-top { min-height: 4.7rem !important; padding: .9rem .7rem .75rem !important; border-bottom: 0 !important; }
+.mission-sidebar-nav { flex: 1 1 auto; padding-top: .35rem !important; }
+.mission-sidebar-nav > ul { display: grid; gap: .28rem; }
+.mission-nav-item { min-height: 2.65rem !important; border-radius: .55rem !important; }
+.mission-sidebar-collapsed .mission-nav-item { width: 2.9rem !important; margin-inline: auto; justify-content: center !important; }
+.mission-sidebar-expanded .mission-nav-item { padding-inline: .72rem !important; }
+.mission-nav-icon { width: 1rem !important; height: 1rem !important; }
+.mission-sidebar-search { margin: 0 .6rem .45rem !important; min-height: 2.3rem !important; }
+.mission-sidebar-toggle-dock { margin-top: auto; padding: .7rem .55rem .85rem; border-top: 1px solid rgba(255,255,255,.055); }
+.mission-collapse-button-bottom { position: static !important; display: flex !important; align-items: center; justify-content: center; gap: .4rem; width: 100% !important; min-width: 0 !important; height: 2.35rem !important; margin: 0 !important; border: 1px solid rgba(255,255,255,.09) !important; border-radius: .5rem !important; background: rgba(255,255,255,.025) !important; color: #8b8792 !important; }
+.mission-sidebar-collapsed .mission-collapse-button-bottom { width: 2.55rem !important; margin-inline: auto !important; }
+.mission-sidebar-collapsed .mission-collapse-button-bottom svg { transform: rotate(180deg); }
+.mission-collapse-button-bottom span { font-size: .62rem; }
+.mission-route-dashboard .mission-agent-strip { display: none !important; }
+.mission-route-tasks .mc-task-card h3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-height: 1.95rem; padding-right: 2.8rem; }
+.mission-route-tasks .mc-task-card > p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; max-height: 2.75rem; }
+.mission-route-tasks .mc-task-card-dragging { opacity: .28 !important; }
+.mc-task-card-overlay { width: min(17rem, 28vw) !important; z-index: 10000 !important; opacity: .98 !important; pointer-events: none !important; box-shadow: 0 22px 52px rgba(0,0,0,.62) !important; transform: rotate(1deg); }
+.mc-task-card-actions { position: absolute; top: .42rem; right: .42rem; z-index: 5; display: flex; gap: .2rem; }
+.mc-task-card-actions button { display: grid; place-items: center; width: 1.35rem; height: 1.35rem; padding: 0; border: 1px solid #3b3942; border-radius: .3rem; background: #242329; color: #8e8a95; cursor: pointer; }
+.mc-task-card-actions button:hover { color: #f0edf4; border-color: #5b5666; }
+.mc-task-card-actions button:last-child:hover { color: #ef8c8c; border-color: #744343; }
+.mc-task-card-actions svg { width: .66rem; height: .66rem; }
+.mc-task-danger-button { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; min-height: 2rem; padding: .42rem .65rem; border: 1px solid #653d3d; border-radius: .35rem; background: #2f1f22; color: #e98b8b; font-size: .68rem; font-weight: 650; }
+.mc-task-danger-button svg, .mc-task-detail-admin svg { width: .72rem; height: .72rem; }
+.mc-task-detail-admin, .mc-task-detail-move { display: flex; align-items: center; gap: .35rem; }
+.mission-route-team .workspaces-shell { background: #0d0d10 !important; }
+.mission-route-team .workspaces-canvas { width: 100% !important; max-width: none !important; padding: .8rem !important; margin: 0 !important; }
+.mission-route-team .team-directory-hero { display: flex !important; align-items: center !important; min-height: 3.4rem !important; padding: .65rem .75rem !important; gap: .7rem !important; border-radius: .55rem !important; background: #17171c !important; box-shadow: none !important; }
+.mission-route-team .team-directory-hero .mission-page-title { margin: 0 !important; font-size: 1rem !important; font-weight: 650 !important; }
+.mission-route-team .team-hero-stats { margin-left: auto !important; }
+.mission-route-team .team-hero-stats span { display: flex !important; align-items: baseline !important; gap: .3rem !important; min-height: 0 !important; padding: .3rem .48rem !important; border-radius: .4rem !important; background: #202027 !important; font-size: .56rem !important; text-transform: none !important; }
+.mission-route-team .team-hero-stats strong { font-size: .7rem !important; }
+.mission-route-team .team-directory-hero > button { width: auto !important; min-width: 6.2rem !important; height: 2rem !important; padding: .4rem .65rem !important; border-radius: .4rem !important; background: #7554e8 !important; font-size: .62rem !important; }
+.mission-route-team .agent-directory-grid { grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)) !important; gap: .65rem !important; }
+.mission-route-team .agent-directory-card { min-height: 11rem !important; padding: .8rem !important; border-radius: .55rem !important; background: #17171c !important; box-shadow: none !important; }
+.mission-route-team .agent-directory-card h3 { font-size: .78rem !important; }
+.mission-route-team .agent-directory-card p { margin-top: .2rem !important; font-size: .59rem !important; line-height: 1.35 !important; }
+.mission-route-settings > .flex.flex-col.h-full > .p-6.border-b { padding: .8rem 1rem !important; border-bottom: 1px solid rgba(255,255,255,.055) !important; }
+.mission-route-settings > .flex.flex-col.h-full > .p-6.border-b h1 { font-size: 0 !important; }
+.mission-route-settings > .flex.flex-col.h-full > .p-6.border-b h1::after { content: "Settings"; font-size: 1rem; font-weight: 650; }
+.mission-route-settings > .flex.flex-col.h-full > .flex-1 { padding: .8rem 1rem 2rem !important; gap: 0 !important; }
+.mission-route-settings [data-slot="separator"] { display: none !important; }
+.mission-route-settings > .flex.flex-col.h-full > .flex-1 > section { margin: 0 !important; padding: .85rem 0 !important; border-bottom: 1px solid rgba(255,255,255,.055); }
+.mission-route-settings > .flex.flex-col.h-full > .flex-1 > section:nth-of-type(4) { display: none !important; }
+.mission-route-settings > .flex.flex-col.h-full > .flex-1 > details { margin: 0 0 .2rem !important; padding: .7rem !important; border-radius: .5rem !important; box-shadow: none !important; }
+.mission-route-settings h2 { font-family: inherit !important; letter-spacing: 0 !important; text-transform: none !important; color: #a9a6b0 !important; }
+.mission-route-settings h2 + .flex-1.h-px, .mission-route-settings h2 ~ .flex-1.h-px { display: none !important; }
+.mission-route-settings [data-slot="dialog-content"] { max-height: min(88dvh, 48rem) !important; overflow-y: auto !important; overscroll-behavior: contain; scrollbar-width: thin; }
+.mission-business-page { height: 100%; overflow-y: auto; background: #0d0d10; }
+.mission-business-canvas { display: grid; gap: .7rem; padding: .85rem; }
+.mission-business-header { display: flex; align-items: center; justify-content: space-between; min-height: 2.7rem; }
+.mission-business-header h1 { margin: 0; font-size: 1rem; font-weight: 650; }
+.mission-business-header span { color: #77737f; font-size: .58rem; }
+.mission-business-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+.mission-business-card { min-width: 0; padding: .75rem; border: 1px solid #302f36; border-radius: .55rem; background: #17171c; }
+.mission-business-card > header { display: flex; align-items: center; gap: .5rem; margin-bottom: .55rem; }
+.mission-business-card > header svg { width: .9rem; color: #8c6df0; }
+.mission-business-card > header h2 { margin: 0; font-size: .72rem; font-weight: 650; }
+.mission-business-card > header b { margin-left: auto; padding: .15rem .35rem; border-radius: .3rem; background: #24222a; color: #aaa6b2; font-size: .55rem; }
+.mission-business-list { display: grid; gap: .3rem; }
+.mission-business-row { display: grid; gap: .12rem; padding: .45rem .5rem; border-radius: .38rem; background: #1e1d22; }
+.mission-business-row strong { overflow: hidden; color: #ece9f1; font-size: .62rem; text-overflow: ellipsis; white-space: nowrap; }
+.mission-business-row small { overflow: hidden; color: #76727d; font-size: .52rem; text-overflow: ellipsis; white-space: nowrap; }
+.mission-business-empty { color: #706d77; font-size: .58rem; padding: 1rem .2rem; }
+@media (max-width: 820px) { .mission-business-grid { grid-template-columns: 1fr; } .mission-route-team .agent-directory-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } .mc-task-card-overlay { width: 15rem !important; } }
