@@ -6,20 +6,8 @@ import {
   useListTasks,
 } from "@workspace/api-client-react";
 import { Link } from "wouter";
-import {
-  Activity,
-  CalendarClock,
-  CheckCircle2,
-  ChevronRight,
-  Clock3,
-  Command,
-  ShieldCheck,
-  Sparkles,
-} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AgentAvatar, agentTone } from "@/components/agent-avatar";
 import { JamesAvatar } from "@/components/james-avatar";
-import { OrchestratorIntakePanel } from "@/components/orchestrator-intake-panel";
 import "./workspaces.css";
 import "./dashboard-operations.css";
 
@@ -83,31 +71,11 @@ export default function Dashboard() {
   return (
     <div className="mission-shell h-full overflow-y-auto">
       <div className="mission-canvas mission-home-canvas mission-operations-home">
-        <section className="mission-welcome-panel" aria-label="Create a task">
-          <div>
-            <span>Welcome back, Cameron</span>
-            <h1>What would you like done?</h1>
-          </div>
-          <OrchestratorIntakePanel />
-        </section>
-
         <section className="mission-metric-grid">
           <MetricCard title="Work open" value={String(totalTasks)} loading={isSummaryLoading || isTasksLoading} tone="blue" />
           <MetricCard title="Working now" value={String(activeTasks)} loading={isSummaryLoading || isTasksLoading} tone="green" />
           <MetricCard title="AI team" value={String(installedAgents)} loading={isSummaryLoading} tone="violet" />
           <MetricCard title="Knowledge" value={String(memories.length)} loading={false} tone="amber" />
-        </section>
-
-        <section className="mission-agent-strip" aria-label="AI team">
-          <div className="mission-agent-row">
-            {agents.map((agent) => (
-              <Link href="/team" className={`mission-agent-card mission-agent-${agentTone(agent.name)}`} key={agent.id}>
-                <AgentAvatar name={agent.name} initials={agent.avatarInitials} />
-                <span><strong>{agent.name}</strong><small>{agent.role}</small></span>
-              </Link>
-            ))}
-            {agents.length === 0 && <span className="mission-agent-empty">No agents added</span>}
-          </div>
         </section>
 
         <div className="mission-ops-grid mission-ops-grid-primary">
@@ -134,7 +102,7 @@ export default function Dashboard() {
           </article>
 
           <article className="mission-panel mission-briefing-panel">
-            <PanelTitle title="James briefing" action="Knowledge" href="/memory" icon={<Sparkles />} />
+            <PanelTitle title="James briefing" action="Knowledge" href="/memory" />
             <div className="mission-briefing-head">
               <JamesAvatar className="mission-briefing-avatar" />
               <div>
@@ -148,30 +116,24 @@ export default function Dashboard() {
               <p>{blockedTasks > 0 ? `${blockedTasks} task${blockedTasks === 1 ? " is" : "s are"} blocked and should be reviewed.` : `${waitingTasks} task${waitingTasks === 1 ? " is" : "s are"} queued or waiting.`}</p>
               <p>{automations.length > 0 ? `${automations.length} scheduled or recurring item${automations.length === 1 ? " is" : "s are"} visible in the upcoming queue.` : "No upcoming automation is currently visible from task scheduling."}</p>
             </div>
-            <Link href="/tasks" className="mission-briefing-action">Open workboard <ChevronRight /></Link>
+            <Link href="/tasks" className="mission-briefing-action">Open workboard</Link>
           </article>
         </div>
 
         <div className="mission-ops-grid mission-ops-grid-secondary">
-          <OpsPanel
-            title="Approval inbox"
-            icon={<ShieldCheck />}
-            action="Open tasks"
-            href="/tasks"
-            badge={approvals.length}
-          >
+          <OpsPanel title="Approval inbox" action="Open tasks" href="/tasks" badge={approvals.length}>
             {approvals.length === 0 ? <CompactEmpty>Nothing needs approval</CompactEmpty> : approvals.map((task) => (
               <OpsRow key={task.id} title={task.title} meta={`${task.assignee || "AI team"} · ${prettyStatus(task.status)}`} href="/tasks" accent="approval" />
             ))}
           </OpsPanel>
 
-          <OpsPanel title="Live activity" icon={<Activity />} action="Run history" href="/reports">
+          <OpsPanel title="Live activity" action="Run history" href="/reports">
             {latestTasks.length === 0 ? <CompactEmpty>No activity yet</CompactEmpty> : latestTasks.slice(0, 4).map((task) => (
               <OpsRow key={task.id} title={task.title} meta={`${prettyStatus(task.status)} · ${timeAgo(task.updatedAt)}`} href="/tasks" accent="activity" />
             ))}
           </OpsPanel>
 
-          <OpsPanel title="Automations" icon={<CalendarClock />} action="Open calendar" href="/tasks" badge={automations.length}>
+          <OpsPanel title="Automations" action="Open calendar" href="/tasks" badge={automations.length}>
             {automations.length === 0 ? <CompactEmpty>No scheduled work</CompactEmpty> : automations.map((task) => (
               <OpsRow
                 key={task.id}
@@ -185,7 +147,7 @@ export default function Dashboard() {
         </div>
 
         <button className="mission-command-trigger" type="button" onClick={() => setPaletteOpen(true)}>
-          <Command /> <span>Quick actions</span><kbd>⌘K</kbd>
+          <span>Quick actions</span><kbd>⌘K</kbd>
         </button>
       </div>
 
@@ -205,10 +167,10 @@ function MetricCard({ title, value, loading, tone }: { title: string; value: str
   );
 }
 
-function PanelTitle({ title, action, href, icon }: { title: string; action: string; href: string; icon?: React.ReactNode }) {
+function PanelTitle({ title, action, href }: { title: string; action: string; href: string }) {
   return (
     <div className="mission-panel-title">
-      <div>{icon}<span>{title}</span></div>
+      <div><span>{title}</span></div>
       <Link href={href} className="mission-text-action">{action}</Link>
     </div>
   );
@@ -223,11 +185,11 @@ function WorkPill({ label, value }: { label: string; value: number }) {
   );
 }
 
-function OpsPanel({ title, icon, action, href, badge, children }: { title: string; icon: React.ReactNode; action: string; href: string; badge?: number; children: React.ReactNode }) {
+function OpsPanel({ title, action, href, badge, children }: { title: string; action: string; href: string; badge?: number; children: React.ReactNode }) {
   return (
     <article className="mission-panel mission-ops-panel">
       <div className="mission-panel-title mission-ops-title">
-        <div>{icon}<span>{title}</span>{typeof badge === "number" && badge > 0 && <b>{badge}</b>}</div>
+        <div><span>{title}</span>{typeof badge === "number" && badge > 0 && <b>{badge}</b>}</div>
         <Link href={href} className="mission-text-action">{action}</Link>
       </div>
       <div className="mission-ops-list">{children}</div>
@@ -240,30 +202,29 @@ function OpsRow({ title, meta, href, accent }: { title: string; meta: string; hr
     <Link href={href} className={`mission-ops-row mission-ops-${accent}`}>
       <span className="mission-ops-indicator" />
       <div><strong>{title}</strong><small>{meta}</small></div>
-      <ChevronRight />
     </Link>
   );
 }
 
 function CompactEmpty({ children }: { children: React.ReactNode }) {
-  return <div className="mission-ops-empty"><CheckCircle2 /><span>{children}</span></div>;
+  return <div className="mission-ops-empty"><span>{children}</span></div>;
 }
 
 function CommandPalette({ onClose }: { onClose: () => void }) {
   const actions = [
-    { label: "Create or manage tasks", detail: "Workboard and automation calendar", href: "/tasks", icon: <Clock3 /> },
-    { label: "Open AI team", detail: "Agents and roles", href: "/team", icon: <Activity /> },
-    { label: "Search knowledge", detail: "Notes, processes and decisions", href: "/memory", icon: <Sparkles /> },
-    { label: "View reports", detail: "Execution and operational reporting", href: "/reports", icon: <CalendarClock /> },
+    { label: "Create or manage tasks", detail: "Workboard and automation calendar", href: "/tasks" },
+    { label: "Open AI team", detail: "Agents and roles", href: "/team" },
+    { label: "Search knowledge", detail: "Notes, processes and decisions", href: "/memory" },
+    { label: "View reports", detail: "Execution and operational reporting", href: "/reports" },
   ];
   return (
     <div className="mission-command-backdrop" onMouseDown={onClose}>
       <div className="mission-command-palette" role="dialog" aria-modal="true" aria-label="Quick actions" onMouseDown={(event) => event.stopPropagation()}>
-        <header><Command /><span>Mission Control</span><kbd>ESC</kbd></header>
+        <header><span>Mission Control</span><kbd>ESC</kbd></header>
         <div>
           {actions.map((action) => (
             <Link href={action.href} key={action.href} onClick={onClose}>
-              {action.icon}<span><strong>{action.label}</strong><small>{action.detail}</small></span><ChevronRight />
+              <span><strong>{action.label}</strong><small>{action.detail}</small></span>
             </Link>
           ))}
         </div>
