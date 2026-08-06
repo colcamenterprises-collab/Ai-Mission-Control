@@ -1,9 +1,9 @@
 import { Router, type IRouter } from "express";
-import { eq, count } from "drizzle-orm";
+import { count, inArray, isNull } from "drizzle-orm";
 import { db, tasksTable, contentTable, eventsTable, agentsTable, activityTable } from "@workspace/db";
 import { GetDashboardSummaryResponse } from "@workspace/api-zod";
 import { sql } from "drizzle-orm";
-import { and, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -11,12 +11,12 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
   const [activeTaskCount] = await db
     .select({ count: count() })
     .from(tasksTable)
-    .where(eq(tasksTable.status, "in_progress"));
+    .where(and(isNull(tasksTable.archivedAt), inArray(tasksTable.status, ["running", "in_progress"])));
 
   const [pendingTaskCount] = await db
     .select({ count: count() })
     .from(tasksTable)
-    .where(eq(tasksTable.status, "backlog"));
+    .where(and(isNull(tasksTable.archivedAt), inArray(tasksTable.status, ["backlog", "ready", "review", "blocked"])));
 
   const contentByStage = await db
     .select({ stage: contentTable.stage, count: sql<number>`count(*)::int` })
