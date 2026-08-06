@@ -11,6 +11,7 @@ import {
   activityTable,
 } from "@workspace/db";
 import { serializeDates } from "../utils/serialize.js";
+import { dispatchRuntime, isRuntimeConfigured } from "../services/agent-runtime.js";
 import {
   ListTasksResponse,
   CreateTaskBody,
@@ -58,6 +59,30 @@ async function queueTaskFollowUp(task: typeof tasksTable.$inferSelect, instructi
     detail: `Task #${task.id}: ${instructions.slice(0, 220)}`,
     status: "pending",
   });
+
+  if (isRuntimeConfigured(agent)) {
+    void (async () => {
+      try {
+        await addTaskMessage(task.id, agent.name, "Update received. I am reviewing the task conversation and continuing the work.");
+        const result = await dispatchRuntime(agent, { mode: "work", instructions, context, taskId: task.id, commandId: command.id });
+        await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: result.ok }).where(eq(agentCommandsTable.id, command.id));
+        if (result.output) await addTaskMessage(task.id, agent.name, result.output);
+        await db.update(tasksTable).set({ status: result.ok ? "review" : "blocked" }).where(eq(tasksTable.id, task.id));
+        await db.insert(activityTable).values({
+          agentName: agent.name,
+          action: result.ok ? "Task follow-up response recorded" : "Task follow-up failed",
+          detail: result.output ?? result.error,
+          status: result.ok ? "active" : "error",
+        });
+        if (!result.ok) await addTaskMessage(task.id, "Mission Control", `BLOCKED — ${result.error ?? "agent runtime failed"}`);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : "Unknown task follow-up error";
+        await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, task.id));
+        await addTaskMessage(task.id, "Mission Control", `BLOCKED — ${detail}`);
+      }
+    })();
+  }
+
   return command;
 }
 
