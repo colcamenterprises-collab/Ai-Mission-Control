@@ -1,0 +1,10 @@
+/* Page and section headers are text-led. Sidebar navigation remains the icon surface. */
+.mission-route-tasks .mc-task-header-actions svg,
+.mission-route-team .team-directory-hero > button svg,
+.mission-route-settings section > .flex.items-center > button svg,
+.mission-route-settings section > .flex.items-center > a svg,
+.mission-route-settings h1 > svg,
+.mission-route-settings h2 > svg,
+.mission-route-business header > svg {
+  display: none !important;
+}
