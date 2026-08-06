@@ -194,7 +194,7 @@ export default function Tasks() {
   return (
     <div className="mc-task-page">
       <header className="mc-task-header">
-        <h1>Task</h1>
+        <h1>Tasks</h1>
         <div className="mc-task-header-actions">
           {approvalTasks.length > 0 && (
             <button className="mc-task-approval-button" onClick={() => setSelectedTask(approvalTasks[0])}>
