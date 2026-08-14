@@ -10,7 +10,8 @@ This release adds:
 - task attachments at any stage;
 - persistent attachment storage on the VPS;
 - browser voice transcription in task/idea notes where supported;
-- reusable specialist sub-agent profile definitions and operating documentation.
+- reusable specialist sub-agent profile definitions;
+- task-scoped sub-agent session records for the permanent-profile / temporary-session model.
 
 ## Required Hostinger changes
 
@@ -28,7 +29,10 @@ Run the normal workspace install/build commands used by this repository.
 
 ### 3. Database schema update
 
-A new `ideas` table is required.
+Two new additive tables are required:
+
+- `ideas`
+- `agent_sessions`
 
 After taking a database backup/snapshot, run the repository's normal Drizzle schema update:
 
@@ -36,7 +40,7 @@ After taking a database backup/snapshot, run the repository's normal Drizzle sch
 
 Do not use `push-force` for this release.
 
-The expected schema change is additive: create the new `ideas` table. Existing task tables do not need destructive changes.
+The expected schema change is additive only. Existing task tables do not need destructive changes.
 
 ### 4. Persistent upload directory
 
@@ -98,12 +102,14 @@ After deployment verify:
 5. Converting an Idea to a task creates an executable task and removes the idea.
 6. A normal task is routed to James Hermes when James is connected.
 7. A normal task does not display an owner approval requirement just because it is in review/blocked workflow state.
-8. Upload a small image/PDF to a Doing task and open it again.
-9. Upload a file to an Idea and open it again.
-10. Move/complete a task through the normal agent workflow and confirm final Archive remains an explicit owner action.
-11. Confirm historical tasks still load.
-12. Confirm the upload directory contains the new files and survives a normal application redeploy.
+8. Upload a small image/PDF to a Doing task and verify it is stored under the persistent upload directory.
+9. Upload a file to an Idea and verify it persists.
+10. Confirm `/api/sub-agents/profiles` returns Bob, Alex, Quinn, Mia, Sam and Scout.
+11. Create and complete a test sub-agent session record and confirm it returns to a terminal status without altering the permanent profile.
+12. Move/complete a task through the normal agent workflow and confirm final Archive remains an explicit owner action.
+13. Confirm historical tasks still load.
+14. Confirm the upload directory survives a normal application redeploy.
 
 ## Sub-agent runtime note
 
-The repository now contains the approved specialist profile definitions/documentation. The next runtime step is to connect James' delegation layer to concrete worker runtime sessions (OpenClaw or another configured provider) using those profiles. Do not create long-lived always-running worker processes merely to represent dormant profiles.
+The repository now contains the approved specialist profile definitions and the task-scoped session persistence/API foundation. Concrete execution still needs a runtime adapter that maps a selected profile/session to an actual worker runtime (OpenClaw or another configured provider), injects the task package, receives structured evidence, and terminates the worker session. Do not create long-lived always-running worker processes merely to represent dormant profiles.
