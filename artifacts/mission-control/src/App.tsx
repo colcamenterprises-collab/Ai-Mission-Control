@@ -5,7 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
 import { ThemeProvider } from "@/lib/theme";
 import Dashboard from "@/pages/dashboard";
-import Tasks from "@/pages/tasks";
+import Tasks from "@/pages/tasks-v2";
 import ContentPipeline from "@/pages/content";
 import Memory from "@/pages/memory";
 import Workspaces from "@/pages/workspaces";
