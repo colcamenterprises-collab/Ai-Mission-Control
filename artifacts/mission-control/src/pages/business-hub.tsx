@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type BusinessItem = {
   id?: number | string;
   title?: string;
   name?: string;
-  role?: string;
   description?: string;
   preview?: string;
   category?: string;
@@ -14,15 +13,15 @@ type BusinessItem = {
 type BusinessSection = {
   key: string;
   title: string;
+  eyebrow: string;
   endpoint: string;
   items: BusinessItem[];
 };
 
 const SOURCES = [
-  { key: "knowledge", title: "Knowledge", endpoint: "/api/memories" },
-  { key: "playbooks", title: "Playbooks", endpoint: "/api/skills" },
-  { key: "projects", title: "Projects", endpoint: "/api/projects" },
-  { key: "people", title: "People", endpoint: "/api/contacts" },
+  { key: "memory", title: "Memory", eyebrow: "What James knows", endpoint: "/api/memories" },
+  { key: "skills", title: "Skills", eyebrow: "What James can do", endpoint: "/api/skills" },
+  { key: "projects", title: "Projects", eyebrow: "Where James works", endpoint: "/api/projects" },
 ];
 
 function authHeaders() {
@@ -37,7 +36,7 @@ function normalizePayload(payload: unknown): BusinessItem[] {
   if (Array.isArray(payload)) return payload as BusinessItem[];
   if (!payload || typeof payload !== "object") return [];
   const record = payload as Record<string, unknown>;
-  for (const key of ["items", "data", "results", "skills", "projects", "contacts", "memories"]) {
+  for (const key of ["items", "data", "results", "skills", "projects", "memories"]) {
     if (Array.isArray(record[key])) return record[key] as BusinessItem[];
   }
   return [];
@@ -48,13 +47,11 @@ function itemTitle(item: BusinessItem) {
 }
 
 function itemMeta(item: BusinessItem) {
-  return item.role || item.category || item.status || item.description || item.preview || "";
+  return item.category || item.status || item.description || item.preview || "";
 }
 
 export default function BusinessHub() {
-  const [sections, setSections] = useState<BusinessSection[]>(
-    SOURCES.map((source) => ({ ...source, items: [] })),
-  );
+  const [sections, setSections] = useState<BusinessSection[]>(SOURCES.map((source) => ({ ...source, items: [] })));
 
   useEffect(() => {
     let cancelled = false;
@@ -72,35 +69,66 @@ export default function BusinessHub() {
     ).then((next) => {
       if (!cancelled) setSections(next);
     });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
+
+  const total = useMemo(() => sections.reduce((sum, section) => sum + section.items.length, 0), [sections]);
+  const maxCount = Math.max(1, ...sections.map((section) => section.items.length));
 
   return (
     <div className="mission-business-page">
       <div className="mission-business-canvas">
         <header className="mission-business-header">
-          <h1>Business</h1>
+          <div>
+            <h1>Business</h1>
+            <p>James&apos;s operational context</p>
+          </div>
+          <strong>{total} connected records</strong>
         </header>
+
+        <section className="mission-business-map" aria-label="James operational context overview">
+          <div className="mission-business-core">
+            <span>JAMES</span>
+            <strong>Operational Context</strong>
+            <small>Knowledge becomes capability. Capability becomes work.</small>
+          </div>
+          <div className="mission-business-orbits">
+            {sections.map((section) => (
+              <div className={`mission-business-orbit mission-business-orbit-${section.key}`} key={section.key}>
+                <span>{section.title}</span>
+                <strong>{section.items.length}</strong>
+                <i style={{ width: `${Math.max(8, (section.items.length / maxCount) * 100)}%` }} />
+              </div>
+            ))}
+          </div>
+        </section>
 
         <section className="mission-business-grid" aria-label="Business data overview">
           {sections.map((section) => (
             <article className="mission-business-card" key={section.key}>
               <header>
-                <h2>{section.title}</h2>
+                <div>
+                  <small>{section.eyebrow}</small>
+                  <h2>{section.title}</h2>
+                </div>
                 <b>{section.items.length}</b>
               </header>
               <div className="mission-business-list">
                 {section.items.length ? (
                   section.items.slice(0, 6).map((item, index) => (
                     <div className="mission-business-row" key={`${section.key}-${item.id ?? index}`}>
-                      <strong>{itemTitle(item)}</strong>
-                      {itemMeta(item) && <small>{itemMeta(item)}</small>}
+                      <span className="mission-business-marker" aria-hidden="true" />
+                      <div>
+                        <strong>{itemTitle(item)}</strong>
+                        {itemMeta(item) && <small>{itemMeta(item)}</small>}
+                      </div>
                     </div>
                   ))
                 ) : (
-                  <div className="mission-business-empty">No {section.title.toLowerCase()} added yet.</div>
+                  <div className="mission-business-empty">
+                    <strong>No {section.title.toLowerCase()} yet</strong>
+                    <small>This area will populate as James builds operational context.</small>
+                  </div>
                 )}
               </div>
             </article>
