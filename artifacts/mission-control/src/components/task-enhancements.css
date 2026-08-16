@@ -1,0 +1,178 @@
+.mc-task-id-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin: 0 0 0.3rem;
+  padding: 0.16rem 0.45rem;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.72);
+  background: rgba(255,255,255,0.045);
+}
+
+.mc-task-id-detail {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 0.35rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(255, 214, 0, 0.12);
+  border: 1px solid rgba(255, 214, 0, 0.28);
+  color: #ffd600;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.mc-task-files-panel {
+  margin-top: 1rem;
+  padding: 0.95rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.025);
+}
+
+.mc-task-files-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.mc-task-files-heading h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.mc-task-files-heading span,
+.mc-task-files-help {
+  color: rgba(255,255,255,0.52);
+  font-size: 0.72rem;
+}
+
+.mc-task-file-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.48rem 0.68rem;
+  border: 1px solid rgba(255,214,0,0.3);
+  border-radius: 8px;
+  color: #ffd600;
+  background: rgba(255,214,0,0.08);
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.mc-task-file-add:hover {
+  background: rgba(255,214,0,0.13);
+}
+
+.mc-task-file-add.is-busy {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.mc-task-file-add svg,
+.mc-task-file-name svg,
+.mc-task-file-remove svg {
+  width: 15px;
+  height: 15px;
+}
+
+.mc-task-file-add input {
+  display: none;
+}
+
+.mc-task-files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+}
+
+.mc-task-files-list > p {
+  margin: 0;
+  color: rgba(255,255,255,0.48);
+  font-size: 0.78rem;
+}
+
+.mc-task-file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.38rem 0.45rem;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.035);
+}
+
+.mc-task-file-name {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 0.45rem;
+  border: 0;
+  padding: 0;
+  color: rgba(255,255,255,0.84);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mc-task-file-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-task-file-name:disabled {
+  cursor: default;
+  color: rgba(255,255,255,0.48);
+}
+
+.mc-task-file-row small {
+  color: rgba(255,255,255,0.4);
+  font-size: 0.65rem;
+}
+
+.mc-task-file-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(255,255,255,0.42);
+  cursor: pointer;
+}
+
+.mc-task-file-remove:hover {
+  color: #ff7777;
+  background: rgba(255,80,80,0.09);
+}
+
+.mc-task-files-error {
+  margin: 0.55rem 0 0;
+  color: #ff8b8b;
+  font-size: 0.75rem;
+}
+
+.mc-task-files-help {
+  display: block;
+  margin-top: 0.6rem;
+}
+
+@media (max-width: 760px) {
+  .mc-task-files-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
