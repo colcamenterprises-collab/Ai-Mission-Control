@@ -131,10 +131,25 @@ async function dispatchWebhook(agent: RuntimeAgent, input: RuntimeDispatchInput)
       headers["x-admin-token"] = adminToken;
     }
   }
-  const prompt = buildPrompt(input);
+
   const body = isJames
-    ? { message: prompt, taskId: input.taskId ?? null, commandId: input.commandId ?? null, project: "Mission Control", environment: "production", workspacePath: "/opt/apps/ai-mission-control" }
-    : { commandId: input.commandId ?? null, taskId: input.taskId ?? null, instructions: input.instructions, context: input.context ?? null, source: "mission-control", mode: input.mode ?? "work", timestamp: new Date().toISOString() };
+    ? {
+        message: input.mode === "test" ? buildPrompt(input) : input.instructions,
+        taskId: input.taskId ?? null,
+        commandId: input.commandId ?? null,
+        project: "Mission Control",
+        environment: "production",
+      }
+    : {
+        commandId: input.commandId ?? null,
+        taskId: input.taskId ?? null,
+        instructions: input.instructions,
+        context: input.context ?? null,
+        source: "mission-control",
+        mode: input.mode ?? "work",
+        timestamp: new Date().toISOString(),
+      };
+
   const response = await fetch(endpoint, {
     method: "POST",
     headers,
