@@ -19,6 +19,11 @@ import BusinessHub from "@/pages/business-hub";
 import Contacts from "@/pages/contacts";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
+import Approvals from "@/pages/approvals";
+import Executions from "@/pages/executions";
+import Signals from "@/pages/signals";
+import ClientPulse from "@/pages/client-pulse";
+import AgentOperations from "@/pages/agent-operations";
 import "./visual-first.css";
 import "./minimal-dark.css";
 
@@ -39,10 +44,21 @@ function Router() {
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/tasks" component={Tasks} />
         <Route path="/content" component={ContentPipeline} />
-        <Route path="/calendar">{() => { window.location.replace("/tasks"); return null; }}</Route>
+        <Route path="/calendar">
+          {() => {
+            window.location.replace("/tasks");
+            return null;
+          }}
+        </Route>
         <Route path="/memory" component={Memory} />
         <Route path="/workspaces" component={Workspaces} />
         <Route path="/reports" component={Reports} />
+        <Route path="/approvals" component={Approvals} />
+        <Route path="/executions/:id" component={Executions} />
+        <Route path="/executions" component={Executions} />
+        <Route path="/signals" component={Signals} />
+        <Route path="/client-pulse" component={ClientPulse} />
+        <Route path="/agent-operations" component={AgentOperations} />
         <Route path="/reports-summary" component={Reports} />
         <Route path="/team" component={Team} />
         <Route path="/agent-creation" component={Team} />

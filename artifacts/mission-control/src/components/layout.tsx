@@ -5,6 +5,9 @@ import {
   ChevronLeft,
   ClipboardList,
   Gauge,
+  History,
+  ShieldCheck,
+  Command as CommandIcon,
   Search,
   Settings2,
   UsersRound,
@@ -24,9 +27,12 @@ type NavItem = {
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(max-width: 1180px)").matches,
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 1180px)").matches,
   );
   const [query, setQuery] = useState("");
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const navItems: NavItem[] = [
@@ -34,12 +40,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/tasks", label: "Tasks", icon: ClipboardList },
     { href: "/team", label: "AI Team", icon: UsersRound },
     { href: "/business", label: "Business", icon: BriefcaseBusiness },
+    { href: "/approvals", label: "Needs Cameron", icon: ShieldCheck },
+    { href: "/executions", label: "Executions", icon: History },
     { href: "/settings", label: "Settings", icon: Settings2 },
   ];
 
   const normalizedQuery = query.trim().toLowerCase();
   const visibleNavItems = useMemo(
-    () => navItems.filter((item) => item.label.toLowerCase().includes(normalizedQuery)),
+    () =>
+      navItems.filter((item) =>
+        item.label.toLowerCase().includes(normalizedQuery),
+      ),
     [normalizedQuery],
   );
 
@@ -49,7 +60,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       setIsCollapsed(event.matches);
     }
     tabletQuery.addEventListener("change", syncSidebarToViewport);
-    return () => tabletQuery.removeEventListener("change", syncSidebarToViewport);
+    return () =>
+      tabletQuery.removeEventListener("change", syncSidebarToViewport);
   }, []);
 
   useEffect(() => {
@@ -64,8 +76,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", focusSearch);
   }, [isCollapsed]);
 
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen((value) => !value);
+      }
+      if (event.key === "Escape") setPaletteOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   function renderNavItem(item: NavItem) {
-    const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+    const isActive =
+      location === item.href ||
+      (item.href !== "/" && location.startsWith(item.href));
     const Icon = item.icon;
     return (
       <Link
@@ -81,7 +107,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const routeClass = location === "/" ? "dashboard" : location.split("/")[1] || "dashboard";
+  const routeClass =
+    location === "/" ? "dashboard" : location.split("/")[1] || "dashboard";
 
   return (
     <div className="mission-app-bg relative min-h-screen overflow-hidden flex text-foreground">
@@ -109,13 +136,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
         )}
 
         <nav className="mission-sidebar-nav" aria-label="Main navigation">
-          <ul>{visibleNavItems.map((item) => <li key={item.href}>{renderNavItem(item)}</li>)}</ul>
+          <ul>
+            {visibleNavItems.map((item) => (
+              <li key={item.href}>{renderNavItem(item)}</li>
+            ))}
+          </ul>
           {!isCollapsed && visibleNavItems.length === 0 && (
             <p className="mission-nav-empty">No menu matches “{query}”.</p>
           )}
         </nav>
 
         <div className="mission-sidebar-toggle-dock">
+          <button
+            type="button"
+            className="mission-collapse-button"
+            aria-label="Open command palette"
+            title="Open command palette"
+            onClick={() => setPaletteOpen(true)}
+          >
+            <CommandIcon aria-hidden="true" />
+          </button>
           <button
             type="button"
             className="mission-collapse-button mission-collapse-button-bottom"
@@ -128,9 +168,59 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </aside>
-      <main className={`mission-main-canvas mission-route-${routeClass} relative z-10 flex-1 flex flex-col h-screen overflow-hidden bg-transparent`}>
+      <main
+        className={`mission-main-canvas mission-route-${routeClass} relative z-10 flex-1 flex flex-col h-screen overflow-hidden bg-transparent`}
+      >
         {children}
       </main>
+      {paletteOpen && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-start bg-black/60 p-4 pt-[10vh]"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mission Control commands"
+          onMouseDown={() => setPaletteOpen(false)}
+        >
+          <div
+            className="mx-auto w-full max-w-xl rounded-xl border border-border bg-card p-3 shadow-2xl"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <strong>Mission Control</strong>
+              <button
+                onClick={() => setPaletteOpen(false)}
+                aria-label="Close command palette"
+              >
+                Close
+              </button>
+            </div>
+            <div className="grid gap-1">
+              {[
+                ["Ask James", "/tasks"],
+                ["Create Task", "/tasks"],
+                ["Search Mission Control", "/executions"],
+                ["Search Memory", "/memory"],
+                ["Open Business", "/business"],
+                ["Open Project or Repository", "/workspaces"],
+                ["Needs Cameron", "/approvals"],
+                ["Open Agent", "/agent-operations"],
+                ["View Running or Failed Work", "/executions"],
+                ["Skills and Playbooks", "/skills"],
+                ["Signals", "/signals"],
+              ].map(([label, href]) => (
+                <Link
+                  key={label}
+                  href={href}
+                  onClick={() => setPaletteOpen(false)}
+                  className="rounded-lg px-3 py-2 text-sm hover:bg-secondary"
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

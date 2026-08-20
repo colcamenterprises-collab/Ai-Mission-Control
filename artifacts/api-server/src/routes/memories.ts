@@ -1,6 +1,11 @@
 import { Router, type IRouter } from "express";
 import { eq, and, ilike, or } from "drizzle-orm";
-import { db, memoriesTable } from "@workspace/db";
+import {
+  db,
+  memoriesTable,
+  memoryMetadataTable,
+  memoryRevisionsTable,
+} from "@workspace/db";
 import {
   ListMemoriesResponse,
   CreateMemoryBody,
@@ -20,17 +25,22 @@ router.get("/memories", async (req, res): Promise<void> => {
   const query = ListMemoriesQueryParams.safeParse(req.query);
   const filters = [];
   if (query.success) {
-    if (query.data.category) filters.push(eq(memoriesTable.category, query.data.category));
+    if (query.data.category)
+      filters.push(eq(memoriesTable.category, query.data.category));
     if (query.data.search) {
       filters.push(
         or(
           ilike(memoriesTable.title, `%${query.data.search}%`),
-          ilike(memoriesTable.content, `%${query.data.search}%`)
-        )!
+          ilike(memoriesTable.content, `%${query.data.search}%`),
+        )!,
       );
     }
   }
-  const memories = await db.select().from(memoriesTable).where(filters.length ? and(...filters) : undefined).orderBy(memoriesTable.createdAt);
+  const memories = await db
+    .select()
+    .from(memoriesTable)
+    .where(filters.length ? and(...filters) : undefined)
+    .orderBy(memoriesTable.createdAt);
   res.json(ListMemoriesResponse.parse(serializeDates(memories)));
 });
 
@@ -41,7 +51,30 @@ router.post("/memories", async (req, res): Promise<void> => {
     return;
   }
   const preview = parsed.data.content.slice(0, 150);
-  const [memory] = await db.insert(memoriesTable).values({ ...parsed.data, preview }).returning();
+  const memory = await db.transaction(async (transaction) => {
+    const [created] = await transaction
+      .insert(memoriesTable)
+      .values({ ...parsed.data, preview })
+      .returning();
+    await transaction.insert(memoryMetadataTable).values({
+      memoryId: created.id,
+      provenance: "user_provided_fact",
+      createdBy: "Cameron",
+      updatedBy: "Cameron",
+      accessPolicy: "owner_only",
+      version: 1,
+    });
+    await transaction.insert(memoryRevisionsTable).values({
+      memoryId: created.id,
+      version: 1,
+      title: created.title,
+      content: created.content,
+      category: created.category,
+      changedBy: "Cameron",
+      provenance: "user_provided_fact",
+    });
+    return created;
+  });
   res.status(201).json(GetMemoryResponse.parse(serializeDates(memory)));
 });
 
@@ -51,7 +84,10 @@ router.get("/memories/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [memory] = await db.select().from(memoriesTable).where(eq(memoriesTable.id, params.data.id));
+  const [memory] = await db
+    .select()
+    .from(memoriesTable)
+    .where(eq(memoriesTable.id, params.data.id));
   if (!memory) {
     res.status(404).json({ error: "Memory not found" });
     return;
@@ -70,11 +106,53 @@ router.patch("/memories/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const updateData: Partial<typeof parsed.data & { preview: string }> = { ...parsed.data };
+  const updateData: Partial<typeof parsed.data & { preview: string }> = {
+    ...parsed.data,
+  };
   if (parsed.data.content) {
     updateData.preview = parsed.data.content.slice(0, 150);
   }
-  const [memory] = await db.update(memoriesTable).set(updateData).where(eq(memoriesTable.id, params.data.id)).returning();
+  const memory = await db.transaction(async (transaction) => {
+    const [currentMetadata] = await transaction
+      .select()
+      .from(memoryMetadataTable)
+      .where(eq(memoryMetadataTable.memoryId, params.data.id));
+    const [updated] = await transaction
+      .update(memoriesTable)
+      .set(updateData)
+      .where(eq(memoriesTable.id, params.data.id))
+      .returning();
+    if (!updated) return null;
+    const version = (currentMetadata?.version ?? 0) + 1;
+    if (!currentMetadata)
+      await transaction
+        .insert(memoryMetadataTable)
+        .values({
+          memoryId: updated.id,
+          provenance: "user_provided_fact",
+          createdBy: "Cameron",
+          updatedBy: "Cameron",
+          accessPolicy: "owner_only",
+          version,
+        });
+    else
+      await transaction
+        .update(memoryMetadataTable)
+        .set({ version, updatedBy: "Cameron", updatedAt: new Date() })
+        .where(eq(memoryMetadataTable.memoryId, updated.id));
+    await transaction
+      .insert(memoryRevisionsTable)
+      .values({
+        memoryId: updated.id,
+        version,
+        title: updated.title,
+        content: updated.content,
+        category: updated.category,
+        changedBy: "Cameron",
+        provenance: currentMetadata?.provenance ?? "user_provided_fact",
+      });
+    return updated;
+  });
   if (!memory) {
     res.status(404).json({ error: "Memory not found" });
     return;
@@ -88,7 +166,10 @@ router.delete("/memories/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const [memory] = await db.delete(memoriesTable).where(eq(memoriesTable.id, params.data.id)).returning();
+  const [memory] = await db
+    .delete(memoriesTable)
+    .where(eq(memoriesTable.id, params.data.id))
+    .returning();
   if (!memory) {
     res.status(404).json({ error: "Memory not found" });
     return;
