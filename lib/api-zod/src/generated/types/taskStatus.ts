@@ -13,7 +13,7 @@ export const TaskStatus = {
   ready: "ready",
   running: "running",
   blocked: "blocked",
-  in_progress: "in_progress",
   review: "review",
   done: "done",
+  in_progress: "in_progress",
 } as const;

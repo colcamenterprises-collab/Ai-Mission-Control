@@ -12,6 +12,10 @@ export const integrationsTable = pgTable("integrations", {
   iconColor: text("icon_color").notNull().default("from-slate-600 to-slate-800"),
   status: text("status").notNull().default("connected"),
   apiKey: text("api_key"),
+  credentialType: text("credential_type").notNull().default("public"),
+  username: text("username"),
+  password: text("password"),
+  customCredential: text("custom_credential"),
   isPublic: boolean("is_public").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

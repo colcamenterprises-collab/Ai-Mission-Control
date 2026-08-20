@@ -18,4 +18,5 @@ export interface UpdateTaskBody {
   project?: string;
   /** @nullable */
   dueDate?: string | null;
+  ownerReviewRequired?: boolean;
 }

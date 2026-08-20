@@ -24,6 +24,8 @@ import type {
   AgentPingResponse,
   AgentReportBody,
   AgentReportResponse,
+  AgentSkillResponse,
+  AgentSkillsResponse,
   AgentTokenResponse,
   AgentToolWithCredentials,
   AssignAgentBody,
@@ -47,15 +49,19 @@ import type {
   IntegrationAgent,
   IntegrationDetail,
   ListActivityParams,
+  ListAgentSkillsParams,
   ListContactsParams,
   ListContentParams,
   ListEventsParams,
   ListMemoriesParams,
+  ListSkillsParams,
+  ListSkillsResponse,
   ListTasksParams,
   Memory,
   MoveContentBody,
   MoveTaskBody,
   PipelineStageCount,
+  SkillDocument,
   Task,
   Tool,
   ToolAgentItem,
@@ -2381,6 +2387,447 @@ export const useDeleteMemory = <
 > => {
   return useMutation(getDeleteMemoryMutationOptions(options));
 };
+
+/**
+ * @summary List available SKILL.md documents
+ */
+export const getListSkillsUrl = (params?: ListSkillsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/skills?${stringifiedParams}`
+    : `/api/skills`;
+};
+
+export const listSkills = async (
+  params?: ListSkillsParams,
+  options?: RequestInit,
+): Promise<ListSkillsResponse> => {
+  return customFetch<ListSkillsResponse>(getListSkillsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListSkillsQueryKey = (params?: ListSkillsParams) => {
+  return [`/api/skills`, ...(params ? [params] : [])] as const;
+};
+
+export const getListSkillsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSkills>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSkillsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSkills>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListSkillsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listSkills>>> = ({
+    signal,
+  }) => listSkills(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSkills>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListSkillsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSkills>>
+>;
+export type ListSkillsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List available SKILL.md documents
+ */
+
+export function useListSkills<
+  TData = Awaited<ReturnType<typeof listSkills>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListSkillsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listSkills>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListSkillsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Manually sync external SKILL.md sources
+ */
+export const getSyncSkillsUrl = () => {
+  return `/api/skills/sync`;
+};
+
+export const syncSkills = async (
+  options?: RequestInit,
+): Promise<ListSkillsResponse> => {
+  return customFetch<ListSkillsResponse>(getSyncSkillsUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSyncSkillsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncSkills>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof syncSkills>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["syncSkills"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof syncSkills>>,
+    void
+  > = () => {
+    return syncSkills(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SyncSkillsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof syncSkills>>
+>;
+
+export type SyncSkillsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Manually sync external SKILL.md sources
+ */
+export const useSyncSkills = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncSkills>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof syncSkills>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getSyncSkillsMutationOptions(options));
+};
+
+/**
+ * @summary Read a selected SKILL.md document
+ */
+export const getGetSkillUrl = (id: string) => {
+  return `/api/skills/${id}`;
+};
+
+export const getSkill = async (
+  id: string,
+  options?: RequestInit,
+): Promise<SkillDocument> => {
+  return customFetch<SkillDocument>(getGetSkillUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSkillQueryKey = (id: string) => {
+  return [`/api/skills/${id}`] as const;
+};
+
+export const getGetSkillQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSkill>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSkill>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSkillQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSkill>>> = ({
+    signal,
+  }) => getSkill(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getSkill>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetSkillQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSkill>>
+>;
+export type GetSkillQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Read a selected SKILL.md document
+ */
+
+export function useGetSkill<
+  TData = Awaited<ReturnType<typeof getSkill>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSkill>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSkillQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Authenticated agent lists skills by exact name or category
+ */
+export const getListAgentSkillsUrl = (params?: ListAgentSkillsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/agent/skills?${stringifiedParams}`
+    : `/api/agent/skills`;
+};
+
+export const listAgentSkills = async (
+  params?: ListAgentSkillsParams,
+  options?: RequestInit,
+): Promise<AgentSkillsResponse> => {
+  return customFetch<AgentSkillsResponse>(getListAgentSkillsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListAgentSkillsQueryKey = (params?: ListAgentSkillsParams) => {
+  return [`/api/agent/skills`, ...(params ? [params] : [])] as const;
+};
+
+export const getListAgentSkillsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAgentSkills>>,
+  TError = ErrorType<void>,
+>(
+  params?: ListAgentSkillsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAgentSkills>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListAgentSkillsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAgentSkills>>> = ({
+    signal,
+  }) => listAgentSkills(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAgentSkills>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAgentSkillsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAgentSkills>>
+>;
+export type ListAgentSkillsQueryError = ErrorType<void>;
+
+/**
+ * @summary Authenticated agent lists skills by exact name or category
+ */
+
+export function useListAgentSkills<
+  TData = Awaited<ReturnType<typeof listAgentSkills>>,
+  TError = ErrorType<void>,
+>(
+  params?: ListAgentSkillsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listAgentSkills>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAgentSkillsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Authenticated agent reads a selected SKILL.md document
+ */
+export const getGetAgentSkillUrl = (id: string) => {
+  return `/api/agent/skills/${id}`;
+};
+
+export const getAgentSkill = async (
+  id: string,
+  options?: RequestInit,
+): Promise<AgentSkillResponse> => {
+  return customFetch<AgentSkillResponse>(getGetAgentSkillUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAgentSkillQueryKey = (id: string) => {
+  return [`/api/agent/skills/${id}`] as const;
+};
+
+export const getGetAgentSkillQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAgentSkill>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgentSkill>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAgentSkillQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAgentSkill>>> = ({
+    signal,
+  }) => getAgentSkill(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAgentSkill>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAgentSkillQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAgentSkill>>
+>;
+export type GetAgentSkillQueryError = ErrorType<void>;
+
+/**
+ * @summary Authenticated agent reads a selected SKILL.md document
+ */
+
+export function useGetAgentSkill<
+  TData = Awaited<ReturnType<typeof getAgentSkill>>,
+  TError = ErrorType<void>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgentSkill>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAgentSkillQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List all AI agents

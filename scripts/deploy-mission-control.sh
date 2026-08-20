@@ -305,6 +305,10 @@ step_name="showing recent service logs"
 log "Recent service logs"
 as_root journalctl -u "${SERVICE_NAME}" -n "${LOG_LINES}" --no-pager || true
 
+step_name="installing daily Inbox review timer"
+log "Installing daily Inbox review timer"
+as_root "${repo_root}/scripts/install-inbox-review-timer.sh"
+
 step_name="post-restart verification"
 log "Post-restart verification"
 base_url="http://127.0.0.1:${PORT}"

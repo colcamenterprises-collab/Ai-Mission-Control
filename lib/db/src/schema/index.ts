@@ -10,3 +10,4 @@ export * from "./agent-commands";
 export * from "./executions";
 export * from "./intelligence";
 export * from "./agent-tools";
+export * from "./inbox";

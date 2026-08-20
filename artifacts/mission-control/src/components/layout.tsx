@@ -40,7 +40,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/tasks", label: "Tasks", icon: ClipboardList },
     { href: "/team", label: "AI Team", icon: UsersRound },
     { href: "/business", label: "Business", icon: BriefcaseBusiness },
-    { href: "/approvals", label: "Needs Cameron", icon: ShieldCheck },
+    { href: "/approvals", label: "Approvals", icon: ShieldCheck },
     { href: "/executions", label: "Executions", icon: History },
     { href: "/settings", label: "Settings", icon: Settings2 },
   ];
@@ -197,12 +197,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="grid gap-1">
               {[
                 ["Ask James", "/tasks"],
-                ["Create Task", "/tasks"],
+                ["Add Note", "/tasks?create=note"],
+                ["Add Task", "/tasks?create=task"],
                 ["Search Mission Control", "/executions"],
                 ["Search Memory", "/memory"],
                 ["Open Business", "/business"],
                 ["Open Project or Repository", "/workspaces"],
-                ["Needs Cameron", "/approvals"],
+                ["Approvals", "/approvals"],
                 ["Open Agent", "/agent-operations"],
                 ["View Running or Failed Work", "/executions"],
                 ["Skills and Playbooks", "/skills"],

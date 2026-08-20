@@ -94,12 +94,20 @@
 
 .mc-task-workspace {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(17rem, 1fr));
   gap: 0.625rem;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
+
+.mc-inbox-lane .mc-task-lane-header small { display: block; color: var(--mc-task-muted); font-size: .58rem; }
+.mc-inbox-content { white-space: pre-wrap; max-height: 10rem; overflow: hidden; }
+.mc-inbox-actions { display: flex; flex-wrap: wrap; gap: .3rem; }
+.mc-inbox-actions button { border: 0; border-radius: .25rem; padding: .3rem .4rem; background: var(--mc-task-control); color: var(--mc-task-text); font-size: .58rem; cursor: pointer; }
+.mc-inbox-actions button:disabled { opacity: .6; cursor: default; }
+.mc-note-textarea { min-height: 16rem; resize: vertical; }
 
 .mc-task-lane,
 .mc-task-calendar,

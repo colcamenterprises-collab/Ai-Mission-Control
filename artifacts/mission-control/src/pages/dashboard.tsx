@@ -143,6 +143,10 @@ export default function Dashboard() {
   return (
     <div className="mission-shell h-full overflow-y-auto">
       <div className="mission-canvas mission-home-canvas mission-operations-home">
+        <section className="mission-capture-actions" aria-label="Quick capture">
+          <Link href="/tasks?create=note">+ Note</Link>
+          <Link href="/tasks?create=task">+ Task</Link>
+        </section>
         <section className="mission-metric-grid">
           <MetricCard
             title="Work open"
@@ -453,10 +457,9 @@ function CompactEmpty({ children }: { children: React.ReactNode }) {
 function CommandPalette({ onClose }: { onClose: () => void }) {
   const actions = [
     {
-      label: "Create or manage tasks",
-      detail: "Workboard and automation calendar",
-      href: "/tasks",
+      label: "Add Note", detail: "Open quick capture", href: "/tasks?create=note",
     },
+    { label: "Add Task", detail: "Open orchestrated task creation", href: "/tasks?create=task" },
     { label: "Open AI team", detail: "Agents and roles", href: "/team" },
     {
       label: "Search knowledge",

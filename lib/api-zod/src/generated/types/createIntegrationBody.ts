@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CreateIntegrationBodyCategory } from "./createIntegrationBodyCategory";
+import type { CreateIntegrationBodyCredentialType } from "./createIntegrationBodyCredentialType";
 
 export interface CreateIntegrationBody {
   name: string;
@@ -18,4 +19,11 @@ export interface CreateIntegrationBody {
   isPublic?: boolean;
   /** @nullable */
   apiKey?: string | null;
+  credentialType?: CreateIntegrationBodyCredentialType;
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  password?: string | null;
+  /** @nullable */
+  customCredential?: string | null;
 }

@@ -18,4 +18,5 @@ export interface CreateTaskBody {
   project: string;
   /** @nullable */
   dueDate?: string | null;
+  ownerReviewRequired?: boolean;
 }

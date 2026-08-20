@@ -1359,6 +1359,8 @@ components:
           type: string
         dueDate:
           type: ["string", "null"]
+        ownerReviewRequired:
+          type: boolean
         createdAt:
           type: string
         updatedAt:
@@ -1384,6 +1386,8 @@ components:
           type: string
         dueDate:
           type: ["string", "null"]
+        ownerReviewRequired:
+          type: boolean
       required: [title, assignee, priority, status, project]
 
     UpdateTaskBody:
@@ -1405,6 +1409,8 @@ components:
           type: string
         dueDate:
           type: ["string", "null"]
+        ownerReviewRequired:
+          type: boolean
 
     MoveTaskBody:
       type: object
@@ -2139,6 +2145,9 @@ components:
           enum: [connected, disconnected, error, pending]
         isPublic:
           type: boolean
+        credentialType:
+          type: string
+          enum: [public, username_password, api_key, bearer_token, custom]
         apiKeyHint:
           type: ["string", "null"]
         createdAt:
@@ -2217,6 +2226,15 @@ components:
           type: boolean
         apiKey:
           type: ["string", "null"]
+        credentialType:
+          type: string
+          enum: [public, username_password, api_key, bearer_token, custom]
+        username:
+          type: ["string", "null"]
+        password:
+          type: ["string", "null"]
+        customCredential:
+          type: ["string", "null"]
       required: [name, url, category, iconInitials, iconColor]
 
     UpdateIntegrationBody:
@@ -2235,6 +2253,15 @@ components:
           type: string
           enum: [connected, disconnected, error, pending]
         apiKey:
+          type: ["string", "null"]
+        credentialType:
+          type: string
+          enum: [public, username_password, api_key, bearer_token, custom]
+        username:
+          type: ["string", "null"]
+        password:
+          type: ["string", "null"]
+        customCredential:
           type: ["string", "null"]
 
     AssignAgentBody:

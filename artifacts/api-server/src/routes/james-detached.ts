@@ -10,6 +10,7 @@ const execFileAsync = promisify(execFile);
 const router: IRouter = Router();
 const STATE_DIR = "/var/lib/ai-mission-control/james-jobs";
 const RUNNER = "/opt/apps/ai-mission-control/scripts/run-james-task-job.sh";
+const INBOX_RUNNER = "/opt/apps/ai-mission-control/scripts/run-james-inbox-review.sh";
 
 type WorkerResult = "COMPLETED" | "IN_PROGRESS" | "CHANGES_REQUIRED" | "BLOCKED" | "FAILED" | "NEEDS_CLARIFICATION";
 
@@ -28,7 +29,7 @@ function normalizeResult(value: unknown, exitCode: number): WorkerResult {
 }
 
 function dbStateFor(result: WorkerResult): string {
-  if (result === "COMPLETED") return "review";
+  if (result === "COMPLETED") return "completion_pending";
   if (result === "BLOCKED" || result === "FAILED" || result === "NEEDS_CLARIFICATION") return "blocked";
   return "running";
 }
@@ -36,11 +37,11 @@ function dbStateFor(result: WorkerResult): string {
 function missionControlNote(result: WorkerResult): string {
   switch (result) {
     case "COMPLETED":
-      return "ORCHESTRATOR FINAL REVIEW RECEIVED — James reports the original success milestone verified. Owner final acceptance is now required before archive.";
+      return "AGENT REPORTED COMPLETE — completion evidence received. A separate orchestrator verification is required before Review or Done.";
     case "CHANGES_REQUIRED":
       return "CHANGES REQUIRED — the task remains active. James must continue the correction cycle; owner approval is not required.";
     case "BLOCKED":
-      return "BLOCKED — the task remains blocked. Owner approval is required only if James identifies a specific owner-level decision or credential requirement.";
+      return "BLOCKED — the task remains blocked. Missing credentials or configuration require owner action, not Approve/Reject controls. Approval is required only when the execution policy identifies a protected action.";
     case "FAILED":
       return "EXECUTION FAILED — the task is not complete. Diagnose/retry the execution failure; do not request owner acceptance.";
     case "NEEDS_CLARIFICATION":
@@ -124,6 +125,19 @@ router.post("/james/task-job", async (req, res): Promise<void> => {
   res.status(202).json({ jobId: safeJobId, status: "queued", delivery: "detached-systemd" });
 });
 
+router.post("/james/inbox-review", async (_req, res): Promise<void> => {
+  const jobId = crypto.randomUUID().replace(/[^a-zA-Z0-9-]/g, "");
+  try {
+    await execFileAsync("systemd-run", [
+      `--unit=james-inbox-${jobId}`, "--collect", "--no-block", "/bin/bash", INBOX_RUNNER, jobId,
+    ], { timeout: 15_000, windowsHide: true });
+  } catch (error) {
+    res.status(502).json({ error: `James Inbox review could not be launched: ${error instanceof Error ? error.message : "unknown error"}` });
+    return;
+  }
+  res.status(202).json({ jobId, status: "queued", delivery: "detached-systemd" });
+});
+
 router.post("/james/report", async (req, res): Promise<void> => {
   const taskId = Number(req.body?.taskId);
   const commandId = req.body?.commandId == null ? null : Number(req.body.commandId);
@@ -145,11 +159,10 @@ router.post("/james/report", async (req, res): Promise<void> => {
 
   await db.insert(taskMessagesTable).values({ taskId, author: "James Hermes", body });
 
-  const finalAcceptance = result === "COMPLETED";
   await db.update(tasksTable)
     .set({
       status: dbStateFor(result),
-      approvalRequired: finalAcceptance,
+      approvalRequired: false,
       unreadMessages: 1,
     })
     .where(eq(tasksTable.id, taskId));
@@ -178,7 +191,7 @@ router.post("/james/report", async (req, res): Promise<void> => {
     taskId,
     result,
     status: dbStateFor(result),
-    ownerApprovalRequired: finalAcceptance,
+    ownerApprovalRequired: false,
   });
 });
 
