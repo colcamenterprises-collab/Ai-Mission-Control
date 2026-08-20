@@ -12,7 +12,9 @@ type SqlExecutor = {
  * explicit deterministic sentinel values so list routes can serialize them
  * without masking the fact that historical source data was incomplete.
  */
-export async function ensureOperationalSchema(database: SqlExecutor): Promise<void> {
+export async function ensureOperationalSchema(
+  database: SqlExecutor,
+): Promise<void> {
   await database.execute(sql`
     CREATE TABLE IF NOT EXISTS tasks (
       id serial PRIMARY KEY,
@@ -188,6 +190,67 @@ export async function ensureOperationalSchema(database: SqlExecutor): Promise<vo
       tool_id integer NOT NULL REFERENCES agent_tools(id) ON DELETE CASCADE,
       granted_at timestamptz NOT NULL DEFAULT now()
     );
+
+    -- Derived execution control plane. These tables are additive, rebuildable
+    -- from canonical tasks plus their immutable transition/audit records, and
+    -- never rewrite task source data during schema installation.
+    CREATE TABLE IF NOT EXISTS work_requests (
+      id serial PRIMARY KEY, execution_key text NOT NULL UNIQUE, task_id integer REFERENCES tasks(id) ON DELETE SET NULL,
+      agent_id integer REFERENCES agents(id) ON DELETE SET NULL, requested_action text NOT NULL, state text NOT NULL DEFAULT 'draft',
+      risk_level integer NOT NULL DEFAULT 0 CHECK (risk_level BETWEEN 0 AND 4), approval_decision text NOT NULL DEFAULT 'AUTO_EXECUTE',
+      routing_reason text, business text, project text, runtime text, provider text, model text, repository text, environment text,
+      requirements jsonb NOT NULL DEFAULT '{}'::jsonb, result jsonb, owner_report text, error text,
+      input_tokens integer, output_tokens integer, cached_tokens integer, provider_cost numeric(14,6), tool_calls integer,
+      retry_count integer NOT NULL DEFAULT 0, acknowledged_at timestamptz, started_at timestamptz, finished_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+    );
+    ALTER TABLE work_requests ADD COLUMN IF NOT EXISTS max_attempts integer NOT NULL DEFAULT 1;
+    ALTER TABLE work_requests ADD COLUMN IF NOT EXISTS idempotency_class text NOT NULL DEFAULT 'side_effecting';
+    ALTER TABLE work_requests ADD COLUMN IF NOT EXISTS claimed_by_agent_id integer REFERENCES agents(id) ON DELETE SET NULL;
+    ALTER TABLE work_requests ADD COLUMN IF NOT EXISTS lease_expires_at timestamptz;
+    ALTER TABLE work_requests ADD COLUMN IF NOT EXISTS last_progress_at timestamptz;
+    ALTER TABLE work_requests ADD COLUMN IF NOT EXISTS progress jsonb;
+    CREATE TABLE IF NOT EXISTS agent_execution_scopes (
+      id serial PRIMARY KEY, agent_id integer NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+      scope_type text NOT NULL, scope_value text NOT NULL, operation text NOT NULL DEFAULT 'use',
+      granted_by text NOT NULL, expires_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE(agent_id, scope_type, scope_value, operation)
+    );
+    CREATE INDEX IF NOT EXISTS agent_execution_scopes_lookup_idx ON agent_execution_scopes(agent_id, scope_type, scope_value);
+    CREATE TABLE IF NOT EXISTS execution_instructions (id serial PRIMARY KEY, request_id integer NOT NULL REFERENCES work_requests(id) ON DELETE CASCADE, instruction_type text NOT NULL, stable_id text NOT NULL, name text NOT NULL, version text, provenance text, selection_reason text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(request_id, instruction_type, stable_id));
+    CREATE TABLE IF NOT EXISTS memory_metadata (id serial PRIMARY KEY, memory_id integer NOT NULL UNIQUE REFERENCES memories(id) ON DELETE CASCADE, tier text NOT NULL DEFAULT 'WARM', provenance text NOT NULL, confidence numeric(5,4), status text NOT NULL DEFAULT 'active', business text, project text, source text, created_by text NOT NULL, updated_by text NOT NULL, valid_from timestamptz, valid_until timestamptz, last_verified timestamptz, supersedes_memory_id integer, access_policy text NOT NULL DEFAULT 'owner_only', version integer NOT NULL DEFAULT 1, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE IF NOT EXISTS memory_revisions (id serial PRIMARY KEY, memory_id integer NOT NULL REFERENCES memories(id) ON DELETE CASCADE, version integer NOT NULL, title text NOT NULL, content text NOT NULL, category text NOT NULL, changed_by text NOT NULL, provenance text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(memory_id, version));
+    CREATE TABLE IF NOT EXISTS memory_agent_grants (id serial PRIMARY KEY, memory_id integer NOT NULL REFERENCES memories(id) ON DELETE CASCADE, agent_id integer NOT NULL REFERENCES agents(id) ON DELETE CASCADE, access text NOT NULL DEFAULT 'read', granted_by text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(memory_id, agent_id, access));
+    CREATE INDEX IF NOT EXISTS memory_metadata_scope_idx ON memory_metadata(business, project, status);
+    CREATE TABLE IF NOT EXISTS signals (id serial PRIMARY KEY, source text NOT NULL, business text, project text, category text NOT NULL, title text NOT NULL, evidence jsonb NOT NULL, confidence numeric(5,4), severity text, urgency text, actionability text, owner text, linked_task_id integer REFERENCES tasks(id) ON DELETE SET NULL, status text NOT NULL DEFAULT 'new', detected_at timestamptz NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+    CREATE INDEX IF NOT EXISTS signals_status_idx ON signals(status, detected_at);
+    CREATE TABLE IF NOT EXISTS account_sources (id serial PRIMARY KEY, provider text NOT NULL UNIQUE, status text NOT NULL DEFAULT 'not_connected', last_sync_at timestamptz, last_error text, created_at timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE IF NOT EXISTS account_health (id serial PRIMARY KEY, account_key text NOT NULL UNIQUE, name text NOT NULL, business text, services jsonb NOT NULL DEFAULT '[]'::jsonb, account_owner text, renewal_date timestamptz, last_meaningful_contact timestamptz, outstanding_request text, response_cadence text, needs_reply text, positive_signals jsonb NOT NULL DEFAULT '[]'::jsonb, negative_signals jsonb NOT NULL DEFAULT '[]'::jsonb, risk text, recommended_action text, evidence jsonb NOT NULL DEFAULT '[]'::jsonb, source_status text NOT NULL DEFAULT 'NO_DATA', updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE IF NOT EXISTS work_request_transitions (
+      id serial PRIMARY KEY, request_id integer NOT NULL REFERENCES work_requests(id) ON DELETE CASCADE,
+      from_state text, to_state text NOT NULL, actor_type text NOT NULL, actor_id text, reason text,
+      context jsonb NOT NULL DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS approvals (
+      id serial PRIMARY KEY, request_id integer NOT NULL UNIQUE REFERENCES work_requests(id) ON DELETE CASCADE,
+      status text NOT NULL DEFAULT 'pending', required_authority text NOT NULL, reason text NOT NULL, expected_effect text,
+      rollback_plan text, proposed_action text NOT NULL, decided_by text, decision_note text, decided_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS audit_events (
+      id serial PRIMARY KEY, event_type text NOT NULL, actor_type text NOT NULL, actor_id text,
+      request_id integer REFERENCES work_requests(id) ON DELETE SET NULL, task_id integer REFERENCES tasks(id) ON DELETE SET NULL,
+      agent_id integer REFERENCES agents(id) ON DELETE SET NULL, outcome text NOT NULL,
+      payload jsonb NOT NULL DEFAULT '{}'::jsonb, redacted boolean NOT NULL DEFAULT true, created_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS work_requests_execution_key_uidx ON work_requests(execution_key);
+    CREATE INDEX IF NOT EXISTS work_requests_state_idx ON work_requests(state);
+    CREATE INDEX IF NOT EXISTS work_requests_agent_state_idx ON work_requests(agent_id, state);
+    CREATE INDEX IF NOT EXISTS work_requests_task_idx ON work_requests(task_id);
+    CREATE INDEX IF NOT EXISTS work_request_transitions_request_idx ON work_request_transitions(request_id, created_at);
+    CREATE INDEX IF NOT EXISTS approvals_status_idx ON approvals(status, created_at);
+    CREATE INDEX IF NOT EXISTS audit_events_type_created_idx ON audit_events(event_type, created_at);
+    CREATE INDEX IF NOT EXISTS audit_events_request_idx ON audit_events(request_id, created_at);
 
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS description text;
     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assignee text;

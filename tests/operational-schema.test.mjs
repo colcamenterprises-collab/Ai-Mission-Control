@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const ensureSource = await readFile(new URL("../lib/db/src/ensure-operational-schema.ts", import.meta.url), "utf8");
-const deploySource = await readFile(new URL("../scripts/deploy-mission-control.sh", import.meta.url), "utf8");
+const ensureSource = await readFile(
+  new URL("../lib/db/src/ensure-operational-schema.ts", import.meta.url),
+  "utf8",
+);
+const deploySource = await readFile(
+  new URL("../scripts/deploy-mission-control.sh", import.meta.url),
+  "utf8",
+);
 
 const requiredColumns = {
   memories: ["content", "category", "preview", "created_at", "updated_at"],
@@ -25,13 +31,41 @@ const requiredColumns = {
     "inbound_token",
     "last_ping",
   ],
-  contacts: ["handle", "timezone", "category", "compensation", "notes", "created_at"],
-  content: ["title", "platform", "stage", "assigned_day", "script", "draft_link", "notes", "created_at", "updated_at"],
-  events: ["title", "description", "category", "start_date", "end_date", "all_day", "created_at"],
+  contacts: [
+    "handle",
+    "timezone",
+    "category",
+    "compensation",
+    "notes",
+    "created_at",
+  ],
+  content: [
+    "title",
+    "platform",
+    "stage",
+    "assigned_day",
+    "script",
+    "draft_link",
+    "notes",
+    "created_at",
+    "updated_at",
+  ],
+  events: [
+    "title",
+    "description",
+    "category",
+    "start_date",
+    "end_date",
+    "all_day",
+    "created_at",
+  ],
 };
 
 for (const [table, columns] of Object.entries(requiredColumns)) {
-  assert.match(ensureSource, new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(`));
+  assert.match(
+    ensureSource,
+    new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(`),
+  );
   for (const column of columns) {
     assert.match(
       ensureSource,
@@ -41,12 +75,56 @@ for (const [table, columns] of Object.entries(requiredColumns)) {
   }
 }
 
-assert.match(ensureSource, /CREATE INDEX IF NOT EXISTS content_created_at_idx ON content \(created_at\)/);
-assert.match(ensureSource, /CREATE INDEX IF NOT EXISTS events_start_date_idx ON events \(start_date\)/);
+assert.match(
+  ensureSource,
+  /CREATE INDEX IF NOT EXISTS content_created_at_idx ON content \(created_at\)/,
+);
+assert.match(
+  ensureSource,
+  /CREATE INDEX IF NOT EXISTS events_start_date_idx ON events \(start_date\)/,
+);
+
+for (const table of [
+  "work_requests",
+  "work_request_transitions",
+  "approvals",
+  "audit_events",
+  "agent_execution_scopes",
+  "execution_instructions",
+  "memory_metadata",
+  "memory_revisions",
+  "memory_agent_grants",
+  "signals",
+  "account_sources",
+  "account_health",
+]) {
+  assert.match(
+    ensureSource,
+    new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(`),
+    `${table} must be installed additively`,
+  );
+}
+for (const column of [
+  "max_attempts",
+  "idempotency_class",
+  "claimed_by_agent_id",
+  "lease_expires_at",
+  "last_progress_at",
+  "progress",
+]) {
+  assert.match(
+    ensureSource,
+    new RegExp(
+      `ALTER TABLE work_requests ADD COLUMN IF NOT EXISTS ${column}\\b`,
+    ),
+    `work_requests.${column} must be added idempotently`,
+  );
+}
 
 assert.match(deploySource, /run_pnpm run db:ensure-operational-schema/);
 assert.ok(
-  deploySource.indexOf("run_pnpm run db:ensure-operational-schema") < deploySource.indexOf("run_pnpm run build"),
+  deploySource.indexOf("run_pnpm run db:ensure-operational-schema") <
+    deploySource.indexOf("run_pnpm run build"),
   "deploy must ensure the additive schema before building and restarting the service",
 );
 
