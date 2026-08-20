@@ -19,6 +19,7 @@ export interface Task {
   project: string;
   /** @nullable */
   dueDate?: string | null;
+  ownerReviewRequired?: boolean;
   createdAt: string;
   updatedAt: string;
 }

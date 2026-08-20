@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { IntegrationCategory } from "./integrationCategory";
+import type { IntegrationCredentialType } from "./integrationCredentialType";
 import type { IntegrationStatus } from "./integrationStatus";
 
 export interface Integration {
@@ -19,6 +20,7 @@ export interface Integration {
   iconColor: string;
   status: IntegrationStatus;
   isPublic: boolean;
+  credentialType?: IntegrationCredentialType;
   /** @nullable */
   apiKeyHint?: string | null;
   createdAt: string;

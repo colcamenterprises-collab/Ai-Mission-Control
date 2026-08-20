@@ -64,10 +64,10 @@ export default function Approvals() {
       <div className="workspaces-canvas space-y-4">
         <header className="mission-page-hero workspace-panel">
           <p className="workspace-eyebrow">Control</p>
-          <h1 className="mission-page-title">Needs Cameron</h1>
+          <h1 className="mission-page-title">Approvals</h1>
           <p className="mission-page-subtitle">
-            One factual queue for owner decisions. Every decision is bound to
-            and audited against one execution.
+            Actions waiting for owner approval. Every decision is bound to and
+            audited against one execution.
           </p>
         </header>
         {query.isLoading ? (

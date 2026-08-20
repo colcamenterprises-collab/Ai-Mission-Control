@@ -13,6 +13,7 @@ export const tasksTable = pgTable("tasks", {
   dueDate: text("due_date"),
   recurrence: text("recurrence").notNull().default("one_off"),
   approvalRequired: boolean("approval_required").notNull().default(false),
+  ownerReviewRequired: boolean("owner_review_required").notNull().default(false),
   unreadMessages: integer("unread_messages").notNull().default(0),
   attachments: jsonb("attachments").$type<Array<{ name: string; url?: string }>>().notNull().default([]),
   report: text("report"),

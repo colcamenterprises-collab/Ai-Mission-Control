@@ -39,6 +39,7 @@ import "./task-timeline.css";
 type TaskMeta = Task & {
   recurrence?: string;
   approvalRequired?: boolean;
+  ownerReviewRequired?: boolean;
   unreadMessages?: number;
   attachments?: Array<{ name: string; url?: string }>;
   report?: string;
@@ -60,10 +61,12 @@ type TimelineItem = {
 };
 
 const COLUMNS = [
-  { id: "todo", label: "To-Do", matches: ["backlog", "ready"] },
-  { id: "doing", label: "Doing", matches: ["running", "in_progress", "review", "blocked"] },
+  { id: "doing", label: "Doing", matches: ["backlog", "ready", "running", "in_progress", "blocked", "changes_required", "completion_pending"] },
+  { id: "review", label: "Review", matches: ["review"] },
   { id: "done", label: "Done", matches: ["done"] },
 ] as const;
+
+type InboxItem = { id: number; title: string | null; content: string; reviewStatus: string; linkedTaskId: number | null; linkedProjectId: number | null };
 
 function authHeaders() {
   const token = localStorage.getItem("mission_control_admin_token") ?? localStorage.getItem("missionControlAdminToken");
@@ -87,7 +90,7 @@ function formatDueDate(value?: string | Date | null) {
 }
 
 function needsApproval(task: TaskMeta) {
-  return task.status !== "done" && (Boolean(task.approvalRequired) || ["review", "blocked"].includes(task.status));
+  return task.status !== "done" && Boolean(task.approvalRequired);
 }
 
 function displayActor(author: string) {
@@ -163,6 +166,8 @@ export default function Tasks() {
   const tasks = rawTasks as TaskMeta[];
   const [selectedTask, setSelectedTask] = useState<TaskMeta | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [inbox, setInbox] = useState<InboxItem[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
 
   const invalidateTasks = () => queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
@@ -177,6 +182,8 @@ export default function Tasks() {
       .then(setProjects)
       .catch(() => setProjects([]));
   }, []);
+  const refreshInbox = () => fetch("/api/inbox", { headers: authHeaders() }).then((r) => r.ok ? r.json() : []).then(setInbox).catch(() => setInbox([]));
+  useEffect(() => { void refreshInbox(); const create = new URLSearchParams(window.location.search).get("create"); if (create === "task") setCreateOpen(true); if (create === "note") setNoteOpen(true); }, []);
 
   const approvalTasks = tasks.filter(needsApproval);
 
@@ -184,7 +191,8 @@ export default function Tasks() {
     const taskId = Number(String(event.active.id).replace("task-", ""));
     const columnId = event.over?.id as (typeof COLUMNS)[number]["id"] | undefined;
     if (!taskId || !columnId || !COLUMNS.some((column) => column.id === columnId)) return;
-    const status = columnId === "todo" ? "ready" : columnId === "doing" ? "running" : "done";
+    if (columnId === "done") return;
+    const status = columnId === "review" ? "review" : "running";
     moveTask.mutate(
       { id: taskId, data: { status: status as Task["status"] } },
       { onSuccess: invalidateTasks },
@@ -211,6 +219,7 @@ export default function Tasks() {
 
       <DndContext sensors={sensors} onDragEnd={moveToColumn}>
         <main className="mc-task-workspace" aria-label="Tasks and automations">
+          <InboxLane items={inbox} onChanged={refreshInbox} />
           {COLUMNS.map((column) => (
             <TaskLane
               key={column.id}
@@ -220,9 +229,6 @@ export default function Tasks() {
               onOpen={setSelectedTask}
             />
           ))}
-          <aside className="mc-task-tools-column">
-            <AutomationCalendar tasks={tasks} events={calendarEvents} />
-          </aside>
         </main>
       </DndContext>
 
@@ -238,6 +244,7 @@ export default function Tasks() {
           await invalidateTasks();
         }}
       />
+      <CreateNoteModal open={noteOpen} onClose={() => setNoteOpen(false)} onCreated={() => { setNoteOpen(false); void refreshInbox(); }} />
       <TaskDetailModal
         task={selectedTask}
         onClose={() => setSelectedTask(null)}
@@ -255,6 +262,20 @@ export default function Tasks() {
       />
     </div>
   );
+}
+
+function InboxLane({ items, onChanged }: { items: InboxItem[]; onChanged: () => void }) {
+  const update = async (id: number, path: string, body?: object) => { await fetch(`/api/inbox/${id}${path}`, { method: path ? "POST" : "PATCH", headers: authHeaders(), body: body ? JSON.stringify(body) : undefined }); onChanged(); };
+  const edit = (item: InboxItem) => { const content = window.prompt("Edit note content", item.content); if (content !== null && content.trim()) void update(item.id, "", { content }); };
+  const linkProject = (item: InboxItem) => { const value = window.prompt("Project ID to link", item.linkedProjectId?.toString() ?? ""); if (value !== null && Number.isInteger(Number(value))) void update(item.id, "", { linkedProjectId: Number(value) }); };
+  return <section className="mc-task-lane mc-inbox-lane"><header className="mc-task-lane-header"><div><h2>Inbox</h2><small>Notes &amp; quick capture</small></div><span>{items.length}</span></header><div className="mc-task-lane-scroll">{items.length ? items.map((item) => <article className="mc-task-card" key={item.id}><h3>{item.title || "Untitled note"}</h3><p className="mc-inbox-content">{item.content}</p><footer className="mc-inbox-actions"><button onClick={() => edit(item)}>Edit</button><button onClick={() => linkProject(item)}>Link Project</button>{item.reviewStatus === "unreviewed" && <button onClick={() => void update(item.id, "", { reviewStatus: "reviewed" })}>Mark Reviewed</button>}<button disabled={Boolean(item.linkedTaskId)} onClick={() => void update(item.id, "/convert")}>{item.linkedTaskId ? `Task #${item.linkedTaskId}` : "Convert to Task"}</button><button onClick={() => void update(item.id, "/archive")}>Archive</button></footer></article>) : <div className="mc-task-empty">No captured notes</div>}</div></section>;
+}
+
+function CreateNoteModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
+  const [title, setTitle] = useState(""); const [content, setContent] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  if (!open) return null;
+  const save = async () => { if (!content.trim()) { setError("Note content is required."); return; } setBusy(true); const response = await fetch("/api/inbox", { method: "POST", headers: authHeaders(), body: JSON.stringify({ title: title.trim() || null, content, source: "typed", createdBy: "Owner" }) }); setBusy(false); if (!response.ok) { setError("Unable to save note."); return; } setTitle(""); setContent(""); onCreated(); };
+  return <Modal className="mc-task-create-modal" onClose={onClose} label="Add Note"><header className="mc-task-modal-header"><h2>Add Note</h2><p>Quick capture only. This will not create or route a task.</p></header><div className="mc-task-form"><label className="mc-task-form-wide">Title (optional)<input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus /></label><label className="mc-task-form-wide">Note<textarea className="mc-note-textarea" rows={12} value={content} onChange={(e) => setContent(e.target.value)} placeholder="Paste notes, dot points, or a voice transcript…" /></label>{error && <p className="mc-task-form-error">{error}</p>}</div><footer className="mc-task-modal-footer"><button className="mc-task-secondary-button" onClick={onClose}>Cancel</button><button className="mc-task-primary-button" onClick={() => void save()} disabled={busy}>{busy ? "Saving…" : "Save"}</button></footer></Modal>;
 }
 
 function TaskLane({ column, tasks, loading, onOpen }: {
@@ -405,7 +426,7 @@ function Modal({ children, className = "", onClose, label }: { children: ReactNo
 }
 
 function CreateTaskModal({ open, projects, onClose, onCreated }: { open: boolean; projects: Project[]; onClose: () => void; onCreated: (project: string) => void }) {
-  const [form, setForm] = useState({ title: "", description: "", date: "", time: "", recurrence: "one_off", project: "Mission Control", newProject: "", approvalRequired: false });
+  const [form, setForm] = useState({ title: "", description: "", date: "", time: "", recurrence: "one_off", project: "Mission Control", newProject: "", approvalRequired: false, ownerReviewRequired: false });
   const [files, setFiles] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -425,10 +446,10 @@ function CreateTaskModal({ open, projects, onClose, onCreated }: { open: boolean
       const response = await fetch("/api/orchestrator/intake", {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ title: form.title, description: form.description, project, dueDate, recurrence: form.recurrence, approvalRequired: form.approvalRequired, attachments: files.map((name) => ({ name })) }),
+        body: JSON.stringify({ title: form.title, description: form.description, project, dueDate, recurrence: form.recurrence, approvalRequired: form.approvalRequired, ownerReviewRequired: form.ownerReviewRequired, attachments: files.map((name) => ({ name })) }),
       });
       if (!response.ok) { const result = (await response.json()) as { error?: string }; throw new Error(result.error || "Unable to create task"); }
-      setForm({ title: "", description: "", date: "", time: "", recurrence: "one_off", project: "Mission Control", newProject: "", approvalRequired: false });
+      setForm({ title: "", description: "", date: "", time: "", recurrence: "one_off", project: "Mission Control", newProject: "", approvalRequired: false, ownerReviewRequired: false });
       setFiles([]);
       onCreated(project);
     } catch (caught) {
@@ -448,7 +469,8 @@ function CreateTaskModal({ open, projects, onClose, onCreated }: { open: boolean
         <label>Project<select value={form.project} onChange={(event) => setForm((current) => ({ ...current, project: event.target.value }))}><option>Mission Control</option>{projects.map((item) => <option key={item.id}>{item.name}</option>)}<option value="__new">Create a project</option></select></label>
         {form.project === "__new" && <label className="mc-task-form-wide">Project Name<input value={form.newProject} onChange={(event) => setForm((current) => ({ ...current, newProject: event.target.value }))} /></label>}
         <label className="mc-task-form-wide mc-task-upload">Attachments<input type="file" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []).map((file) => file.name))} />{files.length > 0 && <small>{files.join(", ")}</small>}</label>
-        <label className="mc-task-form-wide mc-task-checkbox"><input type="checkbox" checked={form.approvalRequired} onChange={(event) => setForm((current) => ({ ...current, approvalRequired: event.target.checked }))} /><span><strong>Owner approval</strong><small>Pause this task before the final action.</small></span></label>
+        <label className="mc-task-form-wide mc-task-checkbox"><input type="checkbox" checked={form.approvalRequired} onChange={(event) => setForm((current) => ({ ...current, approvalRequired: event.target.checked }))} /><span><strong>Approval Required</strong><small>Permission before a protected action. This is not completion review.</small></span></label>
+        <label className="mc-task-form-wide mc-task-checkbox"><input type="checkbox" checked={form.ownerReviewRequired} onChange={(event) => setForm((current) => ({ ...current, ownerReviewRequired: event.target.checked }))} /><span><strong>Owner Review Required</strong><small>Human acceptance after verification. Off by default.</small></span></label>
         {error && <p className="mc-task-form-error mc-task-form-wide">{error}</p>}
       </div>
       <footer className="mc-task-modal-footer"><button className="mc-task-secondary-button" onClick={onClose}>Cancel</button><button className="mc-task-primary-button" onClick={() => void submit()} disabled={busy}>{busy ? "Adding…" : "Add Task"}</button></footer>
@@ -554,6 +576,13 @@ function TaskDetailModal({ task, onClose, onMove }: { task: TaskMeta | null; onC
     } finally { setActionBusy(false); }
   }
 
+  async function acceptWork() {
+    setActionBusy(true); setActionError("");
+    try { const response = await fetch(`/api/tasks/${taskId}/accept`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ note: approvalNote }) }); if (!response.ok) throw new Error("Unable to accept work"); await refresh(); }
+    catch (error) { setActionError(error instanceof Error ? error.message : "Unable to accept work"); }
+    finally { setActionBusy(false); }
+  }
+
   async function archive() {
     setActionBusy(true);
     setActionError("");
@@ -581,6 +610,7 @@ function TaskDetailModal({ task, onClose, onMove }: { task: TaskMeta | null; onC
             <div><dt>Project</dt><dd>{value.project || "Mission Control"}</dd></div>
             <div><dt>Due</dt><dd>{formatDueDate(value.dueDate) || "Not set"}</dd></div>
             <div><dt>Schedule</dt><dd>{value.recurrence?.replace("_", " ") || "One off"}</dd></div>
+            <div><dt>Owner review</dt><dd>{value.ownerReviewRequired ? "Required" : "Not requested"}</dd></div>
           </dl>
           {value.report && <section className="mc-task-detail-section"><h3>Agent Report</h3><p>{value.report}</p></section>}
           {Boolean(value.attachments?.length) && <section className="mc-task-detail-section"><h3>Attachments</h3><div className="mc-task-attachment-list">{value.attachments!.map((attachment, index) => <span key={`${attachment.name}-${index}`}><Paperclip aria-hidden="true" /> {attachment.name}</span>)}</div></section>}
@@ -605,6 +635,9 @@ function TaskDetailModal({ task, onClose, onMove }: { task: TaskMeta | null; onC
                 <div className="mc-task-approval-actions"><button className="mc-task-secondary-button" onClick={() => void requestChanges()} disabled={actionBusy}>Request Changes</button><button className="mc-task-primary-button" onClick={() => void approve()} disabled={actionBusy || !approvalChecked}><Check aria-hidden="true" /> Approve & Continue</button></div>
               </section>
             )}
+            {value.status === "review" && (
+              <section className="mc-task-approval-panel"><div className="mc-task-approval-heading"><Check aria-hidden="true" /><div><strong>Ready for owner review</strong><span>Orchestrator verification is recorded above. Confirm the delivered result.</span></div></div><textarea value={approvalNote} onChange={(event) => setApprovalNote(event.target.value)} placeholder="Required for changes; optional for acceptance" rows={3} /><div className="mc-task-approval-actions"><button className="mc-task-secondary-button" onClick={() => void requestChanges()} disabled={actionBusy || !approvalNote.trim()}>Request Changes</button><button className="mc-task-primary-button" onClick={() => void acceptWork()} disabled={actionBusy}><Check aria-hidden="true" /> Accept</button></div></section>
+            )}
           </div>
           <div className="mc-task-conversation-compose"><textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Add a note or reply inside this task" rows={2} /><button onClick={() => void send()} disabled={sending || !message.trim()} aria-label="Send note"><Send aria-hidden="true" /></button></div>
         </aside>
@@ -616,10 +649,10 @@ function TaskDetailModal({ task, onClose, onMove }: { task: TaskMeta | null; onC
           <><span className="mc-task-archived"><Check aria-hidden="true" /> Work complete · final owner sign-off required</span><button className="mc-task-primary-button" onClick={() => void archive()} disabled={actionBusy}><Check aria-hidden="true" /> Approve & Archive</button></>
         ) : approval ? (
           <span className="mc-task-awaiting-owner"><AlertTriangle aria-hidden="true" /> Awaiting Cameron Parker approval in the timeline</span>
-        ) : inTodo ? (
-          <button className="mc-task-primary-button" onClick={() => onMove(value, "running")}>Move to Doing</button>
+        ) : value.status === "review" ? (
+          <span className="mc-task-awaiting-owner">Awaiting owner acceptance</span>
         ) : (
-          <button className="mc-task-primary-button" onClick={() => onMove(value, "done")}>Mark Done</button>
+          <span className="mc-task-awaiting-owner">Active work</span>
         )}
       </footer>
     </Modal>

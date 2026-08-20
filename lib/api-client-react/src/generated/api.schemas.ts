@@ -60,9 +60,9 @@ export const TaskStatus = {
   ready: "ready",
   running: "running",
   blocked: "blocked",
-  in_progress: "in_progress",
   review: "review",
   done: "done",
+  in_progress: "in_progress",
 } as const;
 
 export interface Task {
@@ -76,6 +76,7 @@ export interface Task {
   project: string;
   /** @nullable */
   dueDate?: string | null;
+  ownerReviewRequired?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -99,9 +100,9 @@ export const CreateTaskBodyStatus = {
   ready: "ready",
   running: "running",
   blocked: "blocked",
-  in_progress: "in_progress",
   review: "review",
   done: "done",
+  in_progress: "in_progress",
 } as const;
 
 export interface CreateTaskBody {
@@ -114,6 +115,7 @@ export interface CreateTaskBody {
   project: string;
   /** @nullable */
   dueDate?: string | null;
+  ownerReviewRequired?: boolean;
 }
 
 export type UpdateTaskBodyPriority =
@@ -135,9 +137,9 @@ export const UpdateTaskBodyStatus = {
   ready: "ready",
   running: "running",
   blocked: "blocked",
-  in_progress: "in_progress",
   review: "review",
   done: "done",
+  in_progress: "in_progress",
 } as const;
 
 export interface UpdateTaskBody {
@@ -150,6 +152,7 @@ export interface UpdateTaskBody {
   project?: string;
   /** @nullable */
   dueDate?: string | null;
+  ownerReviewRequired?: boolean;
 }
 
 export type MoveTaskBodyStatus =
@@ -160,9 +163,9 @@ export const MoveTaskBodyStatus = {
   ready: "ready",
   running: "running",
   blocked: "blocked",
-  in_progress: "in_progress",
   review: "review",
   done: "done",
+  in_progress: "in_progress",
 } as const;
 
 export interface MoveTaskBody {
@@ -436,6 +439,104 @@ export interface Agent {
   /** @nullable */
   lastPing?: string | null;
   assignedSkills?: string[];
+}
+
+export interface SkillSourceMetadata {
+  /** @nullable */
+  sourceUrl: string | null;
+  /** @nullable */
+  sourceRepo: string | null;
+  /** @nullable */
+  repoOwner: string | null;
+  /** @nullable */
+  repoName: string | null;
+  /** @nullable */
+  branch: string | null;
+  /** @nullable */
+  commitHash: string | null;
+  /** @nullable */
+  filePath: string | null;
+  /** @nullable */
+  sourceLabel: string | null;
+  /** @nullable */
+  installedDate: string | null;
+  /** @nullable */
+  lastSyncTime: string | null;
+  enabled: boolean;
+}
+
+export interface SkillMetadata {
+  id: string;
+  name: string;
+  path: string;
+  category: string;
+  lastUpdated: string;
+  source: SkillSourceMetadata;
+}
+
+export type SkillSourceStatusType =
+  (typeof SkillSourceStatusType)[keyof typeof SkillSourceStatusType];
+
+export const SkillSourceStatusType = {
+  local: "local",
+  github: "github",
+} as const;
+
+export type SkillSourceStatusStatus =
+  (typeof SkillSourceStatusStatus)[keyof typeof SkillSourceStatusStatus];
+
+export const SkillSourceStatusStatus = {
+  available: "available",
+  syncing: "syncing",
+  unavailable: "unavailable",
+  auth_required: "auth_required",
+  not_found: "not_found",
+  no_skills_found: "no_skills_found",
+  error: "error",
+} as const;
+
+export interface SkillSourceStatus {
+  id: string;
+  type: SkillSourceStatusType;
+  /** @nullable */
+  sourceUrl: string | null;
+  /** @nullable */
+  sourceRepo: string | null;
+  /** @nullable */
+  repoOwner: string | null;
+  /** @nullable */
+  repoName: string | null;
+  /** @nullable */
+  branch: string | null;
+  /** @nullable */
+  commitHash: string | null;
+  status: SkillSourceStatusStatus;
+  /** @nullable */
+  lastSyncTime: string | null;
+  /** @nullable */
+  error: string | null;
+  skillCount: number;
+  sourceLabel: string;
+}
+
+export type SkillDocument = SkillMetadata & {
+  content: string;
+};
+
+export interface ListSkillsResponse {
+  skills: SkillMetadata[];
+  sources: SkillSourceStatus[];
+}
+
+export interface AgentSkillsResponse {
+  agentId: number;
+  skills: SkillMetadata[];
+  sources: SkillSourceStatus[];
+}
+
+export interface AgentSkillResponse {
+  agentId: number;
+  skill: SkillDocument;
 }
 
 export type CreateAgentBodyDepartment =
@@ -823,6 +924,17 @@ export const IntegrationStatus = {
   pending: "pending",
 } as const;
 
+export type IntegrationCredentialType =
+  (typeof IntegrationCredentialType)[keyof typeof IntegrationCredentialType];
+
+export const IntegrationCredentialType = {
+  public: "public",
+  username_password: "username_password",
+  api_key: "api_key",
+  bearer_token: "bearer_token",
+  custom: "custom",
+} as const;
+
 export interface Integration {
   id: number;
   name: string;
@@ -834,6 +946,7 @@ export interface Integration {
   iconColor: string;
   status: IntegrationStatus;
   isPublic: boolean;
+  credentialType?: IntegrationCredentialType;
   /** @nullable */
   apiKeyHint?: string | null;
   createdAt: string;
@@ -882,6 +995,17 @@ export const CreateIntegrationBodyCategory = {
   custom: "custom",
 } as const;
 
+export type CreateIntegrationBodyCredentialType =
+  (typeof CreateIntegrationBodyCredentialType)[keyof typeof CreateIntegrationBodyCredentialType];
+
+export const CreateIntegrationBodyCredentialType = {
+  public: "public",
+  username_password: "username_password",
+  api_key: "api_key",
+  bearer_token: "bearer_token",
+  custom: "custom",
+} as const;
+
 export interface CreateIntegrationBody {
   name: string;
   url: string;
@@ -893,6 +1017,13 @@ export interface CreateIntegrationBody {
   isPublic?: boolean;
   /** @nullable */
   apiKey?: string | null;
+  credentialType?: CreateIntegrationBodyCredentialType;
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  password?: string | null;
+  /** @nullable */
+  customCredential?: string | null;
 }
 
 export type UpdateIntegrationBodyCategory =
@@ -919,6 +1050,17 @@ export const UpdateIntegrationBodyStatus = {
   pending: "pending",
 } as const;
 
+export type UpdateIntegrationBodyCredentialType =
+  (typeof UpdateIntegrationBodyCredentialType)[keyof typeof UpdateIntegrationBodyCredentialType];
+
+export const UpdateIntegrationBodyCredentialType = {
+  public: "public",
+  username_password: "username_password",
+  api_key: "api_key",
+  bearer_token: "bearer_token",
+  custom: "custom",
+} as const;
+
 export interface UpdateIntegrationBody {
   name?: string;
   url?: string;
@@ -928,6 +1070,13 @@ export interface UpdateIntegrationBody {
   status?: UpdateIntegrationBodyStatus;
   /** @nullable */
   apiKey?: string | null;
+  credentialType?: UpdateIntegrationBodyCredentialType;
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  password?: string | null;
+  /** @nullable */
+  customCredential?: string | null;
 }
 
 export interface AssignAgentBody {
@@ -1010,6 +1159,16 @@ export type ListEventsParams = {
 
 export type ListMemoriesParams = {
   search?: string;
+  category?: string;
+};
+
+export type ListSkillsParams = {
+  name?: string;
+  category?: string;
+};
+
+export type ListAgentSkillsParams = {
+  name?: string;
   category?: string;
 };
 

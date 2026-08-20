@@ -769,12 +769,13 @@ function ConnectAppDialog({ open, onClose, onCreated }: { open: boolean; onClose
     description: "",
     category: "custom",
     apiKey: "",
-    isPublic: false,
+    username: "", password: "", customCredential: "", credentialType: "public",
+    isPublic: true,
   });
   const [error, setError] = useState("");
 
   const reset = () => {
-    setForm({ name: "", url: "", description: "", category: "custom", apiKey: "", isPublic: false });
+    setForm({ name: "", url: "", description: "", category: "custom", apiKey: "", username: "", password: "", customCredential: "", credentialType: "public", isPublic: true });
     setError("");
   };
 
@@ -798,7 +799,11 @@ function ConnectAppDialog({ open, onClose, onCreated }: { open: boolean; onClose
           iconInitials: ic,
           iconColor: color,
           isPublic: form.isPublic,
+          credentialType: form.credentialType as "public" | "username_password" | "api_key" | "bearer_token" | "custom",
           apiKey: form.apiKey.trim() || null,
+          username: form.username.trim() || null,
+          password: form.password || null,
+          customCredential: form.customCredential || null,
         },
       });
       onCreated();
@@ -864,17 +869,23 @@ function ConnectAppDialog({ open, onClose, onCreated }: { open: boolean; onClose
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-mono uppercase text-muted-foreground">API Key / Token (optional)</Label>
+            <Label className="text-xs font-mono uppercase text-muted-foreground">Access Method</Label>
+            <Select value={form.credentialType} onValueChange={v => setForm(f => ({ ...f, credentialType: v, isPublic: v === "public" }))}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="public">Public / No credentials</SelectItem><SelectItem value="username_password">Username + Password</SelectItem><SelectItem value="api_key">API Key</SelectItem><SelectItem value="bearer_token">Bearer Token</SelectItem><SelectItem value="custom">Custom / Other</SelectItem></SelectContent></Select>
+          </div>
+          {form.credentialType === "username_password" && <><div className="space-y-1.5"><Label>Username</Label><Input autoComplete="username" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} /></div><div className="space-y-1.5"><Label>Password</Label><Input type="password" autoComplete="new-password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} /></div></>}
+          {["api_key", "bearer_token"].includes(form.credentialType) && <div className="space-y-1.5">
+            <Label className="text-xs font-mono uppercase text-muted-foreground">{form.credentialType === "api_key" ? "API Key" : "Bearer Token"}</Label>
             <Input
               type="password"
-              placeholder="If the app requires authentication"
+              placeholder={form.credentialType === "api_key" ? "API key" : "Bearer token"}
               value={form.apiKey}
               onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))}
               className="h-9 text-sm font-mono"
             />
-          </div>
+          </div>}
+          {form.credentialType === "custom" && <div className="space-y-1.5"><Label>Custom credential</Label><Textarea value={form.customCredential} onChange={e => setForm(f => ({ ...f, customCredential: e.target.value }))} placeholder="Stored encrypted; never returned in plaintext" /></div>}
 
-          <div className="flex items-center gap-3 p-3 bg-secondary/40 rounded-lg">
+          {form.credentialType === "public" && <div className="flex items-center gap-3 p-3 bg-secondary/40 rounded-lg">
             <Switch
               checked={form.isPublic}
               onCheckedChange={v => setForm(f => ({ ...f, isPublic: v }))}
@@ -884,7 +895,7 @@ function ConnectAppDialog({ open, onClose, onCreated }: { open: boolean; onClose
               <label htmlFor="isPublic" className="text-sm font-medium cursor-pointer">Publicly accessible</label>
               <p className="text-xs text-muted-foreground">Agents can access this app without credentials</p>
             </div>
-          </div>
+          </div>}
 
           {error && <p className="text-xs text-red-400 font-mono">{error}</p>}
 

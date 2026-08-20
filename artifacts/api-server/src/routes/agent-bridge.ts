@@ -325,7 +325,7 @@ router.post(
     if (completed.taskId)
       await db
         .update(tasksTable)
-        .set({ status: "review", report: ownerReport, updatedAt: new Date() })
+        .set({ status: "completion_pending", report: ownerReport, updatedAt: new Date() })
         .where(
           and(
             eq(tasksTable.id, completed.taskId),
@@ -639,7 +639,7 @@ router.post(
           .json({ error: "This worker is not assigned to that work item." });
         return;
       }
-      const requestedStatus = taskStatus === "blocked" ? "blocked" : "review";
+      const requestedStatus = taskStatus === "blocked" ? "blocked" : "completion_pending";
       await db
         .update(tasksTable)
         .set({ status: requestedStatus })
@@ -976,7 +976,7 @@ router.post(
         if (taskId)
           await db
             .update(tasksTable)
-            .set({ status: "review" })
+            .set({ status: "completion_pending" })
             .where(eq(tasksTable.id, taskId));
         await db
           .update(agentsTable)

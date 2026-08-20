@@ -64,9 +64,18 @@ export const ListTasksResponseItem = zod.object({
   description: zod.string().nullish(),
   assignee: zod.string(),
   priority: zod.enum(["low", "medium", "high", "critical", "urgent"]),
-  status: zod.enum(["backlog", "ready", "running", "blocked", "review", "done", "in_progress"]),
+  status: zod.enum([
+    "backlog",
+    "ready",
+    "running",
+    "blocked",
+    "review",
+    "done",
+    "in_progress",
+  ]),
   project: zod.string(),
   dueDate: zod.string().nullish(),
+  ownerReviewRequired: zod.boolean().optional(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -80,9 +89,18 @@ export const CreateTaskBody = zod.object({
   description: zod.string().nullish(),
   assignee: zod.string(),
   priority: zod.enum(["low", "medium", "high", "critical", "urgent"]),
-  status: zod.enum(["backlog", "ready", "running", "blocked", "review", "done", "in_progress"]),
+  status: zod.enum([
+    "backlog",
+    "ready",
+    "running",
+    "blocked",
+    "review",
+    "done",
+    "in_progress",
+  ]),
   project: zod.string(),
   dueDate: zod.string().nullish(),
+  ownerReviewRequired: zod.boolean().optional(),
 });
 
 /**
@@ -98,9 +116,18 @@ export const GetTaskResponse = zod.object({
   description: zod.string().nullish(),
   assignee: zod.string(),
   priority: zod.enum(["low", "medium", "high", "critical", "urgent"]),
-  status: zod.enum(["backlog", "ready", "running", "blocked", "review", "done", "in_progress"]),
+  status: zod.enum([
+    "backlog",
+    "ready",
+    "running",
+    "blocked",
+    "review",
+    "done",
+    "in_progress",
+  ]),
   project: zod.string(),
   dueDate: zod.string().nullish(),
+  ownerReviewRequired: zod.boolean().optional(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -116,10 +143,23 @@ export const UpdateTaskBody = zod.object({
   title: zod.string().optional(),
   description: zod.string().nullish(),
   assignee: zod.string().optional(),
-  priority: zod.enum(["low", "medium", "high", "critical", "urgent"]).optional(),
-  status: zod.enum(["backlog", "ready", "running", "blocked", "review", "done", "in_progress"]).optional(),
+  priority: zod
+    .enum(["low", "medium", "high", "critical", "urgent"])
+    .optional(),
+  status: zod
+    .enum([
+      "backlog",
+      "ready",
+      "running",
+      "blocked",
+      "review",
+      "done",
+      "in_progress",
+    ])
+    .optional(),
   project: zod.string().optional(),
   dueDate: zod.string().nullish(),
+  ownerReviewRequired: zod.boolean().optional(),
 });
 
 export const UpdateTaskResponse = zod.object({
@@ -128,9 +168,18 @@ export const UpdateTaskResponse = zod.object({
   description: zod.string().nullish(),
   assignee: zod.string(),
   priority: zod.enum(["low", "medium", "high", "critical", "urgent"]),
-  status: zod.enum(["backlog", "ready", "running", "blocked", "review", "done", "in_progress"]),
+  status: zod.enum([
+    "backlog",
+    "ready",
+    "running",
+    "blocked",
+    "review",
+    "done",
+    "in_progress",
+  ]),
   project: zod.string(),
   dueDate: zod.string().nullish(),
+  ownerReviewRequired: zod.boolean().optional(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -150,7 +199,15 @@ export const MoveTaskParams = zod.object({
 });
 
 export const MoveTaskBody = zod.object({
-  status: zod.enum(["backlog", "ready", "running", "blocked", "review", "done", "in_progress"]),
+  status: zod.enum([
+    "backlog",
+    "ready",
+    "running",
+    "blocked",
+    "review",
+    "done",
+    "in_progress",
+  ]),
 });
 
 export const MoveTaskResponse = zod.object({
@@ -159,9 +216,18 @@ export const MoveTaskResponse = zod.object({
   description: zod.string().nullish(),
   assignee: zod.string(),
   priority: zod.enum(["low", "medium", "high", "critical", "urgent"]),
-  status: zod.enum(["backlog", "ready", "running", "blocked", "review", "done", "in_progress"]),
+  status: zod.enum([
+    "backlog",
+    "ready",
+    "running",
+    "blocked",
+    "review",
+    "done",
+    "in_progress",
+  ]),
   project: zod.string(),
   dueDate: zod.string().nullish(),
+  ownerReviewRequired: zod.boolean().optional(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
@@ -596,6 +662,247 @@ export const DeleteMemoryParams = zod.object({
 });
 
 /**
+ * @summary List available SKILL.md documents
+ */
+export const ListSkillsQueryParams = zod.object({
+  name: zod.coerce.string().optional(),
+  category: zod.coerce.string().optional(),
+});
+
+export const ListSkillsResponse = zod.object({
+  skills: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+      path: zod.string(),
+      category: zod.string(),
+      lastUpdated: zod.string(),
+      source: zod.object({
+        sourceUrl: zod.string().nullable(),
+        sourceRepo: zod.string().nullable(),
+        repoOwner: zod.string().nullable(),
+        repoName: zod.string().nullable(),
+        branch: zod.string().nullable(),
+        commitHash: zod.string().nullable(),
+        filePath: zod.string().nullable(),
+        sourceLabel: zod.string().nullable(),
+        installedDate: zod.string().nullable(),
+        lastSyncTime: zod.string().nullable(),
+        enabled: zod.boolean(),
+      }),
+    }),
+  ),
+  sources: zod.array(
+    zod.object({
+      id: zod.string(),
+      type: zod.enum(["local", "github"]),
+      sourceUrl: zod.string().nullable(),
+      sourceRepo: zod.string().nullable(),
+      repoOwner: zod.string().nullable(),
+      repoName: zod.string().nullable(),
+      branch: zod.string().nullable(),
+      commitHash: zod.string().nullable(),
+      status: zod.enum([
+        "available",
+        "syncing",
+        "unavailable",
+        "auth_required",
+        "not_found",
+        "no_skills_found",
+        "error",
+      ]),
+      lastSyncTime: zod.string().nullable(),
+      error: zod.string().nullable(),
+      skillCount: zod.number(),
+      sourceLabel: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Manually sync external SKILL.md sources
+ */
+export const SyncSkillsResponse = zod.object({
+  skills: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+      path: zod.string(),
+      category: zod.string(),
+      lastUpdated: zod.string(),
+      source: zod.object({
+        sourceUrl: zod.string().nullable(),
+        sourceRepo: zod.string().nullable(),
+        repoOwner: zod.string().nullable(),
+        repoName: zod.string().nullable(),
+        branch: zod.string().nullable(),
+        commitHash: zod.string().nullable(),
+        filePath: zod.string().nullable(),
+        sourceLabel: zod.string().nullable(),
+        installedDate: zod.string().nullable(),
+        lastSyncTime: zod.string().nullable(),
+        enabled: zod.boolean(),
+      }),
+    }),
+  ),
+  sources: zod.array(
+    zod.object({
+      id: zod.string(),
+      type: zod.enum(["local", "github"]),
+      sourceUrl: zod.string().nullable(),
+      sourceRepo: zod.string().nullable(),
+      repoOwner: zod.string().nullable(),
+      repoName: zod.string().nullable(),
+      branch: zod.string().nullable(),
+      commitHash: zod.string().nullable(),
+      status: zod.enum([
+        "available",
+        "syncing",
+        "unavailable",
+        "auth_required",
+        "not_found",
+        "no_skills_found",
+        "error",
+      ]),
+      lastSyncTime: zod.string().nullable(),
+      error: zod.string().nullable(),
+      skillCount: zod.number(),
+      sourceLabel: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Read a selected SKILL.md document
+ */
+export const GetSkillParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetSkillResponse = zod
+  .object({
+    id: zod.string(),
+    name: zod.string(),
+    path: zod.string(),
+    category: zod.string(),
+    lastUpdated: zod.string(),
+    source: zod.object({
+      sourceUrl: zod.string().nullable(),
+      sourceRepo: zod.string().nullable(),
+      repoOwner: zod.string().nullable(),
+      repoName: zod.string().nullable(),
+      branch: zod.string().nullable(),
+      commitHash: zod.string().nullable(),
+      filePath: zod.string().nullable(),
+      sourceLabel: zod.string().nullable(),
+      installedDate: zod.string().nullable(),
+      lastSyncTime: zod.string().nullable(),
+      enabled: zod.boolean(),
+    }),
+  })
+  .and(
+    zod.object({
+      content: zod.string(),
+    }),
+  );
+
+/**
+ * @summary Authenticated agent lists skills by exact name or category
+ */
+export const ListAgentSkillsQueryParams = zod.object({
+  name: zod.coerce.string().optional(),
+  category: zod.coerce.string().optional(),
+});
+
+export const ListAgentSkillsResponse = zod.object({
+  agentId: zod.number(),
+  skills: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string(),
+      path: zod.string(),
+      category: zod.string(),
+      lastUpdated: zod.string(),
+      source: zod.object({
+        sourceUrl: zod.string().nullable(),
+        sourceRepo: zod.string().nullable(),
+        repoOwner: zod.string().nullable(),
+        repoName: zod.string().nullable(),
+        branch: zod.string().nullable(),
+        commitHash: zod.string().nullable(),
+        filePath: zod.string().nullable(),
+        sourceLabel: zod.string().nullable(),
+        installedDate: zod.string().nullable(),
+        lastSyncTime: zod.string().nullable(),
+        enabled: zod.boolean(),
+      }),
+    }),
+  ),
+  sources: zod.array(
+    zod.object({
+      id: zod.string(),
+      type: zod.enum(["local", "github"]),
+      sourceUrl: zod.string().nullable(),
+      sourceRepo: zod.string().nullable(),
+      repoOwner: zod.string().nullable(),
+      repoName: zod.string().nullable(),
+      branch: zod.string().nullable(),
+      commitHash: zod.string().nullable(),
+      status: zod.enum([
+        "available",
+        "syncing",
+        "unavailable",
+        "auth_required",
+        "not_found",
+        "no_skills_found",
+        "error",
+      ]),
+      lastSyncTime: zod.string().nullable(),
+      error: zod.string().nullable(),
+      skillCount: zod.number(),
+      sourceLabel: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Authenticated agent reads a selected SKILL.md document
+ */
+export const GetAgentSkillParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetAgentSkillResponse = zod.object({
+  agentId: zod.number(),
+  skill: zod
+    .object({
+      id: zod.string(),
+      name: zod.string(),
+      path: zod.string(),
+      category: zod.string(),
+      lastUpdated: zod.string(),
+      source: zod.object({
+        sourceUrl: zod.string().nullable(),
+        sourceRepo: zod.string().nullable(),
+        repoOwner: zod.string().nullable(),
+        repoName: zod.string().nullable(),
+        branch: zod.string().nullable(),
+        commitHash: zod.string().nullable(),
+        filePath: zod.string().nullable(),
+        sourceLabel: zod.string().nullable(),
+        installedDate: zod.string().nullable(),
+        lastSyncTime: zod.string().nullable(),
+        enabled: zod.boolean(),
+      }),
+    })
+    .and(
+      zod.object({
+        content: zod.string(),
+      }),
+    ),
+});
+
+/**
  * @summary List all AI agents
  */
 export const ListAgentsResponseItem = zod.object({
@@ -666,6 +973,7 @@ export const GetAgentResponse = zod.object({
   endpoint: zod.string().nullish(),
   inboundToken: zod.string().nullish(),
   lastPing: zod.string().nullish(),
+  assignedSkills: zod.array(zod.string()).optional(),
 });
 
 /**
@@ -711,6 +1019,7 @@ export const UpdateAgentResponse = zod.object({
   endpoint: zod.string().nullish(),
   inboundToken: zod.string().nullish(),
   lastPing: zod.string().nullish(),
+  assignedSkills: zod.array(zod.string()).optional(),
 });
 
 /**
@@ -1038,6 +1347,9 @@ export const ListIntegrationsResponseItem = zod.object({
   iconColor: zod.string(),
   status: zod.enum(["connected", "disconnected", "error", "pending"]),
   isPublic: zod.boolean(),
+  credentialType: zod
+    .enum(["public", "username_password", "api_key", "bearer_token", "custom"])
+    .optional(),
   apiKeyHint: zod.string().nullish(),
   createdAt: zod.string(),
 });
@@ -1064,6 +1376,12 @@ export const CreateIntegrationBody = zod.object({
   iconColor: zod.string(),
   isPublic: zod.boolean().optional(),
   apiKey: zod.string().nullish(),
+  credentialType: zod
+    .enum(["public", "username_password", "api_key", "bearer_token", "custom"])
+    .optional(),
+  username: zod.string().nullish(),
+  password: zod.string().nullish(),
+  customCredential: zod.string().nullish(),
 });
 
 /**
@@ -1126,6 +1444,12 @@ export const UpdateIntegrationBody = zod.object({
     .enum(["connected", "disconnected", "error", "pending"])
     .optional(),
   apiKey: zod.string().nullish(),
+  credentialType: zod
+    .enum(["public", "username_password", "api_key", "bearer_token", "custom"])
+    .optional(),
+  username: zod.string().nullish(),
+  password: zod.string().nullish(),
+  customCredential: zod.string().nullish(),
 });
 
 export const UpdateIntegrationResponse = zod.object({
@@ -1147,6 +1471,9 @@ export const UpdateIntegrationResponse = zod.object({
   iconColor: zod.string(),
   status: zod.enum(["connected", "disconnected", "error", "pending"]),
   isPublic: zod.boolean(),
+  credentialType: zod
+    .enum(["public", "username_password", "api_key", "bearer_token", "custom"])
+    .optional(),
   apiKeyHint: zod.string().nullish(),
   createdAt: zod.string(),
 });
@@ -1225,6 +1552,9 @@ export const ListAgentIntegrationsResponseItem = zod.object({
   iconColor: zod.string(),
   status: zod.enum(["connected", "disconnected", "error", "pending"]),
   isPublic: zod.boolean(),
+  credentialType: zod
+    .enum(["public", "username_password", "api_key", "bearer_token", "custom"])
+    .optional(),
   apiKeyHint: zod.string().nullish(),
   createdAt: zod.string(),
 });

@@ -31,8 +31,8 @@ function maskKey(k: string | null | undefined): string | null {
 }
 
 function maskIntegration(row: typeof integrationsTable.$inferSelect) {
-  const { apiKey, ...rest } = row;
-  return { ...rest, apiKeyHint: maskKey(decryptSecret(apiKey)) };
+  const { apiKey, username, password, customCredential, ...rest } = row;
+  return { ...rest, apiKeyHint: maskKey(decryptSecret(apiKey)), usernameHint: maskKey(decryptSecret(username)), hasPassword: Boolean(password), hasCustomCredential: Boolean(customCredential) };
 }
 
 router.get("/integrations", async (_req, res): Promise<void> => {
@@ -46,10 +46,18 @@ router.post("/integrations", createRateLimit("admin-write", 40, 60_000), async (
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { apiKey, ...rest } = parsed.data;
+  const { apiKey, username, password, customCredential, ...rest } = parsed.data;
+  const credentialType = rest.credentialType ?? (rest.isPublic ? "public" : "api_key");
+  if (credentialType === "username_password" && (!username || !password)) { res.status(400).json({ error: "Username and password are required" }); return; }
+  if (["api_key", "bearer_token"].includes(credentialType) && !apiKey) { res.status(400).json({ error: "A credential is required for this access method" }); return; }
+  if (credentialType === "custom" && !customCredential) { res.status(400).json({ error: "A custom credential is required" }); return; }
   const [row] = await db.insert(integrationsTable).values({
     ...rest,
+    credentialType,
     apiKey: encryptSecret(apiKey ?? null),
+    username: encryptSecret(username ?? null),
+    password: encryptSecret(password ?? null),
+    customCredential: encryptSecret(customCredential ?? null),
     iconColor: rest.iconColor ?? "from-slate-600 to-slate-800",
     isPublic: rest.isPublic ?? false,
   }).returning();
@@ -97,9 +105,12 @@ router.patch("/integrations/:id", createRateLimit("admin-write", 40, 60_000), as
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { apiKey, ...rest } = parsed.data;
+  const { apiKey, username, password, customCredential, ...rest } = parsed.data;
   const updateData: Partial<typeof integrationsTable.$inferInsert> = { ...rest };
   if (apiKey !== undefined) updateData.apiKey = encryptSecret(apiKey);
+  if (username !== undefined) updateData.username = encryptSecret(username);
+  if (password !== undefined) updateData.password = encryptSecret(password);
+  if (customCredential !== undefined) updateData.customCredential = encryptSecret(customCredential);
 
   const [row] = await db.update(integrationsTable).set(updateData).where(eq(integrationsTable.id, params.data.id)).returning();
   if (!row) {

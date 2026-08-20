@@ -26,13 +26,14 @@ import {
   MoveTaskResponse,
   ListTasksQueryParams,
 } from "@workspace/api-zod";
+import { routeVerifiedCompletion } from "../services/task-completion-policy.js";
 
 const router: IRouter = Router();
 
-function workflowLane(status: string): "To-Do" | "Doing" | "Done" {
+function workflowLane(status: string): "Doing" | "Review" | "Done" {
   if (status === "done" || status === "completed" || status === "archived") return "Done";
-  if (["running", "in_progress", "review", "blocked"].includes(status)) return "Doing";
-  return "To-Do";
+  if (status === "review") return "Review";
+  return "Doing";
 }
 
 function humanizeStoredTaskMessage<T extends { body: string }>(message: T): T {
@@ -173,11 +174,51 @@ router.post("/tasks/:id/request-changes", async (req, res): Promise<void> => {
   if (!Number.isInteger(id) || !note) { res.status(400).json({ error: "Task id and change request are required" }); return; }
   const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, id));
   if (!task) { res.status(404).json({ error: "Task not found" }); return; }
+  if (task.status !== "review") { res.status(409).json({ error: "Only tasks in owner Review can have changes requested" }); return; }
   await db.update(tasksTable).set({ approvalRequired: false, status: "running" }).where(eq(tasksTable.id, id));
-  await addTaskMessage(id, "Cameron", `CHANGES REQUESTED — ${note}`);
+  await addTaskMessage(id, "Cameron", `OWNER REQUESTED CHANGES — ${note}`);
   const command = await queueTaskFollowUp(task, `Owner requested changes on task #${id}: ${note}\nReview the complete task conversation, make the requested follow-up changes, and report progress inside the task.`, "Change request queued to assigned worker");
   if (command) await addTaskMessage(id, "Mission Control", `Change request sent to ${task.assignee}.`);
   res.json({ accepted: true, taskId: id, queued: Boolean(command) });
+});
+
+router.post("/tasks/:id/accept", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid task id" }); return; }
+  const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, id));
+  if (!task) { res.status(404).json({ error: "Task not found" }); return; }
+  if (task.status !== "review") { res.status(409).json({ error: "Owner acceptance requires a task in Review" }); return; }
+  const note = typeof req.body?.note === "string" && req.body.note.trim() ? ` — ${req.body.note.trim()}` : "";
+  await db.update(tasksTable).set({ status: "done", updatedAt: new Date() }).where(eq(tasksTable.id, id));
+  await addTaskMessage(id, "Cameron", `OWNER ACCEPTED${note}`);
+  await addTaskMessage(id, "Mission Control", "DONE — retained on the active board until explicitly archived.");
+  res.json({ accepted: true, taskId: id, status: "done" });
+});
+
+router.post("/tasks/:id/orchestrator-completion-review", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const decision = req.body?.decision;
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+  const evidence: string[] = Array.isArray(req.body?.evidence) ? req.body.evidence.filter((item: unknown): item is string => typeof item === "string" && Boolean(item.trim())).map((item: string) => item.trim()) : [];
+  if (!Number.isInteger(id) || !["VERIFIED_COMPLETE", "REWORK_REQUIRED"].includes(decision) || !reason) { res.status(400).json({ error: "decision and factual verification reason are required" }); return; }
+  if (decision === "VERIFIED_COMPLETE" && evidence.length === 0) { res.status(400).json({ error: "Persisted verification evidence is required; worker completion alone is insufficient" }); return; }
+  const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, id));
+  if (!task) { res.status(404).json({ error: "Task not found" }); return; }
+  if (task.status !== "completion_pending") { res.status(409).json({ error: "Agent completion must be pending before orchestrator review" }); return; }
+  const escalatedOwnerReview = req.body?.ownerReviewRequired === true;
+  const requestedReviewReason = typeof req.body?.ownerReviewReason === "string" ? req.body.ownerReviewReason.trim() : "";
+  const reviewReason = requestedReviewReason || (task.ownerReviewRequired ? "The task was explicitly marked Owner Review Required at creation." : "");
+  let route;
+  try { route = routeVerifiedCompletion({ decision, ownerReviewRequired: task.ownerReviewRequired, escalatedOwnerReview, reviewReason }); }
+  catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Invalid owner-review escalation" }); return; }
+  await db.update(tasksTable).set({ status: route.status, updatedAt: new Date() }).where(eq(tasksTable.id, id));
+  const message = route.status === "running"
+    ? `REWORK REQUIRED — ${reason}`
+    : route.status === "review"
+      ? `ORCHESTRATOR VERIFIED COMPLETE — ${reason}\nVerification evidence:\n${evidence.map(item => `- ${item}`).join("\n")}\nOWNER REVIEW REQUIRED — ${reviewReason}`
+      : `ORCHESTRATOR VERIFIED COMPLETE — ${reason}\nVerification evidence:\n${evidence.map(item => `- ${item}`).join("\n")}\nNo owner review required.\nDONE.`;
+  await addTaskMessage(id, "Mission Control", message);
+  res.json({ taskId: id, status: route.status, decision, ownerReviewRequired: route.status === "review" });
 });
 
 router.post("/tasks/:id/archive", async (req, res): Promise<void> => {
@@ -201,7 +242,7 @@ router.post("/tasks/:id/restore", async (req, res): Promise<void> => {
   const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, id));
   if (!task) { res.status(404).json({ error: "Task not found" }); return; }
   await db.update(tasksTable).set({ archivedAt: null, status: "ready" }).where(eq(tasksTable.id, id));
-  await addTaskMessage(id, "Mission Control", "Archived task restored to To-Do.");
+  await addTaskMessage(id, "Mission Control", "Archived task restored to Doing.");
   res.json({ restored: true, taskId: id, status: "ready" });
 });
 
@@ -230,6 +271,7 @@ router.patch("/tasks/:id/move", async (req, res): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const [existing] = await db.select().from(tasksTable).where(eq(tasksTable.id, params.data.id));
   if (!existing) { res.status(404).json({ error: "Task not found" }); return; }
+  if (parsed.data.status === "done") { res.status(409).json({ error: "Use owner acceptance to move Review work to Done" }); return; }
   const [task] = await db.update(tasksTable).set({ status: parsed.data.status, archivedAt: null }).where(eq(tasksTable.id, params.data.id)).returning();
   const fromLane = workflowLane(existing.status);
   const toLane = workflowLane(task.status);

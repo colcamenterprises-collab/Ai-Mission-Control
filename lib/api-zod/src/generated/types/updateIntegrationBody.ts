@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { UpdateIntegrationBodyCategory } from "./updateIntegrationBodyCategory";
+import type { UpdateIntegrationBodyCredentialType } from "./updateIntegrationBodyCredentialType";
 import type { UpdateIntegrationBodyStatus } from "./updateIntegrationBodyStatus";
 
 export interface UpdateIntegrationBody {
@@ -17,4 +18,11 @@ export interface UpdateIntegrationBody {
   status?: UpdateIntegrationBodyStatus;
   /** @nullable */
   apiKey?: string | null;
+  credentialType?: UpdateIntegrationBodyCredentialType;
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  password?: string | null;
+  /** @nullable */
+  customCredential?: string | null;
 }

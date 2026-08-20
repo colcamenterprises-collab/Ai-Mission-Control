@@ -20,6 +20,7 @@ import orchestratorRouter from "./orchestrator";
 import executionsRouter from "./executions";
 import intelligenceRouter from "./intelligence";
 import operationsRouter from "./operations";
+import inboxRouter from "./inbox";
 import { requireAdminAuth } from "../lib/auth.js";
 
 const router: IRouter = Router();
@@ -40,6 +41,7 @@ router.use(orchestratorRouter);
 router.use(executionsRouter);
 router.use(intelligenceRouter);
 router.use(operationsRouter);
+router.use(inboxRouter);
 router.use(taskAttachmentsRouter);
 router.use(tasksRouter);
 router.use(contentRouter);

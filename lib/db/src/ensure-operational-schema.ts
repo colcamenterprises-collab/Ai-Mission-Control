@@ -27,6 +27,7 @@ export async function ensureOperationalSchema(
       due_date text,
       recurrence text NOT NULL DEFAULT 'one_off',
       approval_required boolean NOT NULL DEFAULT false,
+      owner_review_required boolean NOT NULL DEFAULT false,
       unread_messages integer NOT NULL DEFAULT 0,
       attachments jsonb NOT NULL DEFAULT '[]'::jsonb,
       report text,
@@ -34,6 +35,7 @@ export async function ensureOperationalSchema(
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz NOT NULL DEFAULT now()
     );
+    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS owner_review_required boolean NOT NULL DEFAULT false;
 
     CREATE TABLE IF NOT EXISTS task_messages (
       id serial PRIMARY KEY,
@@ -49,6 +51,25 @@ export async function ensureOperationalSchema(
       description text,
       created_at timestamptz NOT NULL DEFAULT now()
     );
+
+    -- Additive raw-capture store. It has no execution/work-request foreign key
+    -- by design; promotion is explicit and idempotent through linked_task_id.
+    CREATE TABLE IF NOT EXISTS inbox_items (
+      id serial PRIMARY KEY,
+      title text,
+      content text NOT NULL,
+      source text NOT NULL DEFAULT 'typed' CHECK (source IN ('typed', 'voice_transcript', 'imported', 'agent')),
+      created_by text NOT NULL,
+      review_status text NOT NULL DEFAULT 'unreviewed' CHECK (review_status IN ('unreviewed', 'reviewed', 'promoted', 'dismissed', 'archived')),
+      reviewed_at timestamptz,
+      orchestrator_comment text,
+      linked_task_id integer UNIQUE REFERENCES tasks(id) ON DELETE SET NULL,
+      linked_project_id integer REFERENCES projects(id) ON DELETE SET NULL,
+      archived_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS inbox_items_review_idx ON inbox_items(review_status, archived_at);
 
     CREATE TABLE IF NOT EXISTS project_task_archives (
       id serial PRIMARY KEY,
@@ -157,6 +178,10 @@ export async function ensureOperationalSchema(
       role text,
       assigned_at timestamptz NOT NULL DEFAULT now()
     );
+    ALTER TABLE integrations ADD COLUMN IF NOT EXISTS credential_type text NOT NULL DEFAULT 'public';
+    ALTER TABLE integrations ADD COLUMN IF NOT EXISTS username text;
+    ALTER TABLE integrations ADD COLUMN IF NOT EXISTS password text;
+    ALTER TABLE integrations ADD COLUMN IF NOT EXISTS custom_credential text;
 
     CREATE TABLE IF NOT EXISTS agent_commands (
       id serial PRIMARY KEY,
