@@ -51,7 +51,8 @@ test("daily Inbox review uses existing detached systemd infrastructure without p
   assert.match(route, /systemd-run/);
   assert.match(runner, /api\/inbox\/unreviewed/);
   assert.match(runner, /Do not create tasks/);
-  assert.match(timer, /--on-calendar='\*-\*-\* 07:00:00'/);
+  assert.match(timer, /--on-calendar='\*-\*-\* 07:00:00 Asia\/Bangkok'/);
+  assert.match(timer, /Persistent=true/);
 });
 
 test("owner rework retains the same task and acceptance retains Done before Archive", async () => {
