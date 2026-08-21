@@ -7,6 +7,7 @@ import { TaskEnhancements } from "@/components/task-enhancements";
 import { ThemeProvider } from "@/lib/theme";
 import Dashboard from "@/pages/dashboard";
 import Tasks from "@/pages/tasks";
+import Notes from "@/pages/notes";
 import ContentPipeline from "@/pages/content";
 import Memory from "@/pages/memory";
 import Workspaces from "@/pages/workspaces";
@@ -36,13 +37,22 @@ const queryClient = new QueryClient({
   },
 });
 
+function TasksRoute() {
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("create") === "note") {
+    window.location.replace(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/notes?create=note` || "/notes?create=note");
+    return null;
+  }
+  return <Tasks />;
+}
+
 function Router() {
   return (
     <Layout>
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/dashboard" component={Dashboard} />
-        <Route path="/tasks" component={Tasks} />
+        <Route path="/notes" component={Notes} />
+        <Route path="/tasks" component={TasksRoute} />
         <Route path="/content" component={ContentPipeline} />
         <Route path="/calendar">
           {() => {
