@@ -10,6 +10,7 @@ import {
   Command as CommandIcon,
   Search,
   Settings2,
+  StickyNote,
   UsersRound,
 } from "lucide-react";
 import { CustomliLogo } from "@/components/customli-logo";
@@ -27,9 +28,7 @@ type NavItem = {
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(max-width: 1180px)").matches,
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 1180px)").matches,
   );
   const [query, setQuery] = useState("");
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -37,6 +36,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const navItems: NavItem[] = [
     { href: "/", label: "Dashboard", icon: Gauge },
+    { href: "/notes", label: "Notes", icon: StickyNote },
     { href: "/tasks", label: "Tasks", icon: ClipboardList },
     { href: "/team", label: "AI Team", icon: UsersRound },
     { href: "/business", label: "Business", icon: BriefcaseBusiness },
@@ -47,21 +47,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const normalizedQuery = query.trim().toLowerCase();
   const visibleNavItems = useMemo(
-    () =>
-      navItems.filter((item) =>
-        item.label.toLowerCase().includes(normalizedQuery),
-      ),
+    () => navItems.filter((item) => item.label.toLowerCase().includes(normalizedQuery)),
     [normalizedQuery],
   );
 
   useEffect(() => {
     const tabletQuery = window.matchMedia("(max-width: 1180px)");
-    function syncSidebarToViewport(event: MediaQueryListEvent) {
-      setIsCollapsed(event.matches);
-    }
+    function syncSidebarToViewport(event: MediaQueryListEvent) { setIsCollapsed(event.matches); }
     tabletQuery.addEventListener("change", syncSidebarToViewport);
-    return () =>
-      tabletQuery.removeEventListener("change", syncSidebarToViewport);
+    return () => tabletQuery.removeEventListener("change", syncSidebarToViewport);
   }, []);
 
   useEffect(() => {
@@ -89,115 +83,47 @@ export function Layout({ children }: { children: React.ReactNode }) {
   }, []);
 
   function renderNavItem(item: NavItem) {
-    const isActive =
-      location === item.href ||
-      (item.href !== "/" && location.startsWith(item.href));
+    const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
     const Icon = item.icon;
     return (
-      <Link
-        key={`${item.href}-${item.label}`}
-        href={item.href}
-        title={isCollapsed ? item.label : undefined}
-        aria-label={item.label}
-        className={`mission-nav-item ${isActive ? "mission-nav-active" : ""}`}
-      >
+      <Link key={`${item.href}-${item.label}`} href={item.href} title={isCollapsed ? item.label : undefined} aria-label={item.label} className={`mission-nav-item ${isActive ? "mission-nav-active" : ""}`}>
         <Icon className="mission-nav-icon" />
         {!isCollapsed && <span>{item.label}</span>}
       </Link>
     );
   }
 
-  const routeClass =
-    location === "/" ? "dashboard" : location.split("/")[1] || "dashboard";
+  const routeClass = location === "/" ? "dashboard" : location.split("/")[1] || "dashboard";
 
   return (
     <div className="mission-app-bg relative min-h-screen overflow-hidden flex text-foreground">
       <div className="mission-premium-background" aria-hidden="true" />
-      <aside
-        className={`mission-sidebar relative z-10 flex-shrink-0 flex flex-col ${
-          isCollapsed ? "mission-sidebar-collapsed" : "mission-sidebar-expanded"
-        }`}
-      >
-        <div className="mission-sidebar-top">
-          <CustomliLogo compact={isCollapsed} />
-        </div>
-
+      <aside className={`mission-sidebar relative z-10 flex-shrink-0 flex flex-col ${isCollapsed ? "mission-sidebar-collapsed" : "mission-sidebar-expanded"}`}>
+        <div className="mission-sidebar-top"><CustomliLogo compact={isCollapsed} /></div>
         {!isCollapsed && (
           <label className="mission-sidebar-search">
             <Search aria-hidden="true" />
-            <input
-              ref={searchRef}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search menu"
-              aria-label="Search navigation"
-            />
+            <input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search menu" aria-label="Search navigation" />
           </label>
         )}
-
         <nav className="mission-sidebar-nav" aria-label="Main navigation">
-          <ul>
-            {visibleNavItems.map((item) => (
-              <li key={item.href}>{renderNavItem(item)}</li>
-            ))}
-          </ul>
-          {!isCollapsed && visibleNavItems.length === 0 && (
-            <p className="mission-nav-empty">No menu matches “{query}”.</p>
-          )}
+          <ul>{visibleNavItems.map((item) => <li key={item.href}>{renderNavItem(item)}</li>)}</ul>
+          {!isCollapsed && visibleNavItems.length === 0 && <p className="mission-nav-empty">No menu matches “{query}”.</p>}
         </nav>
-
         <div className="mission-sidebar-toggle-dock">
-          <button
-            type="button"
-            className="mission-collapse-button"
-            aria-label="Open command palette"
-            title="Open command palette"
-            onClick={() => setPaletteOpen(true)}
-          >
-            <CommandIcon aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="mission-collapse-button mission-collapse-button-bottom"
-            onClick={() => setIsCollapsed((value) => !value)}
-            aria-label={isCollapsed ? "Open sidebar" : "Close sidebar"}
-            aria-expanded={!isCollapsed}
-            title={isCollapsed ? "Open sidebar" : "Close sidebar"}
-          >
-            <ChevronLeft aria-hidden="true" />
-          </button>
+          <button type="button" className="mission-collapse-button" aria-label="Open command palette" title="Open command palette" onClick={() => setPaletteOpen(true)}><CommandIcon aria-hidden="true" /></button>
+          <button type="button" className="mission-collapse-button mission-collapse-button-bottom" onClick={() => setIsCollapsed((value) => !value)} aria-label={isCollapsed ? "Open sidebar" : "Close sidebar"} aria-expanded={!isCollapsed} title={isCollapsed ? "Open sidebar" : "Close sidebar"}><ChevronLeft aria-hidden="true" /></button>
         </div>
       </aside>
-      <main
-        className={`mission-main-canvas mission-route-${routeClass} relative z-10 flex-1 flex flex-col h-screen overflow-hidden bg-transparent`}
-      >
-        {children}
-      </main>
+      <main className={`mission-main-canvas mission-route-${routeClass} relative z-10 flex-1 flex flex-col h-screen overflow-hidden bg-transparent`}>{children}</main>
       {paletteOpen && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-start bg-black/60 p-4 pt-[10vh]"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Mission Control commands"
-          onMouseDown={() => setPaletteOpen(false)}
-        >
-          <div
-            className="mx-auto w-full max-w-xl rounded-xl border border-border bg-card p-3 shadow-2xl"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <strong>Mission Control</strong>
-              <button
-                onClick={() => setPaletteOpen(false)}
-                aria-label="Close command palette"
-              >
-                Close
-              </button>
-            </div>
+        <div className="fixed inset-0 z-50 grid place-items-start bg-black/60 p-4 pt-[10vh]" role="dialog" aria-modal="true" aria-label="Mission Control commands" onMouseDown={() => setPaletteOpen(false)}>
+          <div className="mx-auto w-full max-w-xl rounded-xl border border-border bg-card p-3 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="mb-2 flex items-center justify-between"><strong>Mission Control</strong><button onClick={() => setPaletteOpen(false)} aria-label="Close command palette">Close</button></div>
             <div className="grid gap-1">
               {[
                 ["Ask James", "/tasks"],
-                ["Add Note", "/tasks?create=note"],
+                ["Add Note", "/notes?create=note"],
                 ["Add Task", "/tasks?create=task"],
                 ["Search Mission Control", "/executions"],
                 ["Search Memory", "/memory"],
@@ -209,14 +135,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 ["Skills and Playbooks", "/skills"],
                 ["Signals", "/signals"],
               ].map(([label, href]) => (
-                <Link
-                  key={label}
-                  href={href}
-                  onClick={() => setPaletteOpen(false)}
-                  className="rounded-lg px-3 py-2 text-sm hover:bg-secondary"
-                >
-                  {label}
-                </Link>
+                <Link key={label} href={href} onClick={() => setPaletteOpen(false)} className="rounded-lg px-3 py-2 text-sm hover:bg-secondary">{label}</Link>
               ))}
             </div>
           </div>
