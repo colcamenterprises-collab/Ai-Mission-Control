@@ -21,7 +21,6 @@ import BusinessHub from "@/pages/business-hub";
 import Contacts from "@/pages/contacts";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
-import Approvals from "@/pages/approvals";
 import Executions from "@/pages/executions";
 import Signals from "@/pages/signals";
 import ClientPulse from "@/pages/client-pulse";
@@ -40,6 +39,14 @@ function TasksRoute() {
   return <Tasks />;
 }
 
+function RedirectToTasks() {
+  if (typeof window !== "undefined") {
+    const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+    window.location.replace(`${base}/tasks`);
+  }
+  return null;
+}
+
 function Router() {
   return (
     <Layout>
@@ -49,11 +56,11 @@ function Router() {
         <Route path="/notes" component={Notes} />
         <Route path="/tasks" component={TasksRoute} />
         <Route path="/content" component={ContentPipeline} />
-        <Route path="/calendar">{() => { window.location.replace("/tasks"); return null; }}</Route>
+        <Route path="/calendar" component={RedirectToTasks} />
         <Route path="/memory" component={Memory} />
         <Route path="/workspaces" component={Workspaces} />
         <Route path="/reports" component={Reports} />
-        <Route path="/approvals" component={Approvals} />
+        <Route path="/approvals" component={RedirectToTasks} />
         <Route path="/executions/:id" component={Executions} />
         <Route path="/executions" component={Executions} />
         <Route path="/signals" component={Signals} />
