@@ -15,15 +15,16 @@ test("Kanban task list bypasses the stale generated status enum", async () => {
   assert.match(compat, /archivedAt === null/);
 });
 
-test("calendar is a compact fourth Kanban surface and dashboard widget", async () => {
+test("calendar is a compact fourth Kanban surface and prominent Dashboard briefing widget", async () => {
   const [component, css] = await Promise.all([
     read("artifacts/mission-control/src/components/operating-surface-enhancements.tsx"),
     read("artifacts/mission-control/src/components/operating-surface-enhancements.css"),
   ]);
   assert.match(component, /createPortal\(<AutomationCalendar tasks=\{tasks\} context="tasks" \/>, taskWorkspaceNode\)/);
+  assert.match(component, /document\.querySelector<HTMLElement>\("\.mission-briefing-panel"\)/);
   assert.match(css, /grid-template-columns:repeat\(4/);
   assert.match(css, /operating-calendar-tasks\{[^}]*width:18rem/);
-  assert.match(css, /operating-calendar-dashboard\{[^}]*max-width:19rem/);
+  assert.match(css, /operating-calendar-dashboard\{[^}]*width:100%/);
 });
 
 test("task approval and review actions live on Kanban cards", async () => {
