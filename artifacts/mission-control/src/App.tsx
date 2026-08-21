@@ -4,9 +4,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
 import { TaskEnhancements } from "@/components/task-enhancements";
+import { OperatingSurfaceEnhancements } from "@/components/operating-surface-enhancements";
 import { ThemeProvider } from "@/lib/theme";
 import Dashboard from "@/pages/dashboard";
 import Tasks from "@/pages/tasks";
+import Notes from "@/pages/notes";
 import ContentPipeline from "@/pages/content";
 import Memory from "@/pages/memory";
 import Workspaces from "@/pages/workspaces";
@@ -27,14 +29,16 @@ import AgentOperations from "@/pages/agent-operations";
 import "./visual-first.css";
 import "./minimal-dark.css";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 30_000,
-    },
-  },
-});
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
+
+function TasksRoute() {
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("create") === "note") {
+    const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+    window.location.replace(`${base}/notes?create=note`);
+    return null;
+  }
+  return <Tasks />;
+}
 
 function Router() {
   return (
@@ -42,14 +46,10 @@ function Router() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/dashboard" component={Dashboard} />
-        <Route path="/tasks" component={Tasks} />
+        <Route path="/notes" component={Notes} />
+        <Route path="/tasks" component={TasksRoute} />
         <Route path="/content" component={ContentPipeline} />
-        <Route path="/calendar">
-          {() => {
-            window.location.replace("/tasks");
-            return null;
-          }}
-        </Route>
+        <Route path="/calendar">{() => { window.location.replace("/tasks"); return null; }}</Route>
         <Route path="/memory" component={Memory} />
         <Route path="/workspaces" component={Workspaces} />
         <Route path="/reports" component={Reports} />
@@ -79,10 +79,9 @@ function App() {
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}><Router /></WouterRouter>
           <TaskEnhancements />
+          <OperatingSurfaceEnhancements />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
