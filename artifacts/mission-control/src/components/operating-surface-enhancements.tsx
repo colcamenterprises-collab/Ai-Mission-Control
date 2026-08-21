@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { getListTasksQueryKey } from "@workspace/api-client-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3 } from "lucide-react";
 import "./operating-surface-enhancements.css";
 
 type TaskItem = {
@@ -11,11 +13,16 @@ type TaskItem = {
   dueDate?: string | null;
   recurrence?: string | null;
   updatedAt?: string;
+  approvalRequired?: boolean | null;
 };
 
-function authHeaders() {
+function authHeaders(contentType = false) {
   const token = localStorage.getItem("mission_control_admin_token") ?? localStorage.getItem("missionControlAdminToken");
-  return { Accept: "application/json", ...(token ? { Authorization: `Bearer ${token}`, "x-admin-token": token } : {}) };
+  return {
+    Accept: "application/json",
+    ...(contentType ? { "Content-Type": "application/json" } : {}),
+    ...(token ? { Authorization: `Bearer ${token}`, "x-admin-token": token } : {}),
+  };
 }
 
 function laneForStatus(status: string) {
@@ -25,12 +32,12 @@ function laneForStatus(status: string) {
 }
 
 const AGENT_PALETTE = [
-  ["#a98bff", "#342a58", "#7258d8"],
-  ["#72d9ef", "#1e3942", "#3ca2b9"],
-  ["#7da8ff", "#223653", "#4f78d1"],
-  ["#80e0aa", "#213b2d", "#42a36d"],
-  ["#ff98c8", "#49293a", "#c55c8e"],
-  ["#ffc86e", "#4a361e", "#c78e36"],
+  ["#b8a6ff", "#30284f", "#7b62e8"],
+  ["#7de1f4", "#18333d", "#45b1c7"],
+  ["#8db4ff", "#1e3454", "#5e88df"],
+  ["#8ee6b4", "#1d3828", "#4bae77"],
+  ["#ffa5d1", "#452538", "#cc6697"],
+  ["#ffd082", "#46331b", "#d19a3f"],
 ];
 
 function paletteForAgent(agent?: string | null) {
@@ -41,34 +48,44 @@ function paletteForAgent(agent?: string | null) {
 }
 
 export function OperatingSurfaceEnhancements() {
+  const queryClient = useQueryClient();
   const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [taskPageNode, setTaskPageNode] = useState<HTMLElement | null>(null);
+  const [taskWorkspaceNode, setTaskWorkspaceNode] = useState<HTMLElement | null>(null);
   const [dashboardNode, setDashboardNode] = useState<HTMLElement | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const response = await fetch("/api/tasks", { headers: authHeaders() });
-        if (!response.ok) return;
-        const next = await response.json() as TaskItem[];
-        if (!cancelled) setTasks(next);
-      } catch { /* native task page remains authoritative */ }
+  const loadTasks = useCallback(async () => {
+    try {
+      const response = await fetch("/api/tasks", { headers: authHeaders() });
+      if (!response.ok) return;
+      setTasks(await response.json() as TaskItem[]);
+    } catch {
+      // Native task page remains authoritative if an enhancement refresh fails.
     }
-    void load();
-    const timer = window.setInterval(() => void load(), 5000);
-    return () => { cancelled = true; window.clearInterval(timer); };
   }, []);
+
+  const refreshTasks = useCallback(async () => {
+    await loadTasks();
+    await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
+  }, [loadTasks, queryClient]);
+
+  useEffect(() => {
+    void loadTasks();
+    const timer = window.setInterval(() => void loadTasks(), 5000);
+    return () => window.clearInterval(timer);
+  }, [loadTasks]);
 
   useEffect(() => {
     const syncNodes = () => {
-      setTaskPageNode(document.querySelector<HTMLElement>(".mc-task-page"));
+      setTaskWorkspaceNode(document.querySelector<HTMLElement>(".mc-task-workspace"));
       setDashboardNode(document.querySelector<HTMLElement>(".mission-operations-home"));
       for (const heading of Array.from(document.querySelectorAll<HTMLElement>("h2"))) {
         if (heading.textContent?.includes("Cron Job Manager")) {
           const section = heading.closest<HTMLElement>("section");
           if (section) section.style.display = "none";
         }
+      }
+      for (const anchor of Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="/tasks?create=note"]'))) {
+        anchor.href = anchor.href.replace("/tasks?create=note", "/notes?create=note");
       }
     };
     syncNodes();
@@ -78,6 +95,40 @@ export function OperatingSurfaceEnhancements() {
   }, []);
 
   useEffect(() => {
+    const onCaptureRoute = (event: MouseEvent) => {
+      const anchor = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>("a");
+      const href = anchor?.getAttribute("href") ?? "";
+      if (!href.includes("/tasks?create=note")) return;
+      event.preventDefault();
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      window.location.assign(`${base}/notes?create=note`);
+    };
+    document.addEventListener("click", onCaptureRoute, true);
+    return () => document.removeEventListener("click", onCaptureRoute, true);
+  }, []);
+
+  useEffect(() => {
+    const performAction = async (task: TaskItem, action: "approve" | "accept" | "changes") => {
+      let endpoint = `/api/tasks/${task.id}/approve`;
+      let body: { note?: string } = { note: "Approved directly from the Kanban card." };
+      if (action === "accept") {
+        endpoint = `/api/tasks/${task.id}/accept`;
+        body = { note: "Accepted directly from the Kanban card." };
+      } else if (action === "changes") {
+        const note = window.prompt("What needs to change?")?.trim();
+        if (!note) return;
+        endpoint = `/api/tasks/${task.id}/request-changes`;
+        body = { note };
+      }
+      const response = await fetch(endpoint, { method: "POST", headers: authHeaders(true), body: JSON.stringify(body) });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({})) as { error?: string };
+        window.alert(payload.error || `Unable to ${action} Task #${task.id}.`);
+        return;
+      }
+      await refreshTasks();
+    };
+
     const decorate = () => {
       const used = new Set<number>();
       for (const card of Array.from(document.querySelectorAll<HTMLElement>(".mc-task-card"))) {
@@ -102,13 +153,38 @@ export function OperatingSurfaceEnhancements() {
           const footer = card.querySelector("footer");
           if (footer) footer.prepend(label);
         }
+        if (!card.querySelector(".mc-card-inline-actions") && (task.approvalRequired || task.status === "review")) {
+          const actions = document.createElement("div");
+          actions.className = "mc-card-inline-actions";
+          if (task.approvalRequired) {
+            const approve = document.createElement("button");
+            approve.type = "button";
+            approve.innerHTML = "✓ Approve";
+            approve.className = "mc-card-action-primary";
+            approve.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); void performAction(task, "approve"); });
+            actions.appendChild(approve);
+          }
+          if (task.status === "review") {
+            const changes = document.createElement("button");
+            changes.type = "button";
+            changes.textContent = "Changes";
+            changes.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); void performAction(task, "changes"); });
+            const accept = document.createElement("button");
+            accept.type = "button";
+            accept.className = "mc-card-action-primary";
+            accept.innerHTML = "✓ Accept";
+            accept.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); void performAction(task, "accept"); });
+            actions.append(changes, accept);
+          }
+          card.appendChild(actions);
+        }
       }
     };
     decorate();
     const observer = new MutationObserver(decorate);
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
-  }, [tasks]);
+  }, [tasks, refreshTasks]);
 
   useEffect(() => {
     const onWheel = (event: WheelEvent) => {
@@ -149,7 +225,7 @@ export function OperatingSurfaceEnhancements() {
   }, []);
 
   return <>
-    {taskPageNode && createPortal(<AutomationCalendar tasks={tasks} context="tasks" />, taskPageNode)}
+    {taskWorkspaceNode && createPortal(<AutomationCalendar tasks={tasks} context="tasks" />, taskWorkspaceNode)}
     {dashboardNode && createPortal(<AutomationCalendar tasks={tasks} context="dashboard" />, dashboardNode)}
   </>;
 }
@@ -167,13 +243,13 @@ function AutomationCalendar({ tasks, context }: { tasks: TaskItem[]; context: "t
     if (!a.dueDate) return 1;
     if (!b.dueDate) return -1;
     return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-  }).slice(0, context === "dashboard" ? 3 : 5);
+  }).slice(0, 2);
 
   return <section className={`operating-calendar operating-calendar-${context}`}>
-    <header><div><span><CalendarDays /> Automation calendar</span><h2>{cursor.toLocaleDateString([], { month: "long", year: "numeric" })}</h2></div><div className="operating-calendar-nav"><button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}><ChevronLeft /></button><button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}><ChevronRight /></button></div></header>
-    <div className="operating-calendar-weekdays">{["SUN","MON","TUE","WED","THU","FRI","SAT"].map((day) => <span key={day}>{day}</span>)}</div>
+    <header><div><span><CalendarDays /> Automations</span><h2>{cursor.toLocaleDateString([], { month: "long", year: "numeric" })}</h2></div><div className="operating-calendar-nav"><button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}><ChevronLeft /></button><button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}><ChevronRight /></button></div></header>
+    <div className="operating-calendar-weekdays">{["S","M","T","W","T","F","S"].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}</div>
     <div className="operating-calendar-grid">{days.map((date) => { const key = dayKey(date); const currentMonth = date.getMonth() === cursor.getMonth(); const isToday = key === dayKey(today); const active = dueKeys.has(key); return <div key={key} className={`${currentMonth ? "" : "outside"} ${isToday ? "today" : ""} ${active ? "active" : ""}`}><span>{date.getDate()}</span>{active && <i />}</div>; })}</div>
-    <footer>{upcoming.length ? upcoming.map((task) => <div className="operating-calendar-item" key={task.id}><Clock3 /><div><strong>{task.title}</strong><span>{task.dueDate ? new Date(task.dueDate).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : `Recurring · ${task.recurrence}`}</span></div></div>) : <p>No scheduled work is currently recorded.</p>}</footer>
+    <footer>{upcoming.length ? upcoming.map((task) => <div className="operating-calendar-item" key={task.id}><Clock3 /><div><strong>{task.title}</strong><span>{task.dueDate ? new Date(task.dueDate).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : `Recurring · ${task.recurrence}`}</span></div></div>) : <p>No scheduled work.</p>}</footer>
   </section>;
 }
 

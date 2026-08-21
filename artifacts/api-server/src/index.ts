@@ -1,6 +1,7 @@
 import app from "./app";
 import { ensureOperationalSchema } from "@workspace/db";
 import { logger } from "./lib/logger";
+import { syncMemorySources } from "./services/memory-sync.js";
 
 const rawPort = process.env["PORT"];
 
@@ -17,6 +18,13 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 await ensureOperationalSchema();
+
+try {
+  const memorySync = await syncMemorySources({ force: true });
+  logger.info({ memorySync }, "Durable memory sources synchronized");
+} catch (err) {
+  logger.error({ err }, "Durable memory source synchronization failed");
+}
 
 app.listen(port, (err) => {
   if (err) {
