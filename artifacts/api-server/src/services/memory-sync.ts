@@ -11,7 +11,7 @@ let running: Promise<MemorySyncResult> | null = null;
 
 export type MemorySyncResult = { scanned: number; created: number; updated: number; skipped: number; sources: string[] };
 
-type SourceFile = { filePath: string; source: string; category: string };
+type SourceFile = { filePath: string; source: string; category: "knowledge" | "processes" };
 
 export async function syncMemorySources(options: { force?: boolean } = {}): Promise<MemorySyncResult> {
   const now = Date.now();
@@ -23,12 +23,12 @@ export async function syncMemorySources(options: { force?: boolean } = {}): Prom
 
 async function performSync(): Promise<MemorySyncResult> {
   const repoRoot = process.env.MISSION_CONTROL_REPO_ROOT || DEFAULT_REPO_ROOT;
-  const roots: Array<{ root: string; prefix: string; category: string }> = [
-    { root: path.join(repoRoot, "docs"), prefix: "repo-docs", category: "Documentation" },
-    { root: path.join(repoRoot, "agent-os"), prefix: "agent-os", category: "Operating Knowledge" },
+  const roots: Array<{ root: string; prefix: string; category: "knowledge" | "processes" }> = [
+    { root: path.join(repoRoot, "docs"), prefix: "repo-docs", category: "knowledge" },
+    { root: path.join(repoRoot, "agent-os"), prefix: "agent-os", category: "processes" },
   ];
   const obsidian = process.env.MISSION_CONTROL_OBSIDIAN_VAULT?.trim();
-  if (obsidian) roots.push({ root: path.resolve(obsidian), prefix: "obsidian", category: "Obsidian" });
+  if (obsidian) roots.push({ root: path.resolve(obsidian), prefix: "obsidian", category: "knowledge" });
 
   const files: SourceFile[] = [];
   for (const root of roots) {
@@ -60,7 +60,7 @@ async function performSync(): Promise<MemorySyncResult> {
     }
 
     const [current] = await db.select().from(memoriesTable).where(eq(memoriesTable.id, metadata.memoryId));
-    if (!current || (current.content === content && current.title === title)) { result.skipped++; continue; }
+    if (!current || (current.content === content && current.title === title && current.category === file.category)) { result.skipped++; continue; }
     const nextVersion = metadata.version + 1;
     await db.transaction(async (tx) => {
       await tx.update(memoriesTable).set({ title, content, category: file.category, preview, updatedAt: new Date() }).where(eq(memoriesTable.id, metadata.memoryId));
