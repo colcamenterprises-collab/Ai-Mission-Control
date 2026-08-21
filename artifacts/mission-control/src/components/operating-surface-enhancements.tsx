@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListTasksQueryKey } from "@workspace/api-client-react";
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Clock3 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock3, FolderPlus, X } from "lucide-react";
 import "./operating-surface-enhancements.css";
 
 type TaskItem = {
@@ -52,6 +52,13 @@ export function OperatingSurfaceEnhancements() {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [taskWorkspaceNode, setTaskWorkspaceNode] = useState<HTMLElement | null>(null);
   const [dashboardNode, setDashboardNode] = useState<HTMLElement | null>(null);
+  const [dashboardActionsNode, setDashboardActionsNode] = useState<HTMLElement | null>(null);
+  const [projectOpen, setProjectOpen] = useState(false);
+  const [projectName, setProjectName] = useState("");
+  const [projectDescription, setProjectDescription] = useState("");
+  const [projectSaving, setProjectSaving] = useState(false);
+  const [projectError, setProjectError] = useState("");
+  const [projectCreated, setProjectCreated] = useState("");
 
   const loadTasks = useCallback(async () => {
     try {
@@ -77,7 +84,8 @@ export function OperatingSurfaceEnhancements() {
   useEffect(() => {
     const syncNodes = () => {
       setTaskWorkspaceNode(document.querySelector<HTMLElement>(".mc-task-workspace"));
-      setDashboardNode(document.querySelector<HTMLElement>(".mission-operations-home"));
+      setDashboardNode(document.querySelector<HTMLElement>(".mission-briefing-panel"));
+      setDashboardActionsNode(document.querySelector<HTMLElement>(".mission-capture-actions"));
       for (const heading of Array.from(document.querySelectorAll<HTMLElement>("h2"))) {
         if (heading.textContent?.includes("Cron Job Manager")) {
           const section = heading.closest<HTMLElement>("section");
@@ -224,14 +232,45 @@ export function OperatingSurfaceEnhancements() {
     return () => { clear(); document.removeEventListener("pointermove", move, true); document.removeEventListener("pointerup", clear, true); document.removeEventListener("pointercancel", clear, true); };
   }, []);
 
+  async function saveProject() {
+    const name = projectName.trim();
+    if (!name) { setProjectError("Project name is required."); return; }
+    setProjectSaving(true);
+    setProjectError("");
+    try {
+      const response = await fetch("/api/projects", {
+        method: "POST",
+        headers: authHeaders(true),
+        body: JSON.stringify({ name, description: projectDescription.trim() || null }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(payload.error || `Unable to create project (HTTP ${response.status})`);
+      }
+      setProjectOpen(false);
+      setProjectName("");
+      setProjectDescription("");
+      setProjectCreated(`Project created: ${name}`);
+      window.setTimeout(() => setProjectCreated(""), 3500);
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : "Unable to create project");
+    } finally {
+      setProjectSaving(false);
+    }
+  }
+
   return <>
     {taskWorkspaceNode && createPortal(<AutomationCalendar tasks={tasks} context="tasks" />, taskWorkspaceNode)}
     {dashboardNode && createPortal(<AutomationCalendar tasks={tasks} context="dashboard" />, dashboardNode)}
+    {dashboardActionsNode && createPortal(<button type="button" className="mission-project-quick-action" onClick={() => { setProjectError(""); setProjectOpen(true); }}><FolderPlus /> + Project</button>, dashboardActionsNode)}
+    {projectOpen && createPortal(<div className="mc-project-modal-backdrop" onMouseDown={() => setProjectOpen(false)}><section className="mc-project-modal" role="dialog" aria-modal="true" aria-label="Add project" onMouseDown={(event) => event.stopPropagation()}><header><div><span>Business workspace</span><h2>Add project</h2></div><button type="button" aria-label="Close" onClick={() => setProjectOpen(false)}><X /></button></header><label>Project name<input autoFocus value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Project name" /></label><label>Description <small>optional</small><textarea rows={5} value={projectDescription} onChange={(event) => setProjectDescription(event.target.value)} placeholder="What is this project responsible for?" /></label>{projectError && <p className="mc-project-error">{projectError}</p>}<footer><button type="button" onClick={() => setProjectOpen(false)}>Cancel</button><button type="button" className="mc-project-save" disabled={projectSaving} onClick={() => void saveProject()}>{projectSaving ? "Creating…" : "Create project"}</button></footer></section></div>, document.body)}
+    {projectCreated && createPortal(<div className="mc-project-toast" role="status">{projectCreated}</div>, document.body)}
   </>;
 }
 
 function AutomationCalendar({ tasks, context }: { tasks: TaskItem[]; context: "tasks" | "dashboard" }) {
   const [cursor, setCursor] = useState(() => { const date = new Date(); return new Date(date.getFullYear(), date.getMonth(), 1); });
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const today = new Date();
   const scheduled = useMemo(() => tasks.filter((task) => Boolean(task.dueDate) || Boolean(task.recurrence && task.recurrence !== "one_off")), [tasks]);
   const dueKeys = useMemo(() => new Set(scheduled.flatMap((task) => task.dueDate ? [dayKey(new Date(task.dueDate))] : [])), [scheduled]);
@@ -243,14 +282,32 @@ function AutomationCalendar({ tasks, context }: { tasks: TaskItem[]; context: "t
     if (!a.dueDate) return 1;
     if (!b.dueDate) return -1;
     return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-  }).slice(0, 2);
+  }).slice(0, context === "dashboard" ? 2 : 1);
+  const selectedTasks = selectedDate ? scheduled.filter((task) => task.dueDate && dayKey(new Date(task.dueDate)) === dayKey(selectedDate)) : [];
+  const recurringTasks = selectedDate ? scheduled.filter((task) => !task.dueDate && Boolean(task.recurrence && task.recurrence !== "one_off")) : [];
 
-  return <section className={`operating-calendar operating-calendar-${context}`}>
-    <header><div><span><CalendarDays /> Automations</span><h2>{cursor.toLocaleDateString([], { month: "long", year: "numeric" })}</h2></div><div className="operating-calendar-nav"><button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}><ChevronLeft /></button><button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}><ChevronRight /></button></div></header>
-    <div className="operating-calendar-weekdays">{["S","M","T","W","T","F","S"].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}</div>
-    <div className="operating-calendar-grid">{days.map((date) => { const key = dayKey(date); const currentMonth = date.getMonth() === cursor.getMonth(); const isToday = key === dayKey(today); const active = dueKeys.has(key); return <div key={key} className={`${currentMonth ? "" : "outside"} ${isToday ? "today" : ""} ${active ? "active" : ""}`}><span>{date.getDate()}</span>{active && <i />}</div>; })}</div>
-    <footer>{upcoming.length ? upcoming.map((task) => <div className="operating-calendar-item" key={task.id}><Clock3 /><div><strong>{task.title}</strong><span>{task.dueDate ? new Date(task.dueDate).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : `Recurring · ${task.recurrence}`}</span></div></div>) : <p>No scheduled work.</p>}</footer>
-  </section>;
+  function openDate(date: Date) {
+    const selected = new Date(date);
+    setCursor(new Date(selected.getFullYear(), selected.getMonth(), 1));
+    setSelectedDate(selected);
+  }
+
+  function shiftSelected(days: number) {
+    if (!selectedDate) return;
+    const next = new Date(selectedDate);
+    next.setDate(next.getDate() + days);
+    openDate(next);
+  }
+
+  return <>
+    <section className={`operating-calendar operating-calendar-${context}`}>
+      <header><div><span><CalendarDays /> Automations</span><h2>{cursor.toLocaleDateString([], { month: "long", year: "numeric" })}</h2></div><div className="operating-calendar-nav"><button type="button" aria-label="Previous month" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}><ChevronLeft /></button><button type="button" aria-label="Next month" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}><ChevronRight /></button></div></header>
+      <div className="operating-calendar-weekdays">{["S","M","T","W","T","F","S"].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}</div>
+      <div className="operating-calendar-grid">{days.map((date) => { const key = dayKey(date); const currentMonth = date.getMonth() === cursor.getMonth(); const isToday = key === dayKey(today); const active = dueKeys.has(key); return <button type="button" aria-label={`Open ${date.toLocaleDateString()}`} key={key} onClick={() => setSelectedDate(date)} className={`operating-calendar-day ${currentMonth ? "" : "outside"} ${isToday ? "today" : ""} ${active ? "active" : ""}`}><span>{date.getDate()}</span>{active && <i />}</button>; })}</div>
+      <footer>{upcoming.length ? upcoming.map((task) => <div className="operating-calendar-item" key={task.id}><Clock3 /><div><strong>{task.title}</strong><span>{task.dueDate ? new Date(task.dueDate).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : `Recurring · ${task.recurrence}`}</span></div></div>) : <p>No scheduled work.</p>}<button className="operating-calendar-open" type="button" onClick={() => openDate(today)}>Open calendar</button></footer>
+    </section>
+    {selectedDate && createPortal(<div className="operating-calendar-modal-backdrop" onMouseDown={() => setSelectedDate(null)}><section className="operating-calendar-modal" role="dialog" aria-modal="true" aria-label={`Schedule for ${selectedDate.toLocaleDateString()}`} onMouseDown={(event) => event.stopPropagation()}><header><div><span>Automation schedule</span><h2>{selectedDate.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</h2></div><button type="button" aria-label="Close calendar" onClick={() => setSelectedDate(null)}><X /></button></header><div className="operating-calendar-modal-nav"><button type="button" onClick={() => shiftSelected(-1)}><ChevronLeft /> Previous</button><button type="button" onClick={() => openDate(today)}>Today</button><button type="button" onClick={() => shiftSelected(1)}>Next <ChevronRight /></button></div><div className="operating-calendar-modal-list"><h3>Scheduled for this date</h3>{selectedTasks.length ? selectedTasks.map((task) => <article key={task.id}><Clock3 /><div><strong>{task.title}</strong><span>{task.assignee || "Unassigned"} · {task.dueDate ? new Date(task.dueDate).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Scheduled"}</span></div></article>) : <p>No dated work is scheduled for this date.</p>}{recurringTasks.length > 0 && <><h3>Recurring automations</h3>{recurringTasks.map((task) => <article key={`recurring-${task.id}`}><CalendarDays /><div><strong>{task.title}</strong><span>{task.assignee || "Unassigned"} · {task.recurrence}</span></div></article>)}</>}</div><footer><a href="/tasks">Open workboard</a><button type="button" onClick={() => setSelectedDate(null)}>Close</button></footer></section></div>, document.body)}
+  </>;
 }
 
 function dayKey(date: Date) {
