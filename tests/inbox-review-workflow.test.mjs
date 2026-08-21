@@ -46,13 +46,14 @@ test("blocked work and rework do not create approval records", async () => {
   assert.match(await read("artifacts/api-server/src/routes/james-detached.ts"), /Missing credentials or configuration require owner action, not Approve\/Reject controls/);
 });
 
-test("daily Inbox review uses existing detached systemd infrastructure without promoting work", async () => {
+test("daily Inbox review uses persistent systemd scheduling without promoting work", async () => {
   const [route, runner, timer] = await Promise.all([read("artifacts/api-server/src/routes/james-detached.ts"), read("scripts/run-james-inbox-review.sh"), read("scripts/install-inbox-review-timer.sh")]);
   assert.match(route, /systemd-run/);
   assert.match(runner, /api\/inbox\/unreviewed/);
   assert.match(runner, /Do not create tasks/);
-  assert.match(timer, /--on-calendar='\*-\*-\* 07:00:00 Asia\/Bangkok'/);
+  assert.match(timer, /OnCalendar=\*-\*-\* 07:00:00 Asia\/Bangkok/);
   assert.match(timer, /Persistent=true/);
+  assert.match(timer, /systemctl enable --now/);
 });
 
 test("owner rework retains the same task and acceptance retains Done before Archive", async () => {
