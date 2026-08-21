@@ -15,10 +15,7 @@ type TaskItem = {
 
 function authHeaders() {
   const token = localStorage.getItem("mission_control_admin_token") ?? localStorage.getItem("missionControlAdminToken");
-  return {
-    Accept: "application/json",
-    ...(token ? { Authorization: `Bearer ${token}`, "x-admin-token": token } : {}),
-  };
+  return { Accept: "application/json", ...(token ? { Authorization: `Bearer ${token}`, "x-admin-token": token } : {}) };
 }
 
 function laneForStatus(status: string) {
@@ -56,9 +53,7 @@ export function OperatingSurfaceEnhancements() {
         if (!response.ok) return;
         const next = await response.json() as TaskItem[];
         if (!cancelled) setTasks(next);
-      } catch {
-        // Existing views remain usable if this enhancement refresh fails.
-      }
+      } catch { /* native task page remains authoritative */ }
     }
     void load();
     const timer = window.setInterval(() => void load(), 5000);
@@ -69,6 +64,12 @@ export function OperatingSurfaceEnhancements() {
     const syncNodes = () => {
       setTaskPageNode(document.querySelector<HTMLElement>(".mc-task-page"));
       setDashboardNode(document.querySelector<HTMLElement>(".mission-operations-home"));
+      for (const heading of Array.from(document.querySelectorAll<HTMLElement>("h2"))) {
+        if (heading.textContent?.includes("Cron Job Manager")) {
+          const section = heading.closest<HTMLElement>("section");
+          if (section) section.style.display = "none";
+        }
+      }
     };
     syncNodes();
     const observer = new MutationObserver(syncNodes);
@@ -93,6 +94,7 @@ export function OperatingSurfaceEnhancements() {
         card.style.setProperty("--mc-agent-bg", background);
         card.style.setProperty("--mc-agent-border", border);
         card.dataset.agent = task.assignee?.trim() || "Unassigned";
+        card.dataset.taskId = String(task.id);
         if (!card.querySelector(".mc-agent-label")) {
           const label = document.createElement("span");
           label.className = "mc-agent-label";
@@ -113,7 +115,7 @@ export function OperatingSurfaceEnhancements() {
       const workspace = (event.target as HTMLElement | null)?.closest<HTMLElement>(".mc-task-workspace");
       if (!workspace || workspace.scrollWidth <= workspace.clientWidth) return;
       const verticalLane = (event.target as HTMLElement | null)?.closest<HTMLElement>(".mc-task-lane-scroll");
-      if (verticalLane && Math.abs(event.deltaY) > Math.abs(event.deltaX) && verticalLane.scrollHeight > verticalLane.clientHeight) return;
+      if (verticalLane && Math.abs(event.deltaY) > Math.abs(event.deltaX) && verticalLane.scrollHeight > verticalLane.clientHeight && !event.shiftKey) return;
       const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
       if (!delta) return;
       workspace.scrollLeft += delta;
@@ -127,18 +129,17 @@ export function OperatingSurfaceEnhancements() {
     let ghost: HTMLElement | null = null;
     const move = (event: PointerEvent) => {
       const dragging = document.querySelector<HTMLElement>(".mc-task-card-dragging");
-      if (!dragging) {
-        ghost?.remove(); ghost = null; return;
-      }
+      if (!dragging) { ghost?.remove(); ghost = null; return; }
       if (!ghost) {
         ghost = dragging.cloneNode(true) as HTMLElement;
         ghost.classList.add("mc-task-drag-ghost");
+        ghost.classList.remove("mc-task-card-dragging");
         const rect = dragging.getBoundingClientRect();
         ghost.style.width = `${rect.width}px`;
         document.body.appendChild(ghost);
       }
-      ghost.style.left = `${event.clientX + 14}px`;
-      ghost.style.top = `${event.clientY + 14}px`;
+      ghost.style.left = `${Math.min(event.clientX + 14, window.innerWidth - ghost.offsetWidth - 8)}px`;
+      ghost.style.top = `${Math.min(event.clientY + 14, window.innerHeight - ghost.offsetHeight - 8)}px`;
     };
     const clear = () => { ghost?.remove(); ghost = null; };
     document.addEventListener("pointermove", move, true);
@@ -161,13 +162,18 @@ function AutomationCalendar({ tasks, context }: { tasks: TaskItem[]; context: "t
   const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
   const start = new Date(first); start.setDate(first.getDate() - first.getDay());
   const days = Array.from({ length: 42 }, (_, index) => { const date = new Date(start); date.setDate(start.getDate() + index); return date; });
-  const upcoming = scheduled.filter((task) => task.dueDate).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime()).slice(0, context === "dashboard" ? 3 : 5);
+  const upcoming = [...scheduled].sort((a, b) => {
+    if (!a.dueDate && !b.dueDate) return a.title.localeCompare(b.title);
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+  }).slice(0, context === "dashboard" ? 3 : 5);
 
   return <section className={`operating-calendar operating-calendar-${context}`}>
     <header><div><span><CalendarDays /> Automation calendar</span><h2>{cursor.toLocaleDateString([], { month: "long", year: "numeric" })}</h2></div><div className="operating-calendar-nav"><button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}><ChevronLeft /></button><button onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}><ChevronRight /></button></div></header>
     <div className="operating-calendar-weekdays">{["SUN","MON","TUE","WED","THU","FRI","SAT"].map((day) => <span key={day}>{day}</span>)}</div>
     <div className="operating-calendar-grid">{days.map((date) => { const key = dayKey(date); const currentMonth = date.getMonth() === cursor.getMonth(); const isToday = key === dayKey(today); const active = dueKeys.has(key); return <div key={key} className={`${currentMonth ? "" : "outside"} ${isToday ? "today" : ""} ${active ? "active" : ""}`}><span>{date.getDate()}</span>{active && <i />}</div>; })}</div>
-    <footer>{upcoming.length ? upcoming.map((task) => <div className="operating-calendar-item" key={task.id}><Clock3 /><div><strong>{task.title}</strong><span>{task.dueDate ? new Date(task.dueDate).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : task.recurrence}</span></div></div>) : <p>No dated automated work is currently scheduled.</p>}</footer>
+    <footer>{upcoming.length ? upcoming.map((task) => <div className="operating-calendar-item" key={task.id}><Clock3 /><div><strong>{task.title}</strong><span>{task.dueDate ? new Date(task.dueDate).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : `Recurring · ${task.recurrence}`}</span></div></div>) : <p>No scheduled work is currently recorded.</p>}</footer>
   </section>;
 }
 
