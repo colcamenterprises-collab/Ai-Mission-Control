@@ -1,12 +1,54 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-# Installs one persistent daily timer using the same systemd detached-job
-# infrastructure as James task execution. Safe to rerun: the stable unit name
-# is replaced rather than duplicated.
-#
-# IMPORTANT: the schedule is explicitly anchored to Asia/Bangkok so the
-# intended 07:00 Thailand review time is independent of the VPS timezone.
-systemctl stop mission-control-inbox-review.timer 2>/dev/null || true
-systemctl reset-failed mission-control-inbox-review.timer 2>/dev/null || true
-systemd-run --unit=mission-control-inbox-review --on-calendar='*-*-* 07:00:00 Asia/Bangkok' --timer-property=Persistent=true \
-  /opt/apps/ai-mission-control/scripts/trigger-inbox-review.sh
+
+SERVICE_NAME="mission-control-inbox-review.service"
+TIMER_NAME="mission-control-inbox-review.timer"
+SERVICE_UNIT="/etc/systemd/system/${SERVICE_NAME}"
+TIMER_UNIT="/etc/systemd/system/${TIMER_NAME}"
+APP_ROOT="/opt/apps/ai-mission-control"
+
+# Migrate safely from the earlier transient systemd-run implementation.
+# Both halves must be stopped before replacing them; otherwise systemd can keep
+# the transient .service loaded and reject a subsequent install as a duplicate.
+systemctl stop "$TIMER_NAME" 2>/dev/null || true
+systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+systemctl disable "$TIMER_NAME" 2>/dev/null || true
+systemctl reset-failed "$TIMER_NAME" "$SERVICE_NAME" 2>/dev/null || true
+
+# Remove only the known transient fragments created by our former installer.
+rm -f \
+  "/run/systemd/transient/${TIMER_NAME}" \
+  "/run/systemd/transient/${SERVICE_NAME}"
+
+cat >"$SERVICE_UNIT" <<EOF
+[Unit]
+Description=Mission Control daily Inbox review
+After=network-online.target ai-mission-control-api.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=${APP_ROOT}
+ExecStart=${APP_ROOT}/scripts/trigger-inbox-review.sh
+EOF
+
+cat >"$TIMER_UNIT" <<'EOF'
+[Unit]
+Description=Mission Control daily Inbox review timer
+
+[Timer]
+OnCalendar=*-*-* 07:00:00 Asia/Bangkok
+Persistent=true
+Unit=mission-control-inbox-review.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now "$TIMER_NAME"
+
+systemctl is-enabled --quiet "$TIMER_NAME"
+systemctl is-active --quiet "$TIMER_NAME"
+
+echo "Installed ${TIMER_NAME} at 07:00 Asia/Bangkok (persistent, idempotent)."
