@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db, memoriesTable, memoryMetadataTable, memoryRevisionsTable } from "@workspace/db";
 
 const DEFAULT_REPO_ROOT = "/opt/apps/ai-mission-control";
+const DEFAULT_OBSIDIAN_VAULT = "/opt/mission-control-vault";
 const MAX_FILE_BYTES = 512_000;
 let lastSyncAt = 0;
 let running: Promise<MemorySyncResult> | null = null;
@@ -22,13 +23,13 @@ export async function syncMemorySources(options: { force?: boolean } = {}): Prom
 }
 
 async function performSync(): Promise<MemorySyncResult> {
-  const repoRoot = process.env.MISSION_CONTROL_REPO_ROOT || DEFAULT_REPO_ROOT;
+  const repoRoot = process.env.MISSION_CONTROL_REPO_ROOT?.trim() || DEFAULT_REPO_ROOT;
+  const obsidianVault = process.env.MISSION_CONTROL_OBSIDIAN_VAULT?.trim() || DEFAULT_OBSIDIAN_VAULT;
   const roots: Array<{ root: string; prefix: string; category: "knowledge" | "processes" }> = [
     { root: path.join(repoRoot, "docs"), prefix: "repo-docs", category: "knowledge" },
     { root: path.join(repoRoot, "agent-os"), prefix: "agent-os", category: "processes" },
+    { root: path.resolve(obsidianVault), prefix: "obsidian", category: "knowledge" },
   ];
-  const obsidian = process.env.MISSION_CONTROL_OBSIDIAN_VAULT?.trim();
-  if (obsidian) roots.push({ root: path.resolve(obsidian), prefix: "obsidian", category: "knowledge" });
 
   const files: SourceFile[] = [];
   for (const root of roots) {
