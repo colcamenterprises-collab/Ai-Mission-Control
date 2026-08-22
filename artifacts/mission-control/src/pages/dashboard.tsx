@@ -9,6 +9,7 @@ import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { JamesAvatar } from "@/components/james-avatar";
+import { HomeMissionBrain } from "@/components/home-mission-brain";
 import "./workspaces.css";
 import "./dashboard-operations.css";
 
@@ -147,6 +148,9 @@ export default function Dashboard() {
           <Link href="/tasks?create=note">+ Note</Link>
           <Link href="/tasks?create=task">+ Task</Link>
         </section>
+
+        <HomeMissionBrain memories={memories as unknown[]} />
+
         <section className="mission-metric-grid">
           <MetricCard
             title="Work open"
