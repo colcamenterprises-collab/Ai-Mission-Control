@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
-  BriefcaseBusiness,
+  Brain,
   ChevronLeft,
   ClipboardList,
   Gauge,
-  History,
   Command as CommandIcon,
   Search,
   Settings2,
@@ -38,8 +37,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/notes", label: "Notes", icon: StickyNote },
     { href: "/tasks", label: "Tasks", icon: ClipboardList },
     { href: "/team", label: "AI Team", icon: UsersRound },
-    { href: "/business", label: "Business", icon: BriefcaseBusiness },
-    { href: "/executions", label: "Executions", icon: History },
+    { href: "/brain", label: "Mission Brain", icon: Brain },
     { href: "/settings", label: "Settings", icon: Settings2 },
   ];
 
@@ -122,14 +120,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {[
                 ["Ask James", "/tasks"],
                 ["Add Note", "/notes?create=note"],
+                ["Add Idea", "/notes?create=idea"],
                 ["Add Task", "/tasks?create=task"],
-                ["Search Mission Control", "/executions"],
-                ["Search Memory", "/memory"],
-                ["Open Business", "/business"],
+                ["Search Mission Control", "/brain/executions"],
+                ["Search Memory", "/brain"],
+                ["Open Mission Brain", "/brain"],
                 ["Open Project or Repository", "/workspaces"],
                 ["Task approvals & review", "/tasks"],
                 ["Open Agent", "/agent-operations"],
-                ["View Running or Failed Work", "/executions"],
+                ["View Running or Failed Work", "/brain/executions"],
                 ["Skills and Playbooks", "/skills"],
                 ["Signals", "/signals"],
               ].map(([label, href]) => (

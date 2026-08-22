@@ -17,7 +17,7 @@ import Skills from "@/pages/skills";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
 import Secrets from "@/pages/secrets";
-import BusinessHub from "@/pages/business-hub";
+import MissionBrain from "@/pages/mission-brain";
 import Contacts from "@/pages/contacts";
 import Onboarding from "@/pages/onboarding";
 import NotFound from "@/pages/not-found";
@@ -25,6 +25,7 @@ import Executions from "@/pages/executions";
 import Signals from "@/pages/signals";
 import ClientPulse from "@/pages/client-pulse";
 import AgentOperations from "@/pages/agent-operations";
+import "@/pages/notes-knowledge.css";
 import "./visual-first.css";
 import "./minimal-dark.css";
 
@@ -47,6 +48,14 @@ function RedirectToTasks() {
   return null;
 }
 
+function RedirectToBrain() {
+  if (typeof window !== "undefined") {
+    const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+    window.location.replace(`${base}/brain`);
+  }
+  return null;
+}
+
 function Router() {
   return (
     <Layout>
@@ -61,8 +70,12 @@ function Router() {
         <Route path="/workspaces" component={Workspaces} />
         <Route path="/reports" component={Reports} />
         <Route path="/approvals" component={RedirectToTasks} />
+        <Route path="/brain/executions/:id" component={Executions} />
+        <Route path="/brain/executions" component={Executions} />
+        <Route path="/brain" component={MissionBrain} />
         <Route path="/executions/:id" component={Executions} />
         <Route path="/executions" component={Executions} />
+        <Route path="/business" component={RedirectToBrain} />
         <Route path="/signals" component={Signals} />
         <Route path="/client-pulse" component={ClientPulse} />
         <Route path="/agent-operations" component={AgentOperations} />
@@ -70,7 +83,6 @@ function Router() {
         <Route path="/team" component={Team} />
         <Route path="/agent-creation" component={Team} />
         <Route path="/skills" component={Skills} />
-        <Route path="/business" component={BusinessHub} />
         <Route path="/contacts" component={Contacts} />
         <Route path="/secrets" component={Secrets} />
         <Route path="/onboarding" component={Onboarding} />
