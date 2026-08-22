@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import dashboardRouter from "./dashboard";
 import tasksRouter from "./tasks";
+import canonicalTaskControlRouter from "./canonical-task-control";
 import taskListCompatRouter from "./task-list-compat";
 import taskAttachmentsRouter from "./task-attachments";
 import contentRouter from "./content";
@@ -45,6 +46,9 @@ router.use(operationsRouter);
 router.use(inboxRouter);
 router.use(taskAttachmentsRouter);
 router.use(taskListCompatRouter);
+// Canonical control owns actionable task creation, continuation and approval.
+// It must remain before the legacy task router so real work cannot bypass work_requests.
+router.use(canonicalTaskControlRouter);
 router.use(tasksRouter);
 router.use(contentRouter);
 router.use(eventsRouter);
