@@ -25,6 +25,7 @@ import Executions from "@/pages/executions";
 import Signals from "@/pages/signals";
 import ClientPulse from "@/pages/client-pulse";
 import AgentOperations from "@/pages/agent-operations";
+import "@/pages/notes-knowledge.css";
 import "./visual-first.css";
 import "./minimal-dark.css";
 
