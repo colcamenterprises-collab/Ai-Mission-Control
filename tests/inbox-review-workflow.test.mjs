@@ -14,7 +14,8 @@ test("Inbox promotion and direct creation converge on canonical orchestrator int
   assert.match(schema, /CREATE TABLE IF NOT EXISTS inbox_items/);
   assert.match(schema, /linked_task_id integer UNIQUE/);
   assert.match(inboxRoute, /intakeActionableTask\([^;]+\{ inboxItemId: id \}/);
-  assert.match(directRoute, /intakeActionableTask\(req\.body\)/);
+  assert.match(directRoute, /router\.post\("\/tasks"[\s\S]*handleIntake\(req, res, true\)/);
+  assert.match(directRoute, /intakeActionableTask\(body\)/);
   assert.doesNotMatch(inboxRoute, /insert\(tasksTable\)|chooseAgent|agentCommandsTable/);
   assert.match(intake, /\.for\("update"\)/);
   assert.match(intake, /if \(stored\.linkedTaskId\)/);
