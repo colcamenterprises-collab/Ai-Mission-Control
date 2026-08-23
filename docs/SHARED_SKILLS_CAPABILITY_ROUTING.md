@@ -82,7 +82,14 @@ This is fail-closed: Mission Control does not guess a worker when capabilities a
 
 Skills are ranked against the requested action and required capabilities using their name, title, description, category and path. Vault skills are excluded unless approved.
 
-The selected skills are stored in the work request `requirements.selectedSkills` payload so the routing decision remains auditable alongside the execution.
+Selected skills are stored in two places for different purposes:
+
+- `requirements.selectedSkills` keeps the routing snapshot alongside the work request.
+- `execution_instructions` is the canonical instruction-use record containing the stable skill ID, type, version, provenance and selection reason.
+
+The work request and its selected instructions are created in one database transaction. If instruction persistence fails, the work request creation fails with it rather than leaving an execution without its routed-skill provenance.
+
+`GET /executions/:id` is read-only and returns the canonical instruction rows with the execution detail. It never inserts or mutates instructions.
 
 ## Production configuration
 
@@ -104,7 +111,4 @@ Multiple shared roots can be comma-separated if a future deployment separates bu
 - Deprecated or unapproved vault skills cannot be auto-selected.
 - The Skills status mutation sits behind the existing API admin authentication.
 - No community skill source becomes trusted merely because it is discoverable.
-
-## Follow-up
-
-The existing `execution_instructions` persistence path should be tightened so routed skills are recorded in that dedicated table at execution creation time rather than only inside the work-request requirements JSON. The requirements snapshot is the current auditable record for this patch.
+- Instruction provenance is persisted at execution creation, not reconstructed later from mutable skill state.
