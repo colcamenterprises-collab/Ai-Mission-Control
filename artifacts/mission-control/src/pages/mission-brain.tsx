@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Brain, History, UsersRound } from "lucide-react";
+import { BookOpen, Brain, History, UsersRound } from "lucide-react";
 import BusinessHub from "./business-hub";
 import "./mission-brain.css";
 
@@ -14,6 +14,7 @@ export default function MissionBrain() {
         </div>
         <nav className="mission-brain-nav" aria-label="Mission Brain sections">
           <Link href="/brain" className="is-active"><Brain /> Brain</Link>
+          <Link href="/skills"><BookOpen /> Skills</Link>
           <Link href="/brain/executions"><History /> Executions</Link>
           <Link href="/team"><UsersRound /> Agents</Link>
         </nav>
