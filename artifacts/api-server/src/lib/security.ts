@@ -38,7 +38,17 @@ export function decryptSecret(value: string | null | undefined): string | null {
     // TODO: plaintext legacy secret present; re-save to migrate encrypted at rest.
     return value;
   }
-  const [, ivB64, tagB64, dataB64] = value.split(":");
+
+  // Envelope format is: enc:v1:<iv>:<auth-tag>:<ciphertext>.
+  // ENC_PREFIX itself contains a colon, so both prefix segments must be skipped.
+  // The previous destructuring skipped only one segment and incorrectly treated
+  // "v1" as the IV, making every encrypted credential impossible to decrypt.
+  const parts = value.split(":");
+  if (parts.length !== 5 || parts[0] !== "enc" || parts[1] !== "v1") {
+    throw new Error("Invalid encrypted secret format");
+  }
+  const [, , ivB64, tagB64, dataB64] = parts;
+
   const decipher = crypto.createDecipheriv("aes-256-gcm", getKey(), Buffer.from(ivB64, "base64"));
   decipher.setAuthTag(Buffer.from(tagB64, "base64"));
   const decrypted = Buffer.concat([decipher.update(Buffer.from(dataB64, "base64")), decipher.final()]);
