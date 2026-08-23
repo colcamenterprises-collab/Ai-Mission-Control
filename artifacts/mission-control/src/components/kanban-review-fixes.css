@@ -1,0 +1,49 @@
+/* PR #115 review reconciliation.
+ * These selectors intentionally outrank the older global consistency/enhancement
+ * layers that are still mounted while the Kanban is being modernised.
+ */
+
+.mission-route-tasks .mc-task-page .mc-task-workspace {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+  align-items: stretch !important;
+  grid-auto-rows: max-content !important;
+  padding: 0.15rem 0.25rem 1rem 0.1rem !important;
+}
+
+.mission-route-tasks .mc-task-page .mc-task-lane {
+  align-self: stretch !important;
+  height: auto !important;
+  overflow: visible !important;
+  border-radius: 1.05rem !important;
+}
+
+.mission-route-tasks .mc-task-page .mc-task-lane-scroll {
+  overflow: visible !important;
+}
+
+/* The new task-tone palette is authoritative on /tasks. Agent identity remains
+ * visible through the label/avatar rather than replacing the task-card colour. */
+.mission-route-tasks .mc-task-page .mc-task-card {
+  border: 1px solid rgba(255, 255, 255, 0.19) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.19) !important;
+  border-radius: 0.92rem !important;
+  background: var(--mc-card-bg) !important;
+  color: var(--mc-card-text) !important;
+  box-shadow: 0 13px 32px rgba(2, 4, 10, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.24) !important;
+}
+
+.mission-route-tasks .mc-task-page .mc-task-card:hover {
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  background: var(--mc-card-bg) !important;
+}
+
+/* tasks-final.css suppressed this metric wholesale. The runtime compatibility
+ * component now hides only a genuine zero; nonzero unread counts stay visible. */
+.mission-route-tasks .mc-task-page .mc-task-card-metrics span:first-child:not([hidden]) {
+  display: flex !important;
+}
+
+.mission-route-tasks .mc-task-page .mc-task-card-metrics span[hidden] {
+  display: none !important;
+}
