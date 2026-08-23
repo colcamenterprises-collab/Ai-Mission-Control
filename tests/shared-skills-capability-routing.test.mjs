@@ -13,19 +13,25 @@ test("capability routing is mounted before the existing executions lifecycle", a
   assert.ok(routing < executions, "capability routing must run before the existing lifecycle");
 });
 
-test("vault skills are fail-closed until approved", async () => {
+test("vault skills are fail-closed until approved and bad files are isolated", async () => {
   const service = await read("artifacts/api-server/src/services/shared-skills.ts");
   assert.match(service, /"needs-review"/);
   assert.match(service, /status === "approved"/);
   assert.match(service, /MISSION_CONTROL_SHARED_SKILLS_DIRS/);
+  assert.match(service, /for \(const file of files\.sort\(\)\) \{/);
+  assert.match(service, /errors\.push/);
+  assert.match(service, /status: !found \? "not_found" : errors\.length \? "error" : "available"/);
 });
 
-test("capability router uses permission eligibility and only approved vault skills", async () => {
+test("capability router uses permission eligibility and only scans when capabilities exist", async () => {
   const service = await read("artifacts/api-server/src/services/capability-router.ts");
   assert.match(service, /evaluateAgentEligibility/);
   assert.match(service, /skill\.status === "approved"/);
   assert.match(service, /requiredCapabilities/);
   assert.match(service, /isPluggedIn/);
+  const noCapabilities = service.indexOf("if (requiredCapabilities.length === 0)");
+  const sharedScan = service.indexOf("listSharedSkills()");
+  assert.ok(noCapabilities >= 0 && sharedScan > noCapabilities, "requests without capabilities must return before scanning the vault");
 });
 
 test("skills API exposes explicit governance states", async () => {
@@ -34,6 +40,26 @@ test("skills API exposes explicit governance states", async () => {
     assert.ok(route.includes(`"${status}"`), `missing governance state ${status}`);
   }
   assert.match(route, /setSharedSkillStatus/);
+});
+
+test("agent skill endpoints expose approved shared skills before the legacy bridge", async () => {
+  const routes = await read("artifacts/api-server/src/routes/index.ts");
+  const sharedAgentSkills = routes.indexOf("router.use(agentSkillsRouter)");
+  const legacyBridge = routes.indexOf("router.use(agentBridgeRouter)");
+  assert.ok(sharedAgentSkills >= 0 && legacyBridge > sharedAgentSkills, "governed agent skill router must intercept skill requests first");
+  const route = await read("artifacts/api-server/src/routes/agent-skills.ts");
+  assert.match(route, /listSharedSkills/);
+  assert.match(route, /readSharedSkill/);
+  assert.match(route, /skill\.status !== "approved"/);
+  assert.match(route, /id\.startsWith\("vault:"\)/);
+});
+
+test("vault IDs only resolve discovered regular SKILL.md files inside the real root", async () => {
+  const service = await read("artifacts/api-server/src/services/shared-skills.ts");
+  assert.match(service, /path\.basename\(lexicalFile\)\.toLowerCase\(\) !== "skill\.md"/);
+  assert.match(service, /await Promise\.all\(\[realpath\(root\), realpath\(lexicalFile\)\]\)/);
+  assert.match(service, /info\?\.isFile\(\)/);
+  assert.match(service, /discoveredReal\.has\(realFile\)/);
 });
 
 test("routed instructions are persisted transactionally when an execution is created", async () => {
