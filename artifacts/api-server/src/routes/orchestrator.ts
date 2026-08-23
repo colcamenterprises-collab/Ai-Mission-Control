@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { eq } from "drizzle-orm";
 import { agentCommandsTable, db } from "@workspace/db";
 import { serializeDates } from "../utils/serialize.js";
@@ -42,7 +42,7 @@ async function persistRoutingContext(commandId: number, routing: Awaited<ReturnT
   await db.update(agentCommandsTable).set({ context }).where(eq(agentCommandsTable.id, commandId));
 }
 
-async function handleIntake(req: Parameters<IRouter["post"]>[1] extends never ? never : any, res: any, legacyTaskEndpoint = false): Promise<void> {
+async function handleIntake(req: Request, res: Response, legacyTaskEndpoint = false): Promise<void> {
   try {
     const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
     const title = typeof body.title === "string" ? body.title.trim() : "";
@@ -58,11 +58,7 @@ async function handleIntake(req: Parameters<IRouter["post"]>[1] extends never ? 
     let routing: Awaited<ReturnType<typeof resolveCapabilities>> | null = null;
     if (!explicitRequestedAgent && capabilities.length) {
       routing = await resolveCapabilities(`${title} ${typeof body.description === "string" ? body.description : ""}`, { capabilities });
-      if (!routing.agentId || !routing.agentName) {
-        body.requestedAgent = "Unassigned";
-      } else {
-        body.requestedAgent = routing.agentName;
-      }
+      body.requestedAgent = routing.agentId && routing.agentName ? routing.agentName : "Unassigned";
     } else if (explicitRequestedAgent) {
       body.requestedAgent = explicitRequestedAgent;
     }
