@@ -661,7 +661,7 @@ function TaskDetailModal({ task, onClose, onMove }: { task: TaskMeta | null; onC
           <span className="mc-task-awaiting-owner"><AlertTriangle aria-hidden="true" /> Awaiting Cameron Parker action</span>
         ) : value.status === "review" ? (
           <span className="mc-task-awaiting-owner">Done · awaiting owner sign-off</span>
-        ) : value.status === "changes_required" || value.status === "blocked" ? (
+        ) : String(value.status) === "changes_required" || value.status === "blocked" ? (
           <span className="mc-task-awaiting-owner">Changes or blocker require resolution</span>
         ) : (
           <span className="mc-task-awaiting-owner">Active work</span>
