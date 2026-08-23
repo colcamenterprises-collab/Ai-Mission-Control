@@ -20,6 +20,34 @@ const router: IRouter = Router();
 const clean = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : null;
 
+type ExecutionInstructionInput = {
+  instructionType: "skill" | "playbook";
+  stableId: string;
+  name: string;
+  version: string | null;
+  provenance: string | null;
+  selectionReason: string;
+};
+
+function normalizeInstructions(value: unknown): ExecutionInstructionInput[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(
+      (item: unknown): item is Record<string, unknown> =>
+        Boolean(item && typeof item === "object"),
+    )
+    .map((item) => ({
+      instructionType:
+        clean(item.type) === "playbook" ? "playbook" : "skill",
+      stableId: clean(item.id) ?? "UNMAPPED",
+      name: clean(item.name) ?? "UNMAPPED",
+      version: clean(item.version),
+      provenance: clean(item.provenance),
+      selectionReason:
+        clean(item.selectionReason) ?? "Explicitly supplied by request",
+    }));
+}
+
 router.get("/executions", async (req, res): Promise<void> => {
   const state = clean(req.query.state);
   const query = clean(req.query.query);
@@ -120,32 +148,7 @@ router.get("/executions/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Execution not found" });
     return;
   }
-  const instructions: Record<string, unknown>[] = Array.isArray(
-    req.body?.instructions,
-  )
-    ? req.body.instructions.filter(
-        (item: unknown): item is Record<string, unknown> =>
-          Boolean(item && typeof item === "object"),
-      )
-    : [];
-  if (instructions.length)
-    await db
-      .insert(executionInstructionsTable)
-      .values(
-        instructions.map((item: Record<string, unknown>) => ({
-          requestId: request.id,
-          instructionType:
-            clean(item.type) === "playbook" ? "playbook" : "skill",
-          stableId: clean(item.id) ?? "UNMAPPED",
-          name: clean(item.name) ?? "UNMAPPED",
-          version: clean(item.version),
-          provenance: clean(item.provenance),
-          selectionReason:
-            clean(item.selectionReason) ?? "Explicitly supplied by request",
-        })),
-      )
-      .onConflictDoNothing();
-  const [transitions, approvals, audit] = await Promise.all([
+  const [transitions, approvals, audit, instructions] = await Promise.all([
     db
       .select()
       .from(workRequestTransitionsTable)
@@ -157,8 +160,19 @@ router.get("/executions/:id", async (req, res): Promise<void> => {
       .from(auditEventsTable)
       .where(eq(auditEventsTable.requestId, id))
       .orderBy(auditEventsTable.createdAt),
+    db
+      .select()
+      .from(executionInstructionsTable)
+      .where(eq(executionInstructionsTable.requestId, id))
+      .orderBy(executionInstructionsTable.createdAt),
   ]);
-  res.json({ request, transitions, approval: approvals[0] ?? null, audit });
+  res.json({
+    request,
+    transitions,
+    approval: approvals[0] ?? null,
+    audit,
+    instructions,
+  });
 });
 
 router.post("/executions", async (req, res): Promise<void> => {
@@ -188,28 +202,41 @@ router.post("/executions", async (req, res): Promise<void> => {
   const eligibility = agentId
     ? await evaluateAgentEligibility(agentId, req.body?.requirements)
     : null;
-  const [request] = await db
-    .insert(workRequestsTable)
-    .values({
-      executionKey,
-      taskId: Number.isInteger(req.body?.taskId) ? req.body.taskId : null,
-      agentId,
-      requestedAction,
-      riskLevel,
-      approvalDecision: decision,
-      state: "draft",
-      business: clean(req.body?.business),
-      project: clean(req.body?.project),
-      repository: clean(req.body?.repository),
-      environment: clean(req.body?.environment),
-      routingReason: clean(req.body?.routingReason),
-      requirements: redactSensitive(req.body?.requirements ?? {}) as Record<
-        string,
-        unknown
-      >,
-    })
-    .onConflictDoNothing({ target: workRequestsTable.executionKey })
-    .returning();
+  const instructions = normalizeInstructions(req.body?.instructions);
+  const request = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(workRequestsTable)
+      .values({
+        executionKey,
+        taskId: Number.isInteger(req.body?.taskId) ? req.body.taskId : null,
+        agentId,
+        requestedAction,
+        riskLevel,
+        approvalDecision: decision,
+        state: "draft",
+        business: clean(req.body?.business),
+        project: clean(req.body?.project),
+        repository: clean(req.body?.repository),
+        environment: clean(req.body?.environment),
+        routingReason: clean(req.body?.routingReason),
+        requirements: redactSensitive(req.body?.requirements ?? {}) as Record<
+          string,
+          unknown
+        >,
+      })
+      .onConflictDoNothing({ target: workRequestsTable.executionKey })
+      .returning();
+    if (!created) return null;
+    if (instructions.length) {
+      await tx.insert(executionInstructionsTable).values(
+        instructions.map((instruction) => ({
+          requestId: created.id,
+          ...instruction,
+        })),
+      );
+    }
+    return created;
+  });
   if (!request) {
     const [existing] = await db
       .select()
