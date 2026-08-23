@@ -41,18 +41,35 @@ try {
   for (const task of candidates) {
     await sql.begin(async (tx) => {
       const [locked] = await tx`
-        select id, project, attachments, report
+        select *
         from tasks
         where id = ${task.id} and status = 'done' and archived_at is null
         for update
       `;
       if (!locked) return;
 
+      const messages = await tx`
+        select * from task_messages where task_id = ${task.id} order by created_at asc
+      `;
       const archivedAt = new Date();
+      const archive = {
+        task: { ...locked, archived_at: archivedAt },
+        messages,
+        attachments: locked.attachments ?? [],
+        report: locked.report ?? null,
+        archivedAt: archivedAt.toISOString(),
+      };
+
       await tx`update tasks set archived_at = ${archivedAt} where id = ${task.id}`;
       await tx`
         insert into task_messages (task_id, author, body, created_at)
         values (${task.id}, 'Mission Control', ${`Historical reconciliation — task archived after recorded owner sign-off at ${archivedAt.toISOString()}.`}, ${archivedAt})
+      `;
+      await tx`
+        insert into project_task_archives (task_id, project, archive)
+        values (${task.id}, ${locked.project}, ${tx.json(archive)})
+        on conflict (task_id) do update
+        set project = excluded.project, archive = excluded.archive
       `;
 
       console.log(`ARCHIVED #${task.id}: ${task.title}`);
