@@ -35,3 +35,23 @@ test("skills API exposes explicit governance states", async () => {
   }
   assert.match(route, /setSharedSkillStatus/);
 });
+
+test("routed instructions are persisted transactionally when an execution is created", async () => {
+  const route = await read("artifacts/api-server/src/routes/executions.ts");
+  assert.match(route, /normalizeInstructions\(req\.body\?\.instructions\)/);
+  assert.match(route, /db\.transaction\(async \(tx\)/);
+  assert.match(route, /tx\.insert\(executionInstructionsTable\)/);
+  assert.match(route, /requestId: created\.id/);
+});
+
+test("execution detail reads canonical instructions and does not mutate them on GET", async () => {
+  const route = await read("artifacts/api-server/src/routes/executions.ts");
+  const detailStart = route.indexOf('router.get("/executions/:id"');
+  const createStart = route.indexOf('router.post("/executions"');
+  assert.ok(detailStart >= 0 && createStart > detailStart, "execution detail route must precede create route");
+  const detail = route.slice(detailStart, createStart);
+  assert.match(detail, /from\(executionInstructionsTable\)/);
+  assert.match(detail, /instructions,/);
+  assert.doesNotMatch(detail, /insert\(executionInstructionsTable\)/);
+  assert.doesNotMatch(detail, /req\.body\?\.instructions/);
+});
