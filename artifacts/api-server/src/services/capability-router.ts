@@ -31,12 +31,22 @@ function overlapScore(haystack: string, needles: string[]): number {
 export async function resolveCapabilities(requestedAction: string, rawRequirements: unknown): Promise<CapabilityRoutingResult> {
   const requirements = normalizeRequirements(rawRequirements);
   const requiredCapabilities = requirements.capabilities ?? [];
-  const searchTerms = [...terms(requestedAction), ...requiredCapabilities.flatMap(terms)];
 
-  const [native, shared] = await Promise.all([
-    listSkills({}),
-    listSharedSkills(),
-  ]);
+  // Preserve the ordinary blocked lifecycle for requests that do not provide
+  // routing requirements. No skill scan is necessary and a vault problem must
+  // never prevent the execution record from being created.
+  if (requiredCapabilities.length === 0) {
+    return {
+      agentId: null,
+      agentName: null,
+      routingReason: "UNASSIGNED: capability routing requires requirements.capabilities",
+      skills: [],
+    };
+  }
+
+  const searchTerms = [...terms(requestedAction), ...requiredCapabilities.flatMap(terms)];
+  const native = await listSkills({});
+  const shared = await listSharedSkills();
   const candidateSkills = [...native.skills, ...shared.skills]
     .filter((skill) => skill.source.enabled !== false)
     .filter((skill) => skill.source.sourceRepo !== "obsidian-vault" || skill.status === "approved")
@@ -54,15 +64,6 @@ export async function resolveCapabilities(requestedAction: string, rawRequiremen
       provenance: skill.source.sourceRepo ?? skill.source.sourceLabel ?? "local",
       selectionReason: `Matched ${score} capability/action term${score === 1 ? "" : "s"}`,
     }));
-
-  if (requiredCapabilities.length === 0) {
-    return {
-      agentId: null,
-      agentName: null,
-      routingReason: "UNASSIGNED: capability routing requires requirements.capabilities",
-      skills: candidateSkills,
-    };
-  }
 
   const now = new Date();
   const [agents, grants] = await Promise.all([
