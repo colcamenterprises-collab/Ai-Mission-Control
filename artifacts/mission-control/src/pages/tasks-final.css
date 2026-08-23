@@ -1,250 +1,372 @@
-/* Final Mission Control Kanban visual layer.
- * Reference direction: sophisticated dark glass board with restrained coloured cards.
- * This file intentionally overrides the legacy task styles without affecting other pages.
+/* Mission Control Kanban — unified board visual and interaction layer.
+ * Behavioural reference: mature Trello-style boards.
+ * One board owns scrolling; columns are lanes inside that board, not independent scroll panes.
  */
 
 .mc-task-page {
-  --mc-task-bg: #0f1118;
-  --mc-task-panel: rgba(25, 28, 39, 0.78);
-  --mc-task-line: rgba(255, 255, 255, 0.08);
-  --mc-task-control: rgba(255, 255, 255, 0.08);
+  --mc-task-bg: #0b0d14;
+  --mc-task-panel: rgba(22, 24, 34, 0.86);
+  --mc-task-line: rgba(255, 255, 255, 0.085);
+  --mc-task-control: rgba(255, 255, 255, 0.075);
   --mc-task-control-hover: rgba(255, 255, 255, 0.13);
   --mc-task-text: #f7f7fb;
-  --mc-task-muted: #a9adba;
-  --mc-task-subtle: #858a99;
-  --mc-task-accent: #6f5cff;
-  --mc-task-accent-hover: #8070ff;
-  grid-template-rows: 3.35rem minmax(0, 1fr);
-  gap: 0.85rem;
-  padding: 1rem;
+  --mc-task-muted: #a8adba;
+  --mc-task-subtle: #7f8595;
+  --mc-task-accent: #735cff;
+  --mc-task-accent-hover: #826fff;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1rem 1.1rem 1.1rem;
+  overflow: hidden;
   background:
-    radial-gradient(circle at 18% -15%, rgba(114, 74, 255, 0.18), transparent 34%),
-    radial-gradient(circle at 88% 0%, rgba(39, 138, 255, 0.12), transparent 30%),
-    linear-gradient(145deg, #0d0f16 0%, #11131c 48%, #0b0d13 100%);
+    radial-gradient(circle at 7% -8%, rgba(117, 72, 255, 0.26), transparent 30%),
+    radial-gradient(circle at 92% 2%, rgba(30, 143, 255, 0.18), transparent 28%),
+    radial-gradient(circle at 55% 110%, rgba(209, 83, 151, 0.08), transparent 34%),
+    linear-gradient(145deg, #090b12 0%, #11141e 48%, #090b11 100%);
 }
 
 .mc-task-header {
-  align-items: flex-end;
-  padding: 0 0.25rem;
+  min-height: 3.7rem;
+  align-items: center;
+  padding: 0.1rem 0.25rem;
 }
 
 .mc-task-header-kicker {
   display: block;
-  margin-bottom: 0.18rem;
-  color: #8d91a0;
-  font-size: 0.56rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  margin-bottom: 0.22rem;
+  color: #8f95a6;
+  font-size: 0.58rem;
+  font-weight: 760;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
 .mc-task-header h1 {
-  font-size: 1.35rem;
-  font-weight: 760;
-  letter-spacing: -0.04em;
+  font-size: 1.8rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+.mc-task-header-actions {
+  gap: 0.55rem;
 }
 
 .mc-task-primary-button,
 .mc-task-secondary-button,
 .mc-task-approval-button {
-  min-height: 2.25rem;
-  padding: 0.5rem 0.78rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 0.7rem;
-  backdrop-filter: blur(14px);
+  width: 7.4rem;
+  min-width: 7.4rem;
+  height: 2.65rem;
+  min-height: 2.65rem;
+  padding: 0 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.78rem;
+  font-size: 0.75rem;
+  font-weight: 720;
+  backdrop-filter: blur(16px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .mc-task-primary-button {
-  background: linear-gradient(135deg, #7160ff, #5b4de8);
-  box-shadow: 0 8px 24px rgba(78, 59, 212, 0.24);
+  background: linear-gradient(135deg, #7c64ff, #5c49ee);
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(91, 69, 225, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
-.mc-task-secondary-button { background: rgba(255, 255, 255, 0.065); }
-.mc-task-approval-button { background: rgba(238, 181, 72, 0.12); color: #f3cc7b; }
+.mc-task-secondary-button {
+  background: rgba(255, 255, 255, 0.065);
+  color: #e6e7ed;
+}
 
+.mc-task-approval-button {
+  width: auto;
+  min-width: 8.5rem;
+  background: rgba(238, 181, 72, 0.13);
+  color: #f3ce80;
+}
+
+/* The Kanban is one board. It owns both scroll axes. */
 .mc-task-workspace {
-  grid-template-columns: repeat(4, minmax(18.5rem, 1fr));
-  gap: 0.8rem;
-  padding-bottom: 0.2rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(18.5rem, 21rem));
+  grid-auto-rows: max-content;
+  align-items: stretch;
+  gap: 0.9rem;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0.15rem 0.25rem 1rem 0.1rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
 }
 
+.mc-task-workspace::-webkit-scrollbar { width: 8px; height: 8px; }
+.mc-task-workspace::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Every lane stretches to the tallest lane in the board row. */
 .mc-task-lane {
-  grid-template-rows: 2.65rem minmax(0, 1fr);
-  padding: 0.7rem;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  height: auto;
+  min-height: 100%;
+  padding: 0.72rem;
+  overflow: visible;
+  border: 1px solid rgba(255, 255, 255, 0.075);
   border-radius: 1.05rem;
-  background: rgba(24, 27, 37, 0.7);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025), 0 18px 50px rgba(0, 0, 0, 0.14);
-  backdrop-filter: blur(16px);
+  background: rgba(21, 23, 32, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025), 0 20px 55px rgba(0, 0, 0, 0.17);
+  backdrop-filter: blur(18px);
 }
 
-.mc-task-lane-doing { background: linear-gradient(180deg, rgba(33, 35, 48, 0.84), rgba(23, 25, 34, 0.74)); }
-.mc-task-lane-changes { background: linear-gradient(180deg, rgba(47, 35, 39, 0.78), rgba(27, 25, 32, 0.74)); }
-.mc-task-lane-done { background: linear-gradient(180deg, rgba(28, 42, 42, 0.75), rgba(22, 27, 33, 0.74)); }
-.mc-inbox-lane { background: linear-gradient(180deg, rgba(38, 33, 51, 0.8), rgba(24, 25, 34, 0.74)); }
+.mc-inbox-lane { background: linear-gradient(180deg, rgba(43, 36, 61, 0.78), rgba(22, 24, 33, 0.78)); }
+.mc-task-lane-doing { background: linear-gradient(180deg, rgba(29, 35, 49, 0.84), rgba(20, 23, 32, 0.78)); }
+.mc-task-lane-changes { background: linear-gradient(180deg, rgba(53, 35, 45, 0.78), rgba(24, 22, 30, 0.78)); }
+.mc-task-lane-done { background: linear-gradient(180deg, rgba(29, 45, 44, 0.76), rgba(20, 25, 31, 0.78)); }
 
 .mc-task-lane-over {
-  border-color: rgba(128, 112, 255, 0.55);
-  background: rgba(45, 42, 63, 0.85);
-  box-shadow: inset 0 0 0 1px rgba(128, 112, 255, 0.18), 0 18px 50px rgba(0, 0, 0, 0.18);
+  border-color: rgba(129, 111, 255, 0.62);
+  background: linear-gradient(180deg, rgba(61, 52, 88, 0.9), rgba(29, 29, 42, 0.86));
+  box-shadow: inset 0 0 0 1px rgba(129, 111, 255, 0.18), 0 22px 58px rgba(0, 0, 0, 0.2);
 }
 
 .mc-task-lane-header {
+  flex: 0 0 auto;
   align-items: center;
-  padding: 0.15rem 0.2rem 0.65rem;
+  min-height: 2.8rem;
+  padding: 0.18rem 0.25rem 0.7rem;
 }
 
 .mc-task-lane-header h2 {
-  font-size: 0.74rem;
-  font-weight: 760;
-  letter-spacing: 0.03em;
+  font-size: 0.76rem;
+  font-weight: 790;
+  letter-spacing: 0.045em;
   text-transform: uppercase;
 }
 
 .mc-task-lane-header small {
   margin-top: 0.12rem;
-  max-width: 13rem;
+  max-width: 14rem;
+  color: #8f95a4;
+  font-size: 0.55rem;
   line-height: 1.25;
 }
 
 .mc-task-lane-header span {
-  min-width: 1.55rem;
-  height: 1.55rem;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 0.62rem;
-  background: rgba(255, 255, 255, 0.055);
-  color: #c3c6cf;
+  min-width: 1.62rem;
+  height: 1.62rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.56rem;
+  background: rgba(255, 255, 255, 0.065);
+  color: #c8cbd5;
+  font-size: 0.62rem;
 }
 
+/* No per-column scrolling. The parent board scrolls as a single surface. */
 .mc-task-lane-scroll {
-  padding: 0.05rem 0.14rem 0.5rem 0.02rem;
+  flex: 1 0 auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 0.02rem 0.06rem 0.5rem;
+  overflow: visible;
+  scrollbar-width: none;
 }
+
+.mc-task-lane-scroll::-webkit-scrollbar { display: none; }
 
 .mc-task-card {
-  --mc-card-bg: linear-gradient(145deg, #2b3040, #252936);
-  --mc-card-text: #f5f6f8;
-  --mc-card-muted: rgba(244, 245, 248, 0.68);
-  width: 100% !important;
-  min-width: 100% !important;
-  max-width: 100% !important;
-  min-height: 7rem;
-  margin: 0 0 0.72rem;
-  padding: 0.82rem;
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  border-left: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 1rem !important;
+  --mc-card-bg: linear-gradient(145deg, #78dce6 0%, #5fc7d5 100%);
+  --mc-card-text: #10252b;
+  --mc-card-muted: rgba(16, 37, 43, 0.69);
+  --mc-card-subtle: rgba(16, 37, 43, 0.58);
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  min-height: 7.25rem;
+  margin: 0 0 0.78rem;
+  padding: 0.88rem 0.9rem 0.8rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.19);
+  border-left: 1px solid rgba(255, 255, 255, 0.19);
+  border-radius: 0.92rem;
   background: var(--mc-card-bg);
   color: var(--mc-card-text);
-  box-shadow: 0 12px 28px rgba(3, 5, 12, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  box-shadow: 0 13px 32px rgba(2, 4, 10, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  cursor: grab;
+  touch-action: manipulation;
   transform-origin: center center;
-  transition: transform 150ms ease, box-shadow 150ms ease, filter 150ms ease, border-color 150ms ease;
+  transition: box-shadow 150ms ease, filter 150ms ease, border-color 150ms ease;
   will-change: transform;
 }
 
-.mc-task-card-tone-0 { --mc-card-bg: linear-gradient(145deg, #342f68, #282750); }
-.mc-task-card-tone-1 { --mc-card-bg: linear-gradient(145deg, #18576b, #204450); }
-.mc-task-card-tone-2 { --mc-card-bg: linear-gradient(145deg, #75502e, #563d2b); }
-.mc-task-card-tone-3 { --mc-card-bg: linear-gradient(145deg, #5a3768, #422d4e); }
-
-.mc-task-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.2);
-  background: var(--mc-card-bg);
-  box-shadow: 0 16px 34px rgba(3, 5, 12, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  filter: brightness(1.05);
+/* A visibly coloured, sophisticated matte palette inspired by the supplied board reference. */
+.mc-task-card-tone-0 {
+  --mc-card-bg: linear-gradient(145deg, #7edee7 0%, #62c9d8 100%);
+  --mc-card-text: #10262d;
+  --mc-card-muted: rgba(16, 38, 45, 0.69);
+  --mc-card-subtle: rgba(16, 38, 45, 0.58);
 }
 
-/* Dragging must preserve the exact card geometry. No pill/circle morphing. */
+.mc-task-card-tone-1 {
+  --mc-card-bg: linear-gradient(145deg, #f2c46d 0%, #dea753 100%);
+  --mc-card-text: #33230d;
+  --mc-card-muted: rgba(51, 35, 13, 0.67);
+  --mc-card-subtle: rgba(51, 35, 13, 0.56);
+}
+
+.mc-task-card-tone-2 {
+  --mc-card-bg: linear-gradient(145deg, #ae95f4 0%, #8d73db 100%);
+  --mc-card-text: #21173d;
+  --mc-card-muted: rgba(33, 23, 61, 0.67);
+  --mc-card-subtle: rgba(33, 23, 61, 0.56);
+}
+
+.mc-task-card-tone-3 {
+  --mc-card-bg: linear-gradient(145deg, #da7aaa 0%, #bc5f92 100%);
+  --mc-card-text: #321328;
+  --mc-card-muted: rgba(50, 19, 40, 0.67);
+  --mc-card-subtle: rgba(50, 19, 40, 0.56);
+}
+
+.mc-task-card:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: var(--mc-card-bg);
+  box-shadow: 0 18px 38px rgba(1, 3, 9, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  filter: saturate(1.04) brightness(1.035);
+}
+
+/* Dragging preserves source geometry: never force a new width, height, radius or padding. */
 .mc-task-card-dragging,
 .mc-task-card-dragging:hover,
 .mc-task-card[aria-pressed="true"] {
-  width: 100% !important;
-  min-width: 100% !important;
-  max-width: 100% !important;
-  min-height: 7rem !important;
-  border-radius: 1rem !important;
-  padding: 0.82rem !important;
-  opacity: 0.92;
-  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.12);
-  filter: brightness(1.08);
+  z-index: 50;
+  box-sizing: border-box;
+  border-radius: 0.92rem;
+  opacity: 0.94;
+  box-shadow: 0 26px 58px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(255, 255, 255, 0.22);
+  filter: saturate(1.08) brightness(1.045);
 }
 
 .mc-task-card-approval {
-  border-color: rgba(241, 193, 86, 0.42);
-  box-shadow: 0 12px 28px rgba(3, 5, 12, 0.18), inset 0 0 0 1px rgba(241, 193, 86, 0.08);
+  outline: 2px solid rgba(255, 231, 160, 0.72);
+  outline-offset: -2px;
 }
 
 .mc-task-card-alert {
-  color: #f3d48e;
+  color: var(--mc-card-text);
   font-size: 0.57rem;
-  letter-spacing: 0.02em;
+  font-weight: 800;
+  letter-spacing: 0.025em;
 }
 
 .mc-task-card h3 {
+  margin: 0;
   color: var(--mc-card-text);
-  font-size: 0.79rem;
-  font-weight: 760;
-  line-height: 1.3;
-  letter-spacing: -0.018em;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.28;
+  letter-spacing: -0.02em;
 }
 
 .mc-task-card > p {
   display: -webkit-box;
-  margin: 0.36rem 0 0.65rem;
+  margin: 0.38rem 0 0.7rem;
   overflow: hidden;
   color: var(--mc-card-muted);
-  font-size: 0.62rem;
+  font-size: 0.64rem;
   line-height: 1.45;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }
 
 .mc-task-card-due,
-.mc-task-card-metrics span { color: rgba(245, 246, 248, 0.56); }
+.mc-task-card-metrics span {
+  color: var(--mc-card-subtle);
+  font-weight: 650;
+}
+
+.mc-task-card footer {
+  margin-top: auto;
+}
+
+/* The old message bubble displayed a zero and did not provide a distinct action. Hide it.
+ * Task conversation remains available by opening the card itself. Attachments remain visible. */
+.mc-task-card-metrics span:first-child {
+  display: none;
+}
 
 .mc-task-card .mission-agent-avatar,
 .mc-task-card-avatar {
-  width: 1.68rem !important;
-  height: 1.68rem !important;
-  border: 2px solid rgba(255, 255, 255, 0.55);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.22);
+  width: 1.72rem !important;
+  height: 1.72rem !important;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.22);
 }
 
 .mc-inbox-actions {
-  margin-top: 0.25rem;
+  margin-top: 0.3rem;
   gap: 0.36rem;
 }
 
 .mc-inbox-actions button {
-  padding: 0.34rem 0.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.52rem;
-  background: rgba(0, 0, 0, 0.15);
-  color: rgba(255, 255, 255, 0.82);
+  padding: 0.36rem 0.52rem;
+  border: 1px solid rgba(0, 0, 0, 0.13);
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.22);
+  color: var(--mc-card-text);
+  font-size: 0.56rem;
+  font-weight: 720;
 }
 
 .mc-task-empty {
-  min-height: 6rem;
-  border: 1px dashed rgba(255, 255, 255, 0.08);
-  border-radius: 0.9rem;
-  background: rgba(255, 255, 255, 0.02);
+  min-height: 6.3rem;
+  border: 1px dashed rgba(255, 255, 255, 0.11);
+  border-radius: 0.88rem;
+  background: rgba(255, 255, 255, 0.025);
+  color: #747a89;
 }
 
-.mc-task-card-skeleton {
-  border-radius: 1rem;
+.mc-task-card-skeleton { border-radius: 0.92rem; }
+
+@media (min-width: 1450px) {
+  .mc-task-workspace {
+    grid-template-columns: repeat(4, minmax(19rem, 1fr));
+  }
 }
 
 @media (max-width: 1100px) {
-  .mc-task-workspace { grid-template-columns: repeat(4, minmax(17rem, 20rem)); }
+  .mc-task-page { padding: 0.85rem; }
+  .mc-task-workspace { grid-template-columns: repeat(4, minmax(18rem, 19.5rem)); }
 }
 
 @media (max-width: 720px) {
-  .mc-task-page { padding: 0.7rem; }
-  .mc-task-header { align-items: center; }
-  .mc-task-header-actions { gap: 0.3rem; }
-  .mc-task-primary-button, .mc-task-secondary-button, .mc-task-approval-button { padding-inline: 0.58rem; }
-  .mc-task-workspace { grid-template-columns: repeat(4, minmax(16rem, 84vw)); gap: 0.65rem; }
-  .mc-task-lane { border-radius: 0.95rem; }
+  .mc-task-page { padding: 0.7rem; gap: 0.7rem; }
+  .mc-task-header { min-height: 3.4rem; }
+  .mc-task-header h1 { font-size: 1.5rem; }
+  .mc-task-header-actions { gap: 0.35rem; }
+  .mc-task-primary-button,
+  .mc-task-secondary-button {
+    width: 6.5rem;
+    min-width: 6.5rem;
+    height: 2.4rem;
+    min-height: 2.4rem;
+    padding-inline: 0.55rem;
+    font-size: 0.7rem;
+  }
+  .mc-task-approval-button { width: auto; min-width: 0; }
+  .mc-task-workspace {
+    grid-template-columns: repeat(4, minmax(17.2rem, 82vw));
+    gap: 0.72rem;
+    padding-bottom: 1.2rem;
+  }
+  .mc-task-lane { border-radius: 0.98rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

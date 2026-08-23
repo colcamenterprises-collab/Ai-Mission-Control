@@ -4,6 +4,8 @@ import { readFile } from "node:fs/promises";
 
 const tasksPage = await readFile(new URL("../artifacts/mission-control/src/pages/tasks.tsx", import.meta.url), "utf8");
 const operatingSurface = await readFile(new URL("../artifacts/mission-control/src/components/operating-surface-enhancements.tsx", import.meta.url), "utf8");
+const reviewFixes = await readFile(new URL("../artifacts/mission-control/src/components/kanban-review-fixes.tsx", import.meta.url), "utf8");
+const reviewCss = await readFile(new URL("../artifacts/mission-control/src/components/kanban-review-fixes.css", import.meta.url), "utf8");
 const kanbanCompat = await readFile(new URL("../artifacts/api-server/src/routes/kanban-status-compat.ts", import.meta.url), "utf8");
 const archiveScript = await readFile(new URL("../scripts/archive-signed-off-done-tasks.mjs", import.meta.url), "utf8");
 const finalCss = await readFile(new URL("../artifacts/mission-control/src/pages/tasks-final.css", import.meta.url), "utf8");
@@ -29,7 +31,6 @@ test("owner acceptance automatically archives completed work", () => {
   assert.ok(acceptIndex >= 0, "accept endpoint should be called");
   assert.ok(archiveAfterAcceptIndex > acceptIndex, "archive should follow owner acceptance");
   assert.match(tasksPage, /Accept & Archive/);
-
   const inlineAcceptIndex = operatingSurface.indexOf('action === "accept"');
   const inlineArchiveIndex = operatingSurface.indexOf("/archive", inlineAcceptIndex);
   assert.ok(inlineAcceptIndex >= 0, "inline accept action should exist");
@@ -54,17 +55,45 @@ test("archived tasks are not rendered on the active board", () => {
   assert.match(tasksPage, /filter\(\(task\) => !task\.archivedAt\)/);
 });
 
-test("dragging preserves card geometry", () => {
-  assert.match(finalCss, /No pill\/circle morphing/);
-  assert.match(finalCss, /\.mc-task-card-dragging[\s\S]*border-radius: 1rem !important/);
-  assert.match(finalCss, /min-width: 100% !important/);
-  assert.match(finalCss, /max-width: 100% !important/);
+test("Kanban is one board-level scroll surface", () => {
+  assert.match(finalCss, /The Kanban is one board/);
+  assert.match(finalCss, /\.mc-task-workspace[\s\S]*overflow: auto/);
+  assert.match(finalCss, /\.mc-task-lane-scroll[\s\S]*overflow: visible/);
+  assert.match(finalCss, /grid-auto-rows: max-content/);
+  assert.match(finalCss, /align-items: stretch/);
+  assert.match(reviewCss, /overflow-y: auto !important/);
+  assert.match(reviewCss, /\.mc-task-lane-scroll[\s\S]*overflow: visible !important/);
+  assert.match(reviewFixes, /preserveBoardVerticalWheel/);
+  assert.match(reviewFixes, /event\.stopPropagation\(\)/);
 });
 
-test("Kanban uses a coloured card visual system", () => {
-  assert.match(finalCss, /mc-task-card-tone-0/);
-  assert.match(finalCss, /mc-task-card-tone-1/);
-  assert.match(finalCss, /mc-task-card-tone-2/);
-  assert.match(finalCss, /mc-task-card-tone-3/);
+test("dragging preserves card geometry without forced drag sizing", () => {
+  assert.match(finalCss, /Dragging preserves source geometry/);
+  assert.match(finalCss, /\.mc-task-card-dragging[\s\S]*border-radius: 0\.92rem/);
+  assert.doesNotMatch(finalCss, /\.mc-task-card-dragging[\s\S]*min-width: 100% !important/);
+  assert.doesNotMatch(finalCss, /\.mc-task-card-dragging[\s\S]*max-width: 100% !important/);
+});
+
+test("Kanban uses a visibly coloured matte card system and wins mounted overrides", () => {
+  assert.match(finalCss, /#7edee7/);
+  assert.match(finalCss, /#f2c46d/);
+  assert.match(finalCss, /#ae95f4/);
+  assert.match(finalCss, /#da7aaa/);
   assert.match(finalCss, /backdrop-filter: blur/);
+  assert.match(reviewCss, /background: var\(--mc-card-bg\) !important/);
+  assert.match(reviewCss, /border-radius: 0\.92rem !important/);
+});
+
+test("header hierarchy and controls are deliberate and consistent", () => {
+  assert.match(finalCss, /\.mc-task-header h1[\s\S]*font-size: 1\.8rem/);
+  assert.match(finalCss, /\.mc-task-primary-button,[\s\S]*width: 7\.4rem/);
+  assert.match(finalCss, /height: 2\.65rem/);
+});
+
+test("zero message counts are hidden without suppressing real unread notifications", () => {
+  assert.match(reviewFixes, /count <= 0/);
+  assert.match(reviewFixes, /unread\.hidden/);
+  assert.match(reviewCss, /span:first-child:not\(\[hidden\]\)/);
+  assert.match(reviewCss, /display: flex !important/);
+  assert.match(reviewCss, /span\[hidden\]/);
 });

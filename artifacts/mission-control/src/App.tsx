@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
 import { TaskEnhancements } from "@/components/task-enhancements";
 import { OperatingSurfaceEnhancements } from "@/components/operating-surface-enhancements";
+import { KanbanReviewFixes } from "@/components/kanban-review-fixes";
 import { ThemeProvider } from "@/lib/theme";
 import Dashboard from "@/pages/dashboard";
 import Tasks from "@/pages/tasks";
@@ -101,6 +102,7 @@ function App() {
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}><Router /></WouterRouter>
           <TaskEnhancements />
           <OperatingSurfaceEnhancements />
+          <KanbanReviewFixes />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
