@@ -26,8 +26,8 @@ function authHeaders(contentType = false) {
 }
 
 function laneForStatus(status: string) {
-  if (status === "review") return "Review";
-  if (status === "done") return "Done";
+  if (status === "review" || status === "done") return "Done";
+  if (status === "changes_required" || status === "blocked") return "Changes Required";
   return "Doing";
 }
 
@@ -103,19 +103,6 @@ export function OperatingSurfaceEnhancements() {
   }, []);
 
   useEffect(() => {
-    const onCaptureRoute = (event: MouseEvent) => {
-      const anchor = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>("a");
-      const href = anchor?.getAttribute("href") ?? "";
-      if (!href.includes("/tasks?create=note")) return;
-      event.preventDefault();
-      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-      window.location.assign(`${base}/notes?create=note`);
-    };
-    document.addEventListener("click", onCaptureRoute, true);
-    return () => document.removeEventListener("click", onCaptureRoute, true);
-  }, []);
-
-  useEffect(() => {
     const performAction = async (task: TaskItem, action: "approve" | "accept" | "changes") => {
       let endpoint = `/api/tasks/${task.id}/approve`;
       let body: { note?: string } = { note: "Approved directly from the Kanban card." };
@@ -128,12 +115,38 @@ export function OperatingSurfaceEnhancements() {
         endpoint = `/api/tasks/${task.id}/request-changes`;
         body = { note };
       }
+
       const response = await fetch(endpoint, { method: "POST", headers: authHeaders(true), body: JSON.stringify(body) });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({})) as { error?: string };
         window.alert(payload.error || `Unable to ${action} Task #${task.id}.`);
         return;
       }
+
+      if (action === "accept") {
+        const archiveResponse = await fetch(`/api/tasks/${task.id}/archive`, {
+          method: "POST",
+          headers: authHeaders(true),
+          body: "{}",
+        });
+        if (!archiveResponse.ok) {
+          const payload = await archiveResponse.json().catch(() => ({})) as { error?: string };
+          window.alert(payload.error || `Task #${task.id} was accepted but could not be archived.`);
+          await refreshTasks();
+          return;
+        }
+      } else if (action === "changes") {
+        const moveResponse = await fetch(`/api/tasks/${task.id}/move`, {
+          method: "PATCH",
+          headers: authHeaders(true),
+          body: JSON.stringify({ status: "changes_required" }),
+        });
+        if (!moveResponse.ok) {
+          const payload = await moveResponse.json().catch(() => ({})) as { error?: string };
+          window.alert(payload.error || `Change request was recorded but Task #${task.id} could not be moved to Changes Required.`);
+        }
+      }
+
       await refreshTasks();
     };
 
