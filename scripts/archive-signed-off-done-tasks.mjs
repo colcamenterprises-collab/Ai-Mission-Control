@@ -2,7 +2,9 @@
 
 /**
  * One-time safe reconciliation for historical tasks that are already Done and
- * contain explicit owner acceptance evidence. Ambiguous Done tasks are left alone.
+ * contain explicit final owner acceptance evidence. Protected-action approvals
+ * are deliberately NOT treated as completion sign-off. Ambiguous Done tasks are
+ * left alone.
  *
  * Uses Mission Control's existing archive endpoint so project archive snapshots,
  * task history and attachment metadata are preserved by the canonical code path.
@@ -43,21 +45,21 @@ for (const task of tasks) {
   const details = await request(`/tasks/${task.id}/details`);
   const signedOff = (details.messages ?? []).some((message) => {
     const body = String(message.body ?? "").trim().toUpperCase();
-    return body.startsWith("OWNER ACCEPTED") || body.startsWith("APPROVED — APPROVED DIRECTLY FROM THE KANBAN CARD");
+    return body.startsWith("OWNER ACCEPTED");
   });
   if (signedOff) candidates.push(task);
 }
 
 if (!candidates.length) {
-  console.log("PASS: no explicitly signed-off Done tasks require archival");
+  console.log("PASS: no explicitly owner-accepted Done tasks require archival");
   process.exit(0);
 }
 
-console.log(`Found ${candidates.length} explicitly signed-off Done task(s).`);
+console.log(`Found ${candidates.length} explicitly owner-accepted Done task(s).`);
 
 for (const task of candidates) {
   await request(`/tasks/${task.id}/archive`, { method: "POST", body: "{}" });
   console.log(`ARCHIVED #${task.id}: ${task.title}`);
 }
 
-console.log("PASS: historical signed-off Done reconciliation complete");
+console.log("PASS: historical owner-accepted Done reconciliation complete");
