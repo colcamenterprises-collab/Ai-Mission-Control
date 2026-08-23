@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
+  BookOpen,
   Brain,
   ChevronLeft,
   ClipboardList,
@@ -38,6 +39,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/tasks", label: "Tasks", icon: ClipboardList },
     { href: "/team", label: "AI Team", icon: UsersRound },
     { href: "/brain", label: "Mission Brain", icon: Brain },
+    { href: "/skills", label: "Skills", icon: BookOpen },
     { href: "/settings", label: "Settings", icon: Settings2 },
   ];
 
