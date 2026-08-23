@@ -1,6 +1,6 @@
 import path from "node:path";
 import { existsSync } from "node:fs";
-import { readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 
 const MAX_SKILL_BYTES = 256_000;
 const ID_PREFIX = "vault:";
@@ -38,6 +38,22 @@ export type SharedSkillMetadata = {
 };
 
 export type SharedSkillDocument = SharedSkillMetadata & { content: string };
+
+type SharedSkillSource = {
+  id: string;
+  type: "local";
+  sourceUrl: null;
+  sourceRepo: "obsidian-vault";
+  repoOwner: null;
+  repoName: null;
+  branch: null;
+  commitHash: null;
+  status: "available" | "not_found" | "error";
+  lastSyncTime: null;
+  error: string | null;
+  skillCount: number;
+  sourceLabel: string;
+};
 
 function roots(): string[] {
   const configured = process.env.MISSION_CONTROL_SHARED_SKILLS_DIRS ?? process.env.MISSION_CONTROL_OBSIDIAN_SKILLS_DIR ?? "";
@@ -80,8 +96,12 @@ function titleCase(value: string): string {
 
 async function discover(dir: string, root: string, output: string[]): Promise<void> {
   let entries: import("node:fs").Dirent[];
-  try { entries = await readdir(dir, { withFileTypes: true }); }
-  catch (error: unknown) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
+  try {
+    entries = await readdir(dir, { withFileTypes: true });
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
   for (const entry of entries) {
     if (entry.name.startsWith(".")) continue;
     const full = path.join(dir, entry.name);
@@ -95,6 +115,7 @@ async function discover(dir: string, root: string, output: string[]): Promise<vo
 
 async function metadata(root: string, rootIndex: number, file: string): Promise<SharedSkillMetadata> {
   const info = await stat(file);
+  if (!info.isFile()) throw new Error(`Shared skill is not a regular file: ${file}`);
   if (info.size > MAX_SKILL_BYTES) throw new Error(`Shared skill exceeds ${MAX_SKILL_BYTES} bytes: ${file}`);
   const content = await readFile(file, "utf8");
   const fm = frontmatter(content);
@@ -135,15 +156,27 @@ async function metadata(root: string, rootIndex: number, file: string): Promise<
   };
 }
 
-export async function listSharedSkills(): Promise<{ skills: SharedSkillMetadata[]; sources: Array<Record<string, unknown>> }> {
+export async function listSharedSkills(): Promise<{ skills: SharedSkillMetadata[]; sources: SharedSkillSource[] }> {
   const configuredRoots = roots();
   const skills: SharedSkillMetadata[] = [];
-  const sources: Array<Record<string, unknown>> = [];
+  const sources: SharedSkillSource[] = [];
   for (let rootIndex = 0; rootIndex < configuredRoots.length; rootIndex += 1) {
     const root = configuredRoots[rootIndex];
     const files: string[] = [];
-    await discover(root, root, files);
-    for (const file of files.sort()) skills.push(await metadata(root, rootIndex, file));
+    const errors: string[] = [];
+    try {
+      await discover(root, root, files);
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : "Shared skill discovery failed");
+    }
+    for (const file of files.sort()) {
+      try {
+        skills.push(await metadata(root, rootIndex, file));
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : `Unable to read ${file}`);
+      }
+    }
+    const found = existsSync(root);
     sources.push({
       id: `obsidian-vault-${rootIndex + 1}`,
       type: "local",
@@ -153,9 +186,9 @@ export async function listSharedSkills(): Promise<{ skills: SharedSkillMetadata[
       repoName: null,
       branch: null,
       commitHash: null,
-      status: existsSync(root) ? "available" : "not_found",
+      status: !found ? "not_found" : errors.length ? "error" : "available",
       lastSyncTime: null,
-      error: existsSync(root) ? null : `Shared skills directory not found: ${root}`,
+      error: !found ? `Shared skills directory not found: ${root}` : errors.length ? errors.join("; ") : null,
       skillCount: skills.filter((skill) => skill.source.sourceLabel === `Obsidian Vault ${rootIndex + 1}`).length,
       sourceLabel: `Obsidian Vault ${rootIndex + 1}`,
     });
@@ -163,19 +196,44 @@ export async function listSharedSkills(): Promise<{ skills: SharedSkillMetadata[
   return { skills, sources };
 }
 
-function resolveSharedFile(id: string): { root: string; file: string; rootIndex: number } | null {
+async function resolveSharedFile(id: string): Promise<{ root: string; file: string; rootIndex: number } | null> {
   const decoded = decode(id);
   const configuredRoots = roots();
   if (!decoded || decoded.rootIndex >= configuredRoots.length) return null;
   const root = configuredRoots[decoded.rootIndex];
-  const file = path.resolve(root, decoded.relative);
-  if (file !== root && !file.startsWith(`${root}${path.sep}`)) return null;
-  return { root, file, rootIndex: decoded.rootIndex };
+  const lexicalFile = path.resolve(root, decoded.relative);
+  if (lexicalFile === root || !lexicalFile.startsWith(`${root}${path.sep}`)) return null;
+  if (path.basename(lexicalFile).toLowerCase() !== "skill.md") return null;
+
+  let realRoot: string;
+  let realFile: string;
+  try {
+    [realRoot, realFile] = await Promise.all([realpath(root), realpath(lexicalFile)]);
+  } catch {
+    return null;
+  }
+  if (realFile === realRoot || !realFile.startsWith(`${realRoot}${path.sep}`)) return null;
+  const info = await stat(realFile).catch(() => null);
+  if (!info?.isFile()) return null;
+
+  const discovered: string[] = [];
+  try {
+    await discover(root, root, discovered);
+  } catch {
+    return null;
+  }
+  const discoveredReal = new Set<string>();
+  for (const file of discovered) {
+    try { discoveredReal.add(await realpath(file)); }
+    catch { /* stale/unreadable entries are not valid mutation targets */ }
+  }
+  if (!discoveredReal.has(realFile)) return null;
+  return { root, file: realFile, rootIndex: decoded.rootIndex };
 }
 
 export async function readSharedSkill(id: string): Promise<SharedSkillDocument | null> {
-  const resolved = resolveSharedFile(id);
-  if (!resolved || !existsSync(resolved.file)) return null;
+  const resolved = await resolveSharedFile(id);
+  if (!resolved) return null;
   const item = await metadata(resolved.root, resolved.rootIndex, resolved.file);
   return { ...item, content: await readFile(resolved.file, "utf8") };
 }
@@ -196,8 +254,8 @@ function setFrontmatterStatus(content: string, status: string): string {
 
 export async function setSharedSkillStatus(id: string, status: string): Promise<SharedSkillDocument | null> {
   if (!ALLOWED_STATUSES.has(status)) throw new Error("Invalid shared skill status");
-  const resolved = resolveSharedFile(id);
-  if (!resolved || !existsSync(resolved.file)) return null;
+  const resolved = await resolveSharedFile(id);
+  if (!resolved) return null;
   const content = await readFile(resolved.file, "utf8");
   await writeFile(resolved.file, setFrontmatterStatus(content, status), "utf8");
   return readSharedSkill(id);
