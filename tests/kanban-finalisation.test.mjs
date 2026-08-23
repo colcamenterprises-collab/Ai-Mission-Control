@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const tasksPage = await readFile(new URL("../artifacts/mission-control/src/pages/tasks.tsx", import.meta.url), "utf8");
+const operatingSurface = await readFile(new URL("../artifacts/mission-control/src/components/operating-surface-enhancements.tsx", import.meta.url), "utf8");
+const kanbanCompat = await readFile(new URL("../artifacts/api-server/src/routes/kanban-status-compat.ts", import.meta.url), "utf8");
+const archiveScript = await readFile(new URL("../scripts/archive-signed-off-done-tasks.mjs", import.meta.url), "utf8");
 const finalCss = await readFile(new URL("../artifacts/mission-control/src/pages/tasks-final.css", import.meta.url), "utf8");
 
 test("Kanban exposes the owner workflow lanes", () => {
@@ -17,6 +20,7 @@ test("Changes Required is a first-class board destination", () => {
   assert.match(tasksPage, /matches: \["changes_required", "blocked"\]/);
   assert.match(tasksPage, /columnId === "changes" \? "changes_required" : "running"/);
   assert.match(tasksPage, /JSON\.stringify\(\{ status: "changes_required" \}\)/);
+  assert.match(kanbanCompat, /req\.body\?\.status !== "changes_required"/);
 });
 
 test("owner acceptance automatically archives completed work", () => {
@@ -25,6 +29,25 @@ test("owner acceptance automatically archives completed work", () => {
   assert.ok(acceptIndex >= 0, "accept endpoint should be called");
   assert.ok(archiveAfterAcceptIndex > acceptIndex, "archive should follow owner acceptance");
   assert.match(tasksPage, /Accept & Archive/);
+
+  const inlineAcceptIndex = operatingSurface.indexOf('action === "accept"');
+  const inlineArchiveIndex = operatingSurface.indexOf("/archive", inlineAcceptIndex);
+  assert.ok(inlineAcceptIndex >= 0, "inline accept action should exist");
+  assert.ok(inlineArchiveIndex > inlineAcceptIndex, "inline acceptance must archive too");
+});
+
+test("inline change requests route to Changes Required", () => {
+  const changeIndex = operatingSurface.indexOf('action === "changes"');
+  const moveIndex = operatingSurface.indexOf("/move", changeIndex);
+  assert.ok(changeIndex >= 0, "inline changes action should exist");
+  assert.ok(moveIndex > changeIndex, "inline changes must use the Changes Required move");
+  assert.match(operatingSurface, /status: "changes_required"/);
+});
+
+test("historical reconciliation requires final owner acceptance", () => {
+  assert.match(archiveScript, /body\.startsWith\("OWNER ACCEPTED"\)/);
+  assert.doesNotMatch(archiveScript, /APPROVED DIRECTLY FROM THE KANBAN CARD/);
+  assert.doesNotMatch(archiveScript, /from "postgres"/);
 });
 
 test("archived tasks are not rendered on the active board", () => {
