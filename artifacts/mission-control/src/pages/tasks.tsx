@@ -34,6 +34,7 @@ import {
 import { AgentAvatar, agentTone } from "@/components/agent-avatar";
 import { JamesAvatar } from "@/components/james-avatar";
 import "./tasks.css";
+import "./tasks-final.css";
 import "./task-timeline.css";
 
 type TaskMeta = Task & {
@@ -61,9 +62,9 @@ type TimelineItem = {
 };
 
 const COLUMNS = [
-  { id: "doing", label: "Doing", matches: ["backlog", "ready", "running", "in_progress", "blocked", "changes_required", "completion_pending"] },
-  { id: "review", label: "Review", matches: ["review"] },
-  { id: "done", label: "Done", matches: ["done"] },
+  { id: "doing", label: "Doing", matches: ["backlog", "ready", "running", "in_progress", "completion_pending"] },
+  { id: "changes", label: "Changes Required", matches: ["changes_required", "blocked"] },
+  { id: "done", label: "Done", matches: ["review", "done"] },
 ] as const;
 
 type InboxItem = { id: number; title: string | null; content: string; reviewStatus: string; linkedTaskId: number | null; linkedProjectId: number | null };
@@ -108,7 +109,7 @@ function classifyTimelineMessage(task: TaskMeta, message: TaskMessage): Timeline
   if (upper.startsWith("APPROVED")) {
     event = "APPROVED";
     tone = "approval";
-  } else if (upper.startsWith("CHANGES REQUESTED")) {
+  } else if (upper.startsWith("CHANGES REQUESTED") || upper.startsWith("OWNER REQUESTED CHANGES")) {
     event = "CHANGES REQUESTED";
     tone = "warning";
   } else if (upper.includes("OWNER APPROVAL REQUIRED")) {
@@ -163,7 +164,7 @@ export default function Tasks() {
   const { data: rawTasks = [], isLoading } = useListTasks();
   const { data: calendarEvents = [] } = useListEvents();
   const moveTask = useMoveTask();
-  const tasks = rawTasks as TaskMeta[];
+  const tasks = (rawTasks as TaskMeta[]).filter((task) => !task.archivedAt);
   const [selectedTask, setSelectedTask] = useState<TaskMeta | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -192,7 +193,7 @@ export default function Tasks() {
     const columnId = event.over?.id as (typeof COLUMNS)[number]["id"] | undefined;
     if (!taskId || !columnId || !COLUMNS.some((column) => column.id === columnId)) return;
     if (columnId === "done") return;
-    const status = columnId === "review" ? "review" : "running";
+    const status = columnId === "changes" ? "changes_required" : "running";
     moveTask.mutate(
       { id: taskId, data: { status: status as Task["status"] } },
       { onSuccess: invalidateTasks },
@@ -202,14 +203,15 @@ export default function Tasks() {
   return (
     <div className="mc-task-page">
       <header className="mc-task-header">
-        <h1>Task</h1>
+        <div><span className="mc-task-header-kicker">Mission Control</span><h1>Kanban</h1></div>
         <div className="mc-task-header-actions">
           {approvalTasks.length > 0 && (
             <button className="mc-task-approval-button" onClick={() => setSelectedTask(approvalTasks[0])}>
               <AlertTriangle aria-hidden="true" />
-              <span>{approvalTasks.length} approval{approvalTasks.length === 1 ? "" : "s"}</span>
+              <span>{approvalTasks.length} owner action{approvalTasks.length === 1 ? "" : "s"}</span>
             </button>
           )}
+          <button className="mc-task-secondary-button" onClick={() => setNoteOpen(true)}><Plus aria-hidden="true" /><span>Add Idea</span></button>
           <button className="mc-task-primary-button" onClick={() => setCreateOpen(true)}>
             <Plus aria-hidden="true" />
             <span>Add Task</span>
@@ -218,7 +220,7 @@ export default function Tasks() {
       </header>
 
       <DndContext sensors={sensors} onDragEnd={moveToColumn}>
-        <main className="mc-task-workspace" aria-label="Tasks and automations">
+        <main className="mc-task-workspace" aria-label="Mission Control Kanban">
           <InboxLane items={inbox} onChanged={refreshInbox} />
           {COLUMNS.map((column) => (
             <TaskLane
@@ -268,14 +270,14 @@ function InboxLane({ items, onChanged }: { items: InboxItem[]; onChanged: () => 
   const update = async (id: number, path: string, body?: object) => { await fetch(`/api/inbox/${id}${path}`, { method: path ? "POST" : "PATCH", headers: authHeaders(), body: body ? JSON.stringify(body) : undefined }); onChanged(); };
   const edit = (item: InboxItem) => { const content = window.prompt("Edit note content", item.content); if (content !== null && content.trim()) void update(item.id, "", { content }); };
   const linkProject = (item: InboxItem) => { const value = window.prompt("Project ID to link", item.linkedProjectId?.toString() ?? ""); if (value !== null && Number.isInteger(Number(value))) void update(item.id, "", { linkedProjectId: Number(value) }); };
-  return <section className="mc-task-lane mc-inbox-lane"><header className="mc-task-lane-header"><div><h2>Inbox</h2><small>Notes &amp; quick capture</small></div><span>{items.length}</span></header><div className="mc-task-lane-scroll">{items.length ? items.map((item) => <article className="mc-task-card" key={item.id}><h3>{item.title || "Untitled note"}</h3><p className="mc-inbox-content">{item.content}</p><footer className="mc-inbox-actions"><button onClick={() => edit(item)}>Edit</button><button onClick={() => linkProject(item)}>Link Project</button>{item.reviewStatus === "unreviewed" && <button onClick={() => void update(item.id, "", { reviewStatus: "reviewed" })}>Mark Reviewed</button>}<button disabled={Boolean(item.linkedTaskId)} onClick={() => void update(item.id, "/convert")}>{item.linkedTaskId ? `Task #${item.linkedTaskId}` : "Convert to Task"}</button><button onClick={() => void update(item.id, "/archive")}>Archive</button></footer></article>) : <div className="mc-task-empty">No captured notes</div>}</div></section>;
+  return <section className="mc-task-lane mc-inbox-lane"><header className="mc-task-lane-header"><div><h2>Ideas &amp; To-Do</h2><small>Capture only · no execution until Make Task</small></div><span>{items.length}</span></header><div className="mc-task-lane-scroll">{items.length ? items.map((item, index) => <article className={`mc-task-card mc-task-card-tone-${index % 4}`} key={item.id}><h3>{item.title || "Untitled idea"}</h3><p className="mc-inbox-content">{item.content}</p><footer className="mc-inbox-actions"><button onClick={() => edit(item)}>Edit</button><button onClick={() => linkProject(item)}>Link Project</button>{item.reviewStatus === "unreviewed" && <button onClick={() => void update(item.id, "", { reviewStatus: "reviewed" })}>Mark Reviewed</button>}<button disabled={Boolean(item.linkedTaskId)} onClick={() => void update(item.id, "/convert")}>{item.linkedTaskId ? `Task #${item.linkedTaskId}` : "Make Task"}</button><button onClick={() => void update(item.id, "/archive")}>Archive</button></footer></article>) : <div className="mc-task-empty">No ideas captured</div>}</div></section>;
 }
 
 function CreateNoteModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
   const [title, setTitle] = useState(""); const [content, setContent] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   if (!open) return null;
   const save = async () => { if (!content.trim()) { setError("Note content is required."); return; } setBusy(true); const response = await fetch("/api/inbox", { method: "POST", headers: authHeaders(), body: JSON.stringify({ title: title.trim() || null, content, source: "typed", createdBy: "Owner" }) }); setBusy(false); if (!response.ok) { setError("Unable to save note."); return; } setTitle(""); setContent(""); onCreated(); };
-  return <Modal className="mc-task-create-modal" onClose={onClose} label="Add Note"><header className="mc-task-modal-header"><h2>Add Note</h2><p>Quick capture only. This will not create or route a task.</p></header><div className="mc-task-form"><label className="mc-task-form-wide">Title (optional)<input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus /></label><label className="mc-task-form-wide">Note<textarea className="mc-note-textarea" rows={12} value={content} onChange={(e) => setContent(e.target.value)} placeholder="Paste notes, dot points, or a voice transcript…" /></label>{error && <p className="mc-task-form-error">{error}</p>}</div><footer className="mc-task-modal-footer"><button className="mc-task-secondary-button" onClick={onClose}>Cancel</button><button className="mc-task-primary-button" onClick={() => void save()} disabled={busy}>{busy ? "Saving…" : "Save"}</button></footer></Modal>;
+  return <Modal className="mc-task-create-modal" onClose={onClose} label="Add Idea"><header className="mc-task-modal-header"><h2>Add Idea</h2><p>Lightweight capture only. Nothing is routed or executed until you choose Make Task.</p></header><div className="mc-task-form"><label className="mc-task-form-wide">Title (optional)<input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus /></label><label className="mc-task-form-wide">Note<textarea className="mc-note-textarea" rows={12} value={content} onChange={(e) => setContent(e.target.value)} placeholder="Capture an idea, problem, question or to-do…" /></label>{error && <p className="mc-task-form-error">{error}</p>}</div><footer className="mc-task-modal-footer"><button className="mc-task-secondary-button" onClick={onClose}>Cancel</button><button className="mc-task-primary-button" onClick={() => void save()} disabled={busy}>{busy ? "Saving…" : "Save Idea"}</button></footer></Modal>;
 }
 
 function TaskLane({ column, tasks, loading, onOpen }: {
@@ -286,7 +288,7 @@ function TaskLane({ column, tasks, loading, onOpen }: {
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
   return (
-    <section ref={setNodeRef} className={`mc-task-lane ${isOver ? "mc-task-lane-over" : ""}`}>
+    <section ref={setNodeRef} className={`mc-task-lane mc-task-lane-${column.id} ${isOver ? "mc-task-lane-over" : ""}`}>
       <header className="mc-task-lane-header"><h2>{column.label}</h2><span>{tasks.length}</span></header>
       <div className="mc-task-lane-scroll">
         {loading ? (
@@ -306,17 +308,18 @@ function TaskCard({ task, onOpen }: { task: TaskMeta; onOpen: () => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `task-${task.id}` });
   const dueDate = formatDueDate(task.dueDate);
   const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
+  const tone = Math.abs(Number(task.id)) % 4;
 
   return (
     <article
       ref={setNodeRef}
       style={style}
-      className={`mc-task-card mc-task-agent-${agentTone(task.assignee)} ${approval ? "mc-task-card-approval" : ""} ${isDragging ? "mc-task-card-dragging" : ""}`}
+      className={`mc-task-card mc-task-card-tone-${tone} mc-task-agent-${agentTone(task.assignee)} ${approval ? "mc-task-card-approval" : ""} ${isDragging ? "mc-task-card-dragging" : ""}`}
       onClick={onOpen}
       {...listeners}
       {...attributes}
     >
-      {approval && <span className="mc-task-card-alert"><AlertTriangle aria-hidden="true" /> Approval required</span>}
+      {approval && <span className="mc-task-card-alert"><AlertTriangle aria-hidden="true" /> Owner action required</span>}
       <h3>{task.title}</h3>
       {task.description && <p>{task.description}</p>}
       {dueDate && <span className="mc-task-card-due"><Clock3 aria-hidden="true" /> {dueDate}</span>}
@@ -568,6 +571,7 @@ function TaskDetailModal({ task, onClose, onMove }: { task: TaskMeta | null; onC
     try {
       const response = await fetch(`/api/tasks/${taskId}/request-changes`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ note }) });
       if (!response.ok) throw new Error("Unable to send change request");
+      await fetch(`/api/tasks/${taskId}/move`, { method: "PATCH", headers: authHeaders(), body: JSON.stringify({ status: "changes_required" }) });
       setApprovalChecked(false);
       setApprovalNote("");
       await refresh();
@@ -578,8 +582,15 @@ function TaskDetailModal({ task, onClose, onMove }: { task: TaskMeta | null; onC
 
   async function acceptWork() {
     setActionBusy(true); setActionError("");
-    try { const response = await fetch(`/api/tasks/${taskId}/accept`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ note: approvalNote }) }); if (!response.ok) throw new Error("Unable to accept work"); await refresh(); }
-    catch (error) { setActionError(error instanceof Error ? error.message : "Unable to accept work"); }
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/accept`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ note: approvalNote }) });
+      if (!response.ok) throw new Error("Unable to accept work");
+      const archiveResponse = await fetch(`/api/tasks/${taskId}/archive`, { method: "POST", headers: authHeaders(), body: "{}" });
+      if (!archiveResponse.ok) throw new Error("Work accepted but automatic archive failed");
+      await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
+      onClose();
+    }
+    catch (error) { setActionError(error instanceof Error ? error.message : "Unable to accept and archive work"); }
     finally { setActionBusy(false); }
   }
 
@@ -597,7 +608,6 @@ function TaskDetailModal({ task, onClose, onMove }: { task: TaskMeta | null; onC
   }
 
   const statusLabel = COLUMNS.find((column) => column.matches.includes(value.status as never))?.label ?? value.status;
-  const inTodo = ["backlog", "ready"].includes(value.status);
 
   return (
     <Modal className="mc-task-detail-modal mc-task-timeline-modal" onClose={onClose} label={value.title}>
@@ -629,14 +639,14 @@ function TaskDetailModal({ task, onClose, onMove }: { task: TaskMeta | null; onC
 
             {approval && (
               <section className="mc-task-approval-panel">
-                <div className="mc-task-approval-heading"><AlertTriangle aria-hidden="true" /><div><strong>Owner approval required</strong><span>Review the timeline above before releasing this task.</span></div></div>
+                <div className="mc-task-approval-heading"><AlertTriangle aria-hidden="true" /><div><strong>Owner action required</strong><span>Review the timeline above before releasing this protected action.</span></div></div>
                 <textarea value={approvalNote} onChange={(event) => setApprovalNote(event.target.value)} placeholder="Approval notes or changes required" rows={3} />
                 <label className="mc-task-approval-check"><input type="checkbox" checked={approvalChecked} onChange={(event) => setApprovalChecked(event.target.checked)} /><span>I approve this action</span></label>
                 <div className="mc-task-approval-actions"><button className="mc-task-secondary-button" onClick={() => void requestChanges()} disabled={actionBusy}>Request Changes</button><button className="mc-task-primary-button" onClick={() => void approve()} disabled={actionBusy || !approvalChecked}><Check aria-hidden="true" /> Approve & Continue</button></div>
               </section>
             )}
             {value.status === "review" && (
-              <section className="mc-task-approval-panel"><div className="mc-task-approval-heading"><Check aria-hidden="true" /><div><strong>Ready for owner review</strong><span>Orchestrator verification is recorded above. Confirm the delivered result.</span></div></div><textarea value={approvalNote} onChange={(event) => setApprovalNote(event.target.value)} placeholder="Required for changes; optional for acceptance" rows={3} /><div className="mc-task-approval-actions"><button className="mc-task-secondary-button" onClick={() => void requestChanges()} disabled={actionBusy || !approvalNote.trim()}>Request Changes</button><button className="mc-task-primary-button" onClick={() => void acceptWork()} disabled={actionBusy}><Check aria-hidden="true" /> Accept</button></div></section>
+              <section className="mc-task-approval-panel"><div className="mc-task-approval-heading"><Check aria-hidden="true" /><div><strong>Done · ready for owner sign-off</strong><span>James has verified the success milestone. Accepting automatically archives the task.</span></div></div><textarea value={approvalNote} onChange={(event) => setApprovalNote(event.target.value)} placeholder="Required for changes; optional for acceptance" rows={3} /><div className="mc-task-approval-actions"><button className="mc-task-secondary-button" onClick={() => void requestChanges()} disabled={actionBusy || !approvalNote.trim()}>Request Changes</button><button className="mc-task-primary-button" onClick={() => void acceptWork()} disabled={actionBusy}><Check aria-hidden="true" /> Accept & Archive</button></div></section>
             )}
           </div>
           <div className="mc-task-conversation-compose"><textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Add a note or reply inside this task" rows={2} /><button onClick={() => void send()} disabled={sending || !message.trim()} aria-label="Send note"><Send aria-hidden="true" /></button></div>
@@ -646,11 +656,13 @@ function TaskDetailModal({ task, onClose, onMove }: { task: TaskMeta | null; onC
       {actionError && <p className="mc-task-form-error mc-task-action-error">{actionError}</p>}
       <footer className="mc-task-modal-footer mc-task-detail-footer">
         {value.status === "done" ? (
-          <><span className="mc-task-archived"><Check aria-hidden="true" /> Work complete · final owner sign-off required</span><button className="mc-task-primary-button" onClick={() => void archive()} disabled={actionBusy}><Check aria-hidden="true" /> Approve & Archive</button></>
+          <><span className="mc-task-archived"><Check aria-hidden="true" /> Historical signed-off work · archive to remove from active board</span><button className="mc-task-primary-button" onClick={() => void archive()} disabled={actionBusy}><Check aria-hidden="true" /> Archive</button></>
         ) : approval ? (
-          <span className="mc-task-awaiting-owner"><AlertTriangle aria-hidden="true" /> Awaiting Cameron Parker approval in the timeline</span>
+          <span className="mc-task-awaiting-owner"><AlertTriangle aria-hidden="true" /> Awaiting Cameron Parker action</span>
         ) : value.status === "review" ? (
-          <span className="mc-task-awaiting-owner">Awaiting owner acceptance</span>
+          <span className="mc-task-awaiting-owner">Done · awaiting owner sign-off</span>
+        ) : value.status === "changes_required" || value.status === "blocked" ? (
+          <span className="mc-task-awaiting-owner">Changes or blocker require resolution</span>
         ) : (
           <span className="mc-task-awaiting-owner">Active work</span>
         )}
