@@ -4,79 +4,60 @@
  * One-time safe reconciliation for historical tasks that are already Done and
  * contain explicit owner acceptance evidence. Ambiguous Done tasks are left alone.
  *
+ * Uses Mission Control's existing archive endpoint so project archive snapshots,
+ * task history and attachment metadata are preserved by the canonical code path.
+ *
  * Usage on the production host after deploy:
- *   node scripts/archive-signed-off-done-tasks.mjs
+ *   MISSION_CONTROL_ADMIN_TOKEN=... node scripts/archive-signed-off-done-tasks.mjs
  */
-import postgres from "postgres";
+const token = process.env.MISSION_CONTROL_ADMIN_TOKEN;
+const baseUrl = process.env.MISSION_CONTROL_LOCAL_API ?? "http://127.0.0.1:4100/api";
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-  console.error("STOP: DATABASE_URL is required");
+if (!token) {
+  console.error("STOP: MISSION_CONTROL_ADMIN_TOKEN is required");
   process.exit(1);
 }
 
-const sql = postgres(databaseUrl, { max: 1 });
+const headers = {
+  Accept: "application/json",
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${token}`,
+  "x-admin-token": token,
+};
 
-try {
-  const candidates = await sql`
-    select distinct t.id, t.title
-    from tasks t
-    join task_messages m on m.task_id = t.id
-    where t.status = 'done'
-      and t.archived_at is null
-      and (
-        upper(m.body) like 'OWNER ACCEPTED%'
-        or upper(m.body) like 'APPROVED — APPROVED DIRECTLY FROM THE KANBAN CARD%'
-      )
-    order by t.id
-  `;
-
-  if (!candidates.length) {
-    console.log("PASS: no explicitly signed-off Done tasks require archival");
-    process.exit(0);
+async function request(path, options = {}) {
+  const response = await fetch(`${baseUrl}${path}`, { ...options, headers: { ...headers, ...(options.headers ?? {}) } });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`${options.method ?? "GET"} ${path} -> HTTP ${response.status}: ${body}`);
   }
-
-  console.log(`Found ${candidates.length} explicitly signed-off Done task(s).`);
-
-  for (const task of candidates) {
-    await sql.begin(async (tx) => {
-      const [locked] = await tx`
-        select *
-        from tasks
-        where id = ${task.id} and status = 'done' and archived_at is null
-        for update
-      `;
-      if (!locked) return;
-
-      const messages = await tx`
-        select * from task_messages where task_id = ${task.id} order by created_at asc
-      `;
-      const archivedAt = new Date();
-      const archive = {
-        task: { ...locked, archived_at: archivedAt },
-        messages,
-        attachments: locked.attachments ?? [],
-        report: locked.report ?? null,
-        archivedAt: archivedAt.toISOString(),
-      };
-
-      await tx`update tasks set archived_at = ${archivedAt} where id = ${task.id}`;
-      await tx`
-        insert into task_messages (task_id, author, body, created_at)
-        values (${task.id}, 'Mission Control', ${`Historical reconciliation — task archived after recorded owner sign-off at ${archivedAt.toISOString()}.`}, ${archivedAt})
-      `;
-      await tx`
-        insert into project_task_archives (task_id, project, archive)
-        values (${task.id}, ${locked.project}, ${tx.json(archive)})
-        on conflict (task_id) do update
-        set project = excluded.project, archive = excluded.archive
-      `;
-
-      console.log(`ARCHIVED #${task.id}: ${task.title}`);
-    });
-  }
-
-  console.log("PASS: historical signed-off Done reconciliation complete");
-} finally {
-  await sql.end({ timeout: 5 });
+  if (response.status === 204) return null;
+  return response.json();
 }
+
+const tasks = await request("/tasks");
+const candidates = [];
+
+for (const task of tasks) {
+  if (task.status !== "done" || task.archivedAt) continue;
+  const details = await request(`/tasks/${task.id}/details`);
+  const signedOff = (details.messages ?? []).some((message) => {
+    const body = String(message.body ?? "").trim().toUpperCase();
+    return body.startsWith("OWNER ACCEPTED") || body.startsWith("APPROVED — APPROVED DIRECTLY FROM THE KANBAN CARD");
+  });
+  if (signedOff) candidates.push(task);
+}
+
+if (!candidates.length) {
+  console.log("PASS: no explicitly signed-off Done tasks require archival");
+  process.exit(0);
+}
+
+console.log(`Found ${candidates.length} explicitly signed-off Done task(s).`);
+
+for (const task of candidates) {
+  await request(`/tasks/${task.id}/archive`, { method: "POST", body: "{}" });
+  console.log(`ARCHIVED #${task.id}: ${task.title}`);
+}
+
+console.log("PASS: historical signed-off Done reconciliation complete");
