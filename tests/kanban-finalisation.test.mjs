@@ -54,17 +54,36 @@ test("archived tasks are not rendered on the active board", () => {
   assert.match(tasksPage, /filter\(\(task\) => !task\.archivedAt\)/);
 });
 
-test("dragging preserves card geometry", () => {
-  assert.match(finalCss, /No pill\/circle morphing/);
-  assert.match(finalCss, /\.mc-task-card-dragging[\s\S]*border-radius: 1rem !important/);
-  assert.match(finalCss, /min-width: 100% !important/);
-  assert.match(finalCss, /max-width: 100% !important/);
+test("Kanban is one board-level scroll surface", () => {
+  assert.match(finalCss, /The Kanban is one board/);
+  assert.match(finalCss, /\.mc-task-workspace[\s\S]*overflow: auto/);
+  assert.match(finalCss, /\.mc-task-lane-scroll[\s\S]*overflow: visible/);
+  assert.match(finalCss, /grid-auto-rows: max-content/);
+  assert.match(finalCss, /align-items: stretch/);
 });
 
-test("Kanban uses a coloured card visual system", () => {
-  assert.match(finalCss, /mc-task-card-tone-0/);
-  assert.match(finalCss, /mc-task-card-tone-1/);
-  assert.match(finalCss, /mc-task-card-tone-2/);
-  assert.match(finalCss, /mc-task-card-tone-3/);
+test("dragging preserves card geometry without forced drag sizing", () => {
+  assert.match(finalCss, /Dragging preserves source geometry/);
+  assert.match(finalCss, /\.mc-task-card-dragging[\s\S]*border-radius: 0\.92rem/);
+  assert.doesNotMatch(finalCss, /\.mc-task-card-dragging[\s\S]*min-width: 100% !important/);
+  assert.doesNotMatch(finalCss, /\.mc-task-card-dragging[\s\S]*max-width: 100% !important/);
+});
+
+test("Kanban uses a visibly coloured matte card system", () => {
+  assert.match(finalCss, /#7edee7/);
+  assert.match(finalCss, /#f2c46d/);
+  assert.match(finalCss, /#ae95f4/);
+  assert.match(finalCss, /#da7aaa/);
   assert.match(finalCss, /backdrop-filter: blur/);
+});
+
+test("header hierarchy and controls are deliberate and consistent", () => {
+  assert.match(finalCss, /\.mc-task-header h1[\s\S]*font-size: 1\.8rem/);
+  assert.match(finalCss, /\.mc-task-primary-button,[\s\S]*width: 7\.4rem/);
+  assert.match(finalCss, /height: 2\.65rem/);
+});
+
+test("non-functional zero-message card bubble is removed from the visual surface", () => {
+  assert.match(finalCss, /old message bubble displayed a zero/);
+  assert.match(finalCss, /\.mc-task-card-metrics span:first-child[\s\S]*display: none/);
 });
