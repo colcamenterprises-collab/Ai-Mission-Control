@@ -2,6 +2,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "./schema";
 import { ensureOperationalSchema as ensureOperationalSchemaWithDb } from "./ensure-operational-schema";
+import { ensureAgentProvisioningSchema as ensureAgentProvisioningSchemaWithDb } from "./ensure-agent-provisioning-schema";
 
 const { Pool } = pg;
 
@@ -16,6 +17,7 @@ export const db = drizzle(pool, { schema });
 
 export * from "./schema";
 
-export function ensureOperationalSchema(): Promise<void> {
-  return ensureOperationalSchemaWithDb(db);
+export async function ensureOperationalSchema(): Promise<void> {
+  await ensureOperationalSchemaWithDb(db);
+  await ensureAgentProvisioningSchemaWithDb(db);
 }
