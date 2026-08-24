@@ -3,15 +3,14 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { and, eq } from "drizzle-orm";
+import { db, agentsTable } from "@workspace/db";
 import {
-  db,
-  agentsTable,
   runtimeHostsTable,
   secretsVaultTable,
   employeeTemplatesTable,
   agentRuntimeInstancesTable,
   agentSecretGrantsTable,
-} from "@workspace/db";
+} from "@workspace/db/provisioning";
 import { decryptSecret } from "../lib/security.js";
 
 const execFileAsync = promisify(execFile);
