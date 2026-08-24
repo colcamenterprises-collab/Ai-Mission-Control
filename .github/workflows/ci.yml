@@ -47,6 +47,9 @@ jobs:
       - name: Skills tests
         run: pnpm test:skills
 
+      - name: Production recursive typecheck
+        run: pnpm typecheck:production
+
       - name: Typecheck
         run: pnpm typecheck
 
