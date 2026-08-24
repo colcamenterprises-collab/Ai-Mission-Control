@@ -1,7 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { eq } from "drizzle-orm";
-import { db, agentsTable, agentRuntimeInstancesTable, runtimeHostsTable } from "@workspace/db";
+import { db, agentsTable } from "@workspace/db";
+import { agentRuntimeInstancesTable, runtimeHostsTable } from "@workspace/db/provisioning";
 import { decryptSecret } from "../lib/security.js";
 
 const execFileAsync = promisify(execFile);
