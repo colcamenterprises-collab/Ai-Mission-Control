@@ -80,6 +80,15 @@ export async function ensureAgentProvisioningSchema(database: SqlExecutor): Prom
     );
     CREATE UNIQUE INDEX IF NOT EXISTS agent_secret_grants_uidx ON agent_secret_grants(agent_id, secret_id, purpose);
 
+    CREATE TABLE IF NOT EXISTS agent_employee_profiles (
+      agent_id integer PRIMARY KEY REFERENCES agents(id) ON DELETE CASCADE,
+      project_id integer REFERENCES projects(id) ON DELETE SET NULL,
+      project_name text,
+      avatar_data_url text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+
     INSERT INTO runtime_hosts (name, runtime_type, host_type, root_dir, cli_path, status, capabilities)
     VALUES (
       'Hostinger Production',
@@ -103,7 +112,7 @@ export async function ensureAgentProvisioningSchema(database: SqlExecutor): Prom
       '# Responsibilities\n\n{{responsibilities}}\n\nUse assigned tools and skills only. Escalate actions that require owner approval.\n',
       '# People and business context\n\nBusiness: {{business}}\nPrimary owner: {{owner}}\n',
       '[]'::jsonb,
-      '{"financialWrites":"approval","delete":"approval","externalMessaging":"scoped"}'::jsonb
+      '{}'::jsonb
     ) ON CONFLICT (name) DO NOTHING;
   `);
 }
