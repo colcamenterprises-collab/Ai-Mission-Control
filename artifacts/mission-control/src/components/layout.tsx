@@ -10,6 +10,7 @@ import {
   Search,
   Settings2,
   StickyNote,
+  UserPlus,
   UsersRound,
 } from "lucide-react";
 import { CustomliLogo } from "@/components/customli-logo";
@@ -17,6 +18,7 @@ import "./sidebar-accordion.css";
 import "./ui-cleanup.css";
 import "./page-consistency.css";
 import "./header-icon-policy.css";
+import "./employee-factory-nav.css";
 
 type NavItem = {
   href: string;
@@ -38,6 +40,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/notes", label: "Notes", icon: StickyNote },
     { href: "/tasks", label: "Tasks", icon: ClipboardList },
     { href: "/team", label: "AI Team", icon: UsersRound },
+    { href: "/agent-creation", label: "Hire AI Employee", icon: UserPlus },
     { href: "/brain", label: "Mission Brain", icon: Brain },
     { href: "/skills", label: "Skills", icon: BookOpen },
     { href: "/settings", label: "Settings", icon: Settings2 },
@@ -113,7 +116,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <button type="button" className="mission-collapse-button mission-collapse-button-bottom" onClick={() => setIsCollapsed((value) => !value)} aria-label={isCollapsed ? "Open sidebar" : "Close sidebar"} aria-expanded={!isCollapsed} title={isCollapsed ? "Open sidebar" : "Close sidebar"}><ChevronLeft aria-hidden="true" /></button>
         </div>
       </aside>
-      <main className={`mission-main-canvas mission-route-${routeClass} relative z-10 flex-1 flex flex-col h-screen overflow-hidden bg-transparent`}>{children}</main>
+      <main className={`mission-main-canvas mission-route-${routeClass} relative z-10 flex-1 flex flex-col h-screen overflow-hidden bg-transparent`}>
+        {location === "/team" && (
+          <Link href="/agent-creation" className="team-hire-employee-cta" aria-label="Hire AI Employee">
+            <UserPlus aria-hidden="true" />
+            <span>Hire AI Employee</span>
+          </Link>
+        )}
+        {children}
+      </main>
       {paletteOpen && (
         <div className="fixed inset-0 z-50 grid place-items-start bg-black/60 p-4 pt-[10vh]" role="dialog" aria-modal="true" aria-label="Mission Control commands" onMouseDown={() => setPaletteOpen(false)}>
           <div className="mx-auto w-full max-w-xl rounded-xl border border-border bg-card p-3 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
@@ -121,6 +132,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="grid gap-1">
               {[
                 ["Ask James", "/tasks"],
+                ["Hire AI Employee", "/agent-creation"],
                 ["Add Note", "/notes?create=note"],
                 ["Add Idea", "/notes?create=idea"],
                 ["Add Task", "/tasks?create=task"],
