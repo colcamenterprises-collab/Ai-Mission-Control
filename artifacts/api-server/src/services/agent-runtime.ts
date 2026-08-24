@@ -1,5 +1,10 @@
-import type { agentsTable } from "@workspace/db";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { eq } from "drizzle-orm";
+import { db, agentsTable, agentRuntimeInstancesTable, runtimeHostsTable } from "@workspace/db";
 import { decryptSecret } from "../lib/security.js";
+
+const execFileAsync = promisify(execFile);
 
 export type RuntimeAgent = typeof agentsTable.$inferSelect;
 
@@ -31,6 +36,7 @@ function defaultModel(provider: string, model: string | null | undefined): strin
   if (provider === "openai") return "gpt-4o-mini";
   if (provider === "openrouter") return "openai/gpt-4o-mini";
   if (provider === "claude" || provider === "anthropic") return "claude-3-5-sonnet-latest";
+  if (provider === "openclaw") return "openrouter/auto";
   return "default";
 }
 
@@ -116,6 +122,47 @@ async function dispatchClaude(agent: RuntimeAgent, input: RuntimeDispatchInput):
   return { ok: response.ok, provider: "claude", delivery: "provider", output: output || null, statusCode: response.status, error: response.ok ? null : output || `Claude returned HTTP ${response.status}` };
 }
 
+async function dispatchOpenClaw(agent: RuntimeAgent, input: RuntimeDispatchInput): Promise<RuntimeDispatchResult> {
+  const [instance] = await db.select().from(agentRuntimeInstancesTable).where(eq(agentRuntimeInstancesTable.agentId, agent.id));
+  if (!instance?.runtimeAgentId || instance.status === "decommissioned") {
+    return { ok: false, provider: "openclaw", delivery: "queued", output: null, statusCode: null, error: "OpenClaw runtime instance is not provisioned." };
+  }
+  const [host] = instance.runtimeHostId ? await db.select().from(runtimeHostsTable).where(eq(runtimeHostsTable.id, instance.runtimeHostId)) : [];
+  if (!host) return { ok: false, provider: "openclaw", delivery: "queued", output: null, statusCode: null, error: "OpenClaw runtime host is missing." };
+
+  const cliPath = host.cliPath?.trim() || "openclaw";
+  const timeoutSeconds = input.mode === "test" ? 45 : 600;
+  const { stdout } = await execFileAsync(cliPath, [
+    "agent",
+    "--agent", instance.runtimeAgentId,
+    "--message", buildPrompt(input),
+    "--timeout", String(timeoutSeconds),
+    "--json",
+  ], {
+    env: { ...process.env, HOME: "/root" },
+    timeout: (timeoutSeconds + 30) * 1000,
+    maxBuffer: 8 * 1024 * 1024,
+  });
+
+  let output = stdout.trim();
+  let ok = true;
+  try {
+    const parsed = JSON.parse(stdout) as { ok?: boolean; final?: string; error?: { message?: string }; status?: string };
+    ok = parsed.ok !== false && parsed.status !== "error" && parsed.status !== "timeout";
+    output = parsed.final?.trim() || parsed.error?.message?.trim() || output;
+  } catch {}
+
+  await db.update(agentRuntimeInstancesTable).set({
+    health: ok ? "healthy" : "unhealthy",
+    lastHealthCheck: new Date(),
+    lastError: ok ? null : output.slice(0, 2000),
+    updatedAt: new Date(),
+  }).where(eq(agentRuntimeInstancesTable.agentId, agent.id));
+  await db.update(agentsTable).set({ status: ok ? "active" : "error", lastActive: ok ? "OpenClaw response received" : "OpenClaw runtime failed", lastPing: ok ? new Date() : agent.lastPing }).where(eq(agentsTable.id, agent.id));
+
+  return { ok, provider: "openclaw", delivery: "provider", output: output || null, statusCode: null, error: ok ? null : output || "OpenClaw runtime failed." };
+}
+
 async function dispatchWebhook(agent: RuntimeAgent, input: RuntimeDispatchInput): Promise<RuntimeDispatchResult> {
   if (!agent.endpoint) return { ok: false, provider: cleanProvider(agent.provider), delivery: "queued", output: null, statusCode: null, error: "Webhook/Hermes endpoint is missing." };
   const provider = cleanProvider(agent.provider);
@@ -166,6 +213,7 @@ export async function dispatchRuntime(agent: RuntimeAgent, input: RuntimeDispatc
     if (provider === "openai") return await dispatchOpenAi(agent, input);
     if (provider === "openrouter") return await dispatchOpenRouter(agent, input);
     if (provider === "claude" || provider === "anthropic") return await dispatchClaude(agent, input);
+    if (provider === "openclaw") return await dispatchOpenClaw(agent, input);
     return await dispatchWebhook(agent, input);
   } catch (error: unknown) {
     return { ok: false, provider, delivery: agent.endpoint ? "webhook" : "provider", output: null, statusCode: null, error: error instanceof Error ? error.message : "Agent runtime dispatch failed." };
@@ -175,5 +223,6 @@ export async function dispatchRuntime(agent: RuntimeAgent, input: RuntimeDispatc
 export function isRuntimeConfigured(agent: RuntimeAgent): boolean {
   const provider = cleanProvider(agent.provider);
   if (provider === "openai" || provider === "openrouter" || provider === "claude" || provider === "anthropic") return Boolean(agent.apiKey);
+  if (provider === "openclaw") return Boolean(agent.isPluggedIn);
   return Boolean(agent.endpoint);
 }
