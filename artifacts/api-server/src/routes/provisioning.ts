@@ -1,14 +1,13 @@
 import { Router, type IRouter } from "express";
 import { desc, eq } from "drizzle-orm";
+import { db, agentsTable } from "@workspace/db";
 import {
-  db,
-  agentsTable,
   runtimeHostsTable,
   secretsVaultTable,
   employeeTemplatesTable,
   agentRuntimeInstancesTable,
   agentSecretGrantsTable,
-} from "@workspace/db";
+} from "@workspace/db/provisioning";
 import { encryptSecret } from "../lib/security.js";
 import { auditLog } from "../lib/audit.js";
 import { createRateLimit } from "../lib/rate-limit.js";
