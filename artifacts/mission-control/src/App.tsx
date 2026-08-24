@@ -14,6 +14,7 @@ import ContentPipeline from "@/pages/content";
 import Memory from "@/pages/memory";
 import Workspaces from "@/pages/workspaces";
 import Team from "@/pages/team";
+import AgentCreation from "@/pages/agent-creation";
 import Skills from "@/pages/skills";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
@@ -82,7 +83,7 @@ function Router() {
         <Route path="/agent-operations" component={AgentOperations} />
         <Route path="/reports-summary" component={Reports} />
         <Route path="/team" component={Team} />
-        <Route path="/agent-creation" component={Team} />
+        <Route path="/agent-creation" component={AgentCreation} />
         <Route path="/skills" component={Skills} />
         <Route path="/contacts" component={Contacts} />
         <Route path="/secrets" component={Secrets} />
