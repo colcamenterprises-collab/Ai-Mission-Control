@@ -15,6 +15,7 @@ import { decryptSecret } from "../lib/security.js";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_OPENCLAW_MODEL = "openrouter/auto";
+const OPENCLAW_CERTIFICATION_MESSAGE = "Reply with exactly READY.";
 
 type ProvisionEmployeeInput = {
   name: string;
@@ -33,6 +34,15 @@ type ProvisionEmployeeInput = {
 
 type CliResult = { stdout: string; stderr: string };
 
+type IdentityValues = {
+  name: string;
+  role: string;
+  department: string;
+  business: string;
+  owner: string;
+  responsibilities: string;
+};
+
 function slugify(value: string): string {
   const slug = value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return slug || "employee";
@@ -44,6 +54,22 @@ function renderTemplate(template: string | null | undefined, values: Record<stri
     result = result.replaceAll(`{{${key}}}`, value);
   }
   return result.trim() + "\n";
+}
+
+function identityField(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function renderOpenClawIdentity(values: IdentityValues): string {
+  const theme = `${values.role} for ${values.business}`;
+  return [
+    "# IDENTITY.md - Who Am I?",
+    "",
+    `- Name: ${identityField(values.name)}`,
+    `- Theme: ${identityField(theme)}`,
+    "- Emoji: 🤖",
+    "",
+  ].join("\n");
 }
 
 function assertManagedPath(rootDir: string, candidate: string): void {
@@ -73,6 +99,30 @@ async function upsertEnvValue(filePath: string, key: string, value: string): Pro
   await fs.chmod(filePath, 0o600);
 }
 
+async function ensureGatewayReady(rootDir: string, cliPath: string, env: NodeJS.ProcessEnv): Promise<void> {
+  try {
+    await runCli(cliPath, ["gateway", "status", "--require-rpc"], env, rootDir);
+    return;
+  } catch {}
+
+  try {
+    await runCli(cliPath, ["gateway", "restart"], env, rootDir);
+  } catch {
+    await runCli(cliPath, ["gateway", "install"], env, rootDir);
+    await runCli(cliPath, ["gateway", "start"], env, rootDir);
+  }
+
+  await runCli(cliPath, ["gateway", "status", "--require-rpc"], env, rootDir);
+  await runCli(cliPath, ["health", "--json"], env, rootDir);
+}
+
+async function certifyOpenClawHost(rootDir: string, cliPath: string, env: NodeJS.ProcessEnv): Promise<void> {
+  await runCli(cliPath, ["--version"], env, rootDir);
+  await runCli(cliPath, ["config", "validate"], env, rootDir);
+  await runCli(cliPath, ["models", "status", "--check"], env, rootDir);
+  await ensureGatewayReady(rootDir, cliPath, env);
+}
+
 async function ensureOpenRouterConfigured(rootDir: string, cliPath: string, secret: string): Promise<NodeJS.ProcessEnv> {
   await fs.mkdir(rootDir, { recursive: true, mode: 0o700 });
   const envPath = path.join(rootDir, ".env");
@@ -93,6 +143,8 @@ async function ensureOpenRouterConfigured(rootDir: string, cliPath: string, secr
       "--secret-input-mode", "ref",
     ], env, rootDir);
   }
+
+  await certifyOpenClawHost(rootDir, cliPath, env);
   return env;
 }
 
@@ -133,6 +185,41 @@ async function cleanupPriorFailedAttempts(
   }
 }
 
+async function certifyProvisionedAgent(
+  cliPath: string,
+  env: NodeJS.ProcessEnv,
+  rootDir: string,
+  runtimeAgentId: string,
+): Promise<void> {
+  const listed = await runCli(cliPath, ["agents", "list", "--json"], env, rootDir);
+  if (!listed.stdout.includes(runtimeAgentId)) {
+    throw new Error("OpenClaw agent was created but is missing from the agent registry.");
+  }
+
+  await runCli(cliPath, ["models", "status", "--agent", runtimeAgentId, "--check"], env, rootDir);
+  await runCli(cliPath, ["gateway", "status", "--require-rpc"], env, rootDir);
+  await runCli(cliPath, ["health", "--json"], env, rootDir);
+
+  const turn = await runCli(cliPath, [
+    "agent",
+    "--agent", runtimeAgentId,
+    "--message", OPENCLAW_CERTIFICATION_MESSAGE,
+    "--timeout", "120",
+    "--json",
+  ], env, rootDir);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(turn.stdout);
+  } catch {
+    throw new Error("OpenClaw agent certification returned invalid JSON.");
+  }
+
+  if (!parsed || typeof parsed !== "object" || !("ok" in parsed) || (parsed as { ok?: unknown }).ok !== true) {
+    throw new Error("OpenClaw agent was registered but failed its live inference certification turn.");
+  }
+}
+
 async function provisionOpenClaw(
   agent: typeof agentsTable.$inferSelect,
   host: typeof runtimeHostsTable.$inferSelect,
@@ -160,7 +247,7 @@ async function provisionOpenClaw(
     ], env, host.rootDir);
     runtimeCreated = true;
 
-    const values = {
+    const values: IdentityValues = {
       name: agent.name,
       role: agent.role,
       department: agent.department,
@@ -169,22 +256,28 @@ async function provisionOpenClaw(
       responsibilities: input.responsibilities?.trim() || agent.responsibilities || "Complete assigned work safely and report outcomes clearly.",
     };
 
-    const identity = template?.identityTemplate || "# {{name}}\n\nRole: {{role}}\nDepartment: {{department}}\nBusiness: {{business}}";
     const soul = template?.soulTemplate || "# Working style\n\nAct like a dependable employee. Be proactive, factual, concise, and never claim work that was not completed.";
     const agents = template?.agentTemplate || "# Responsibilities\n\n{{responsibilities}}\n\nUse assigned tools and skills only. Escalate approval-required actions.";
     const user = template?.userTemplate || "# People and business context\n\nBusiness: {{business}}\nPrimary owner: {{owner}}";
+    const identityPath = path.join(workspacePath, "IDENTITY.md");
 
     await Promise.all([
-      fs.writeFile(path.join(workspacePath, "IDENTITY.md"), renderTemplate(identity, values), "utf8"),
+      fs.writeFile(identityPath, renderOpenClawIdentity(values), "utf8"),
       fs.writeFile(path.join(workspacePath, "SOUL.md"), renderTemplate(soul, values), "utf8"),
       fs.writeFile(path.join(workspacePath, "AGENTS.md"), renderTemplate(agents, values), "utf8"),
       fs.writeFile(path.join(workspacePath, "USER.md"), renderTemplate(user, values), "utf8"),
     ]);
 
-    await runCli(cliPath, ["agents", "set-identity", "--agent", runtimeAgentId, "--from-identity", "--json"], env, workspacePath);
-    await runCli(cliPath, ["gateway", "restart"], env, host.rootDir);
-    const listed = await runCli(cliPath, ["agents", "list", "--json"], env, host.rootDir);
-    if (!listed.stdout.includes(runtimeAgentId)) throw new Error("OpenClaw agent was created but failed post-provision verification.");
+    await runCli(cliPath, [
+      "agents", "set-identity",
+      "--agent", runtimeAgentId,
+      "--identity-file", identityPath,
+      "--from-identity",
+      "--json",
+    ], env, host.rootDir);
+
+    await runCli(cliPath, ["gateway", "restart", "--wait", "30s"], env, host.rootDir);
+    await certifyProvisionedAgent(cliPath, env, host.rootDir, runtimeAgentId);
 
     const [instance] = await db.update(agentRuntimeInstancesTable).set({
       runtimeAgentId,
@@ -199,7 +292,7 @@ async function provisionOpenClaw(
     }).where(eq(agentRuntimeInstancesTable.agentId, agent.id)).returning();
 
     await db.update(runtimeHostsTable).set({ status: "healthy", lastHealthCheck: new Date(), updatedAt: new Date() }).where(eq(runtimeHostsTable.id, host.id));
-    await db.update(agentsTable).set({ status: "active", isPluggedIn: true, lastActive: "runtime provisioned", lastPing: new Date() }).where(eq(agentsTable.id, agent.id));
+    await db.update(agentsTable).set({ status: "active", isPluggedIn: true, lastActive: "runtime certified and provisioned", lastPing: new Date() }).where(eq(agentsTable.id, agent.id));
     return instance;
   } catch (error) {
     if (runtimeCreated) {
@@ -296,14 +389,14 @@ export async function runtimeAction(agentId: number, action: "start" | "stop" | 
   }
 
   if (action === "start") {
-    await runCli(cliPath, ["gateway", "start"], env, host.rootDir);
+    await ensureGatewayReady(host.rootDir, cliPath, env);
     await db.update(agentsTable).set({ isPluggedIn: true, status: "active", lastActive: "resumed by owner", lastPing: new Date() }).where(eq(agentsTable.id, agentId));
     await db.update(agentRuntimeInstancesTable).set({ status: "running", health: "healthy", lastHealthCheck: new Date(), updatedAt: new Date() }).where(eq(agentRuntimeInstancesTable.agentId, agentId));
     return { ok: true, action, status: "running" };
   }
 
   if (action === "restart") {
-    await runCli(cliPath, ["gateway", "restart"], env, host.rootDir);
+    await runCli(cliPath, ["gateway", "restart", "--wait", "30s"], env, host.rootDir);
   }
 
   if (action === "decommission") {
@@ -317,8 +410,17 @@ export async function runtimeAction(agentId: number, action: "start" | "stop" | 
     return { ok: true, action, status: "decommissioned" };
   }
 
-  const listed = await runCli(cliPath, ["agents", "list", "--json"], env, host.rootDir);
-  const healthy = Boolean(instance.runtimeAgentId && listed.stdout.includes(instance.runtimeAgentId));
+  let healthy = false;
+  try {
+    if (!instance.runtimeAgentId) throw new Error("Runtime agent id is missing.");
+    await runCli(cliPath, ["gateway", "status", "--require-rpc"], env, host.rootDir);
+    await runCli(cliPath, ["health", "--json"], env, host.rootDir);
+    const listed = await runCli(cliPath, ["agents", "list", "--json"], env, host.rootDir);
+    healthy = listed.stdout.includes(instance.runtimeAgentId);
+  } catch {
+    healthy = false;
+  }
+
   await db.update(agentRuntimeInstancesTable).set({ health: healthy ? "healthy" : "unhealthy", lastHealthCheck: new Date(), updatedAt: new Date() }).where(eq(agentRuntimeInstancesTable.agentId, agentId));
   await db.update(runtimeHostsTable).set({ status: healthy ? "healthy" : "degraded", lastHealthCheck: new Date(), updatedAt: new Date() }).where(eq(runtimeHostsTable.id, host.id));
   return { ok: healthy, action, status: healthy ? "healthy" : "unhealthy" };
