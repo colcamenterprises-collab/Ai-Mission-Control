@@ -56,6 +56,17 @@ test("employee photo uploads separately and hire payload stays lightweight", asy
   assert.doesNotMatch(route, /AVATAR_PATTERN/);
 });
 
+test("OpenClaw identity is applied from the employee workspace and failed hires are cleaned", async () => {
+  const provisioner = await read("artifacts/api-server/src/services/agent-provisioner.ts");
+  assert.match(provisioner, /runCli\(cliPath, \["agents", "set-identity"[\s\S]*?env, workspacePath\)/);
+  assert.doesNotMatch(provisioner, /set-identity[\s\S]{0,180}env\);/);
+  assert.match(provisioner, /cleanupRuntimeArtifacts/);
+  assert.match(provisioner, /cleanupFailedDatabaseAttempt/);
+  assert.match(provisioner, /cleanupPriorFailedAttempts/);
+  assert.match(provisioner, /db\.delete\(agentRuntimeInstancesTable\)/);
+  assert.match(provisioner, /db\.delete\(agentsTable\)/);
+});
+
 test("hire failures remain visible beside the hire button", async () => {
   const [page, css] = await Promise.all([
     read("artifacts/mission-control/src/pages/agent-creation.tsx"),
