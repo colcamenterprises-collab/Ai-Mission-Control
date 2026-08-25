@@ -99,28 +99,24 @@ async function upsertEnvValue(filePath: string, key: string, value: string): Pro
   await fs.chmod(filePath, 0o600);
 }
 
-async function ensureGatewayReady(rootDir: string, cliPath: string, env: NodeJS.ProcessEnv): Promise<void> {
+async function requireGatewayReady(rootDir: string, cliPath: string, env: NodeJS.ProcessEnv): Promise<void> {
   try {
     await runCli(cliPath, ["gateway", "status", "--require-rpc"], env, rootDir);
-    return;
-  } catch {}
-
-  try {
-    await runCli(cliPath, ["gateway", "restart"], env, rootDir);
-  } catch {
-    await runCli(cliPath, ["gateway", "install"], env, rootDir);
-    await runCli(cliPath, ["gateway", "start"], env, rootDir);
+    await runCli(cliPath, ["health", "--json"], env, rootDir);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `OpenClaw shared gateway is not healthy. Employee provisioning will not restart or install the shared gateway from the Mission Control service context. ` +
+      `Repair the runtime host first, then retry. ${detail}`,
+    );
   }
-
-  await runCli(cliPath, ["gateway", "status", "--require-rpc"], env, rootDir);
-  await runCli(cliPath, ["health", "--json"], env, rootDir);
 }
 
 async function certifyOpenClawHost(rootDir: string, cliPath: string, env: NodeJS.ProcessEnv): Promise<void> {
   await runCli(cliPath, ["--version"], env, rootDir);
   await runCli(cliPath, ["config", "validate"], env, rootDir);
   await runCli(cliPath, ["models", "status", "--check"], env, rootDir);
-  await ensureGatewayReady(rootDir, cliPath, env);
+  await requireGatewayReady(rootDir, cliPath, env);
 }
 
 async function ensureOpenRouterConfigured(rootDir: string, cliPath: string, secret: string): Promise<NodeJS.ProcessEnv> {
@@ -197,8 +193,7 @@ async function certifyProvisionedAgent(
   }
 
   await runCli(cliPath, ["models", "status", "--agent", runtimeAgentId, "--check"], env, rootDir);
-  await runCli(cliPath, ["gateway", "status", "--require-rpc"], env, rootDir);
-  await runCli(cliPath, ["health", "--json"], env, rootDir);
+  await requireGatewayReady(rootDir, cliPath, env);
 
   const turn = await runCli(cliPath, [
     "agent",
@@ -276,7 +271,6 @@ async function provisionOpenClaw(
       "--json",
     ], env, host.rootDir);
 
-    await runCli(cliPath, ["gateway", "restart", "--wait", "30s"], env, host.rootDir);
     await certifyProvisionedAgent(cliPath, env, host.rootDir, runtimeAgentId);
 
     const [instance] = await db.update(agentRuntimeInstancesTable).set({
@@ -389,14 +383,21 @@ export async function runtimeAction(agentId: number, action: "start" | "stop" | 
   }
 
   if (action === "start") {
-    await ensureGatewayReady(host.rootDir, cliPath, env);
-    await db.update(agentsTable).set({ isPluggedIn: true, status: "active", lastActive: "resumed by owner", lastPing: new Date() }).where(eq(agentsTable.id, agentId));
+    await requireGatewayReady(host.rootDir, cliPath, env);
+    if (!instance.runtimeAgentId) throw new Error("Runtime agent id is missing.");
+    await certifyProvisionedAgent(cliPath, env, host.rootDir, instance.runtimeAgentId);
+    await db.update(agentsTable).set({ isPluggedIn: true, status: "active", lastActive: "resumed and certified by owner", lastPing: new Date() }).where(eq(agentsTable.id, agentId));
     await db.update(agentRuntimeInstancesTable).set({ status: "running", health: "healthy", lastHealthCheck: new Date(), updatedAt: new Date() }).where(eq(agentRuntimeInstancesTable.agentId, agentId));
     return { ok: true, action, status: "running" };
   }
 
   if (action === "restart") {
-    await runCli(cliPath, ["gateway", "restart", "--wait", "30s"], env, host.rootDir);
+    await requireGatewayReady(host.rootDir, cliPath, env);
+    if (!instance.runtimeAgentId) throw new Error("Runtime agent id is missing.");
+    await certifyProvisionedAgent(cliPath, env, host.rootDir, instance.runtimeAgentId);
+    await db.update(agentsTable).set({ isPluggedIn: true, status: "active", lastActive: "employee re-certified by owner", lastPing: new Date() }).where(eq(agentsTable.id, agentId));
+    await db.update(agentRuntimeInstancesTable).set({ status: "running", health: "healthy", lastError: null, lastHealthCheck: new Date(), updatedAt: new Date() }).where(eq(agentRuntimeInstancesTable.agentId, agentId));
+    return { ok: true, action, status: "running" };
   }
 
   if (action === "decommission") {
@@ -413,8 +414,7 @@ export async function runtimeAction(agentId: number, action: "start" | "stop" | 
   let healthy = false;
   try {
     if (!instance.runtimeAgentId) throw new Error("Runtime agent id is missing.");
-    await runCli(cliPath, ["gateway", "status", "--require-rpc"], env, host.rootDir);
-    await runCli(cliPath, ["health", "--json"], env, host.rootDir);
+    await requireGatewayReady(host.rootDir, cliPath, env);
     const listed = await runCli(cliPath, ["agents", "list", "--json"], env, host.rootDir);
     healthy = listed.stdout.includes(instance.runtimeAgentId);
   } catch {
