@@ -15,13 +15,15 @@ test("OpenClaw identity uses canonical parsed fields and an explicit identity fi
   assert.doesNotMatch(source, /const identity = template\?\.identityTemplate/);
 });
 
-test("OpenClaw host is certified before employee creation", async () => {
+test("OpenClaw host is certified and can repair a missing gateway service", async () => {
   const source = await read("artifacts/api-server/src/services/agent-provisioner.ts");
 
   assert.match(source, /\["--version"\]/);
   assert.match(source, /\["config", "validate"\]/);
   assert.match(source, /\["models", "status", "--check"\]/);
   assert.match(source, /\["gateway", "status", "--require-rpc"\]/);
+  assert.match(source, /\["gateway", "install"\]/);
+  assert.match(source, /\["gateway", "start"\]/);
   assert.match(source, /\["health", "--json"\]/);
 });
 
