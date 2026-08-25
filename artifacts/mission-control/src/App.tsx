@@ -14,7 +14,7 @@ import ContentPipeline from "@/pages/content";
 import Memory from "@/pages/memory";
 import Workspaces from "@/pages/workspaces";
 import Team from "@/pages/team";
-import AgentCreation from "@/pages/agent-creation";
+import TeamUnified from "@/pages/team-unified";
 import Skills from "@/pages/skills";
 import Reports from "@/pages/reports";
 import Settings from "@/pages/settings";
@@ -58,6 +58,14 @@ function RedirectToBrain() {
   return null;
 }
 
+function RedirectToTeamHire() {
+  if (typeof window !== "undefined") {
+    const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+    window.location.replace(`${base}/team?hire=1`);
+  }
+  return null;
+}
+
 function Router() {
   return (
     <Layout>
@@ -82,8 +90,9 @@ function Router() {
         <Route path="/client-pulse" component={ClientPulse} />
         <Route path="/agent-operations" component={AgentOperations} />
         <Route path="/reports-summary" component={Reports} />
-        <Route path="/team" component={Team} />
-        <Route path="/agent-creation" component={AgentCreation} />
+        <Route path="/team/manage" component={Team} />
+        <Route path="/team" component={TeamUnified} />
+        <Route path="/agent-creation" component={RedirectToTeamHire} />
         <Route path="/skills" component={Skills} />
         <Route path="/contacts" component={Contacts} />
         <Route path="/secrets" component={Secrets} />

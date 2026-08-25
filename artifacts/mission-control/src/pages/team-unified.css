@@ -1,0 +1,248 @@
+.team-unified-shell {
+  height: 100%;
+  overflow-y: auto;
+  padding: clamp(1rem, 2vw, 1.6rem);
+}
+
+.team-unified-canvas {
+  width: min(100%, 112rem);
+  margin: 0 auto;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.team-unified-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.team-unified-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: rgba(196, 181, 253, 0.92);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.team-unified-eyebrow svg,
+.team-manage-link svg { width: 1rem; height: 1rem; }
+
+.team-unified-header h1 {
+  margin: 0.3rem 0 0;
+  font-size: clamp(1.8rem, 3vw, 3rem);
+  letter-spacing: -0.055em;
+  line-height: 0.95;
+}
+
+.team-manage-link,
+.team-close-hire {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.045);
+  backdrop-filter: blur(18px);
+  padding: 0.65rem 0.85rem;
+  color: rgba(241,245,249,0.84);
+  font-size: 0.78rem;
+}
+
+.team-five-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(0.7rem, 1vw, 1rem);
+}
+
+.team-glass-card {
+  position: relative;
+  min-height: 15rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  border: 1px solid rgba(255,255,255,0.11);
+  border-radius: 1.5rem;
+  background:
+    radial-gradient(circle at 30% 12%, rgba(139,92,246,0.18), transparent 40%),
+    linear-gradient(145deg, rgba(255,255,255,0.075), rgba(255,255,255,0.025));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 24px 60px rgba(0,0,0,0.22);
+  backdrop-filter: blur(24px) saturate(125%);
+  -webkit-backdrop-filter: blur(24px) saturate(125%);
+  padding: 1rem;
+  text-align: center;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.team-glass-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(125deg, rgba(255,255,255,0.06), transparent 36%);
+}
+
+.team-glass-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(167,139,250,0.32);
+  background:
+    radial-gradient(circle at 30% 12%, rgba(139,92,246,0.24), transparent 42%),
+    linear-gradient(145deg, rgba(255,255,255,0.09), rgba(255,255,255,0.035));
+}
+
+.team-glass-skeleton { min-height: 15rem; }
+
+.team-avatar-wrap {
+  position: relative;
+  width: 6.2rem;
+  height: 6.2rem;
+  border-radius: 1.7rem;
+}
+
+.team-agent-photo,
+.team-agent-initials {
+  width: 100%;
+  height: 100%;
+  border-radius: 1.7rem;
+  object-fit: cover;
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 16px 36px rgba(0,0,0,0.3);
+}
+
+.team-agent-initials {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(150deg, rgba(76,29,149,0.86), rgba(15,23,42,0.96));
+  color: rgba(245,243,255,0.96);
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.team-live-dot {
+  position: absolute;
+  right: -0.15rem;
+  bottom: 0.15rem;
+  width: 0.82rem;
+  height: 0.82rem;
+  border-radius: 999px;
+  border: 2px solid rgba(11,15,25,0.98);
+  background: rgba(148,163,184,0.78);
+}
+
+.team-live-dot.online {
+  background: rgb(52,211,153);
+  box-shadow: 0 0 16px rgba(52,211,153,0.72);
+}
+
+.team-card-identity {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.team-card-identity strong {
+  color: rgba(248,250,252,0.96);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+
+.team-card-identity span {
+  display: block;
+  overflow: hidden;
+  color: rgba(203,213,225,0.58);
+  font-size: 0.72rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-card-status {
+  position: relative;
+  z-index: 1;
+  border-radius: 999px;
+  background: rgba(15,23,42,0.52);
+  padding: 0.35rem 0.58rem;
+  color: rgba(203,213,225,0.68);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.team-card-status.status-active {
+  background: rgba(6,78,59,0.28);
+  color: rgba(167,243,208,0.92);
+}
+
+.team-card-status.status-error {
+  background: rgba(127,29,29,0.28);
+  color: rgba(254,202,202,0.92);
+}
+
+.team-hire-card {
+  border-style: dashed;
+  background:
+    radial-gradient(circle at 50% 22%, rgba(139,92,246,0.13), transparent 38%),
+    rgba(255,255,255,0.025);
+}
+
+.team-hire-icon {
+  position: relative;
+  z-index: 1;
+  width: 4.5rem;
+  height: 4.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 1.4rem;
+  border: 1px solid rgba(167,139,250,0.26);
+  background: rgba(139,92,246,0.1);
+  color: rgba(196,181,253,0.94);
+}
+
+.team-hire-icon svg { width: 1.7rem; height: 1.7rem; }
+
+.team-more-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 1rem;
+  background: rgba(255,255,255,0.025);
+  padding: 0.7rem 0.9rem;
+  color: rgba(203,213,225,0.64);
+  font-size: 0.78rem;
+}
+
+.team-more-strip a { color: rgba(196,181,253,0.92); }
+
+.team-hire-workspace {
+  position: relative;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 1rem;
+}
+
+.team-close-hire { margin-bottom: 0.75rem; }
+
+.team-hire-workspace .employee-factory-shell,
+.team-hire-workspace .workspaces-shell {
+  min-height: auto;
+  height: auto;
+}
+
+@media (max-width: 1180px) {
+  .team-five-grid { grid-template-columns: repeat(5, minmax(10rem, 1fr)); overflow-x: auto; padding-bottom: 0.4rem; }
+  .team-glass-card { min-width: 10rem; }
+}
