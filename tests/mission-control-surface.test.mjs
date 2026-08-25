@@ -64,14 +64,16 @@ test("durable memory sync runs on API startup with canonical categories", async 
   assert.doesNotMatch(sync, /category: "Documentation"/);
 });
 
-test("Employee Factory is a first-class non-technical hiring workflow", async () => {
-  const [layout, factory, navCss] = await Promise.all([
+test("Employee Factory remains non-technical inside the unified AI Team experience", async () => {
+  const [layout, factory, app] = await Promise.all([
     read("artifacts/mission-control/src/components/layout.tsx"),
     read("artifacts/mission-control/src/pages/agent-creation.tsx"),
-    read("artifacts/mission-control/src/components/employee-factory-nav.css"),
+    read("artifacts/mission-control/src/App.tsx"),
   ]);
-  assert.match(layout, /href: "\/agent-creation", label: "Hire AI Employee"/);
-  assert.match(layout, /team-hire-employee-cta/);
+  assert.match(layout, /href: "\/team", label: "AI Team"/);
+  assert.doesNotMatch(layout, /href: "\/agent-creation", label: "Hire AI Employee"/);
+  assert.match(layout, /\["Hire AI Employee", "\/team\?hire=1"\]/);
+  assert.match(app, /RedirectToTeamHire/);
   assert.match(factory, /Hire an AI Employee/);
   assert.match(factory, /Who are you hiring\?/);
   assert.match(factory, /Choose their AI account/);
@@ -79,5 +81,4 @@ test("Employee Factory is a first-class non-technical hiring workflow", async ()
   assert.match(factory, /Mission Control will handle/);
   assert.doesNotMatch(factory, /<Label>Runtime<\/Label>/);
   assert.doesNotMatch(factory, /<Label>Provider secret<\/Label>/);
-  assert.match(navCss, /agent-add-card:last-child\{display:none!important\}/);
 });
