@@ -102,7 +102,16 @@ router.post("/employee-factory/hire", createRateLimit("admin-write", 10, 60_000)
     await auditLog({ action: "hired", entityType: "agent_employee", entityId: result.agent.id, actorType: "admin", actorName: "Mission Control" });
     res.status(201).json({ ...result, profile: { agentId: result.agent.id, projectId: project.id, projectName: project.name, avatarDataUrl } });
   } catch (error) {
-    res.status(500).json({ error: error instanceof Error ? error.message : "Mission Control could not finish hiring this employee." });
+    const message = error instanceof Error ? error.message : "Mission Control could not finish hiring this employee.";
+    await auditLog({
+      action: "hire_failed",
+      entityType: "agent_employee",
+      entityId: name || "unknown",
+      actorType: "admin",
+      actorName: "Mission Control",
+      metadata: `projectId=${projectId ?? "unknown"}; runtime=${runtimeType}; error=${message.slice(0, 500)}`,
+    }).catch(() => undefined);
+    res.status(500).json({ error: message });
   }
 });
 
