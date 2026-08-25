@@ -10,7 +10,6 @@ import {
   Search,
   Settings2,
   StickyNote,
-  UserPlus,
   UsersRound,
 } from "lucide-react";
 import { CustomliLogo } from "@/components/customli-logo";
@@ -40,7 +39,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/notes", label: "Notes", icon: StickyNote },
     { href: "/tasks", label: "Tasks", icon: ClipboardList },
     { href: "/team", label: "AI Team", icon: UsersRound },
-    { href: "/agent-creation", label: "Hire AI Employee", icon: UserPlus },
     { href: "/brain", label: "Mission Brain", icon: Brain },
     { href: "/skills", label: "Skills", icon: BookOpen },
     { href: "/settings", label: "Settings", icon: Settings2 },
@@ -117,12 +115,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <main className={`mission-main-canvas mission-route-${routeClass} relative z-10 flex-1 flex flex-col h-screen overflow-hidden bg-transparent`}>
-        {location === "/team" && (
-          <Link href="/agent-creation" className="team-hire-employee-cta" aria-label="Hire AI Employee">
-            <UserPlus aria-hidden="true" />
-            <span>Hire AI Employee</span>
-          </Link>
-        )}
         {children}
       </main>
       {paletteOpen && (
@@ -132,7 +124,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="grid gap-1">
               {[
                 ["Ask James", "/tasks"],
-                ["Hire AI Employee", "/agent-creation"],
+                ["Hire AI Employee", "/team?hire=1"],
                 ["Add Note", "/notes?create=note"],
                 ["Add Idea", "/notes?create=idea"],
                 ["Add Task", "/tasks?create=task"],
