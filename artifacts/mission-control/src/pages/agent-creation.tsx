@@ -37,8 +37,8 @@ type AgentSummary = { id: number; name: string; role: string; department: string
 type Overview = { hosts: RuntimeHost[]; secrets: SecretRef[]; templates: EmployeeTemplate[]; instances: RuntimeInstance[]; agents: AgentSummary[] };
 type Project = { id: number; name: string; description?: string | null };
 type EmployeeProfile = { agentId: number; projectId?: number | null; projectName?: string | null; avatarDataUrl?: string | null };
-
 type RuntimeChoice = "openclaw" | "hermes" | "existing";
+type HireStatus = { state: "idle" | "working" | "ready" | "error"; message: string };
 
 function getAdminToken() {
   if (typeof window === "undefined") return "";
@@ -61,9 +61,15 @@ async function authedFetch<T>(path: string, init?: RequestInit, timeoutMs = 210_
       },
     });
     const text = await response.text();
-    const payload = text.trim() ? JSON.parse(text) : {};
-    if (!response.ok) throw new Error(payload.error || `${response.status} ${response.statusText}`);
+    let payload: Record<string, unknown> = {};
+    try { payload = text.trim() ? JSON.parse(text) : {}; } catch { payload = {}; }
+    if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : `${response.status} ${response.statusText}`);
     return payload as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("Mission Control did not finish hiring within the expected time. No employee should be assumed created until Mission Control confirms it.");
+    }
+    throw error;
   } finally {
     window.clearTimeout(timeout);
   }
@@ -84,6 +90,7 @@ export default function AgentCreation() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [hireStatus, setHireStatus] = useState<HireStatus>({ state: "idle", message: "" });
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [addAccountOpen, setAddAccountOpen] = useState(false);
   const [runtimeChoice, setRuntimeChoice] = useState<RuntimeChoice>("openclaw");
@@ -102,8 +109,9 @@ export default function AgentCreation() {
     model: "openrouter/auto",
   });
 
-  const load = async () => {
-    setLoading(true); setError("");
+  const load = async (options?: { preserveMessages?: boolean }) => {
+    setLoading(true);
+    if (!options?.preserveMessages) setError("");
     try {
       const [data, projectRows, profileRows] = await Promise.all([
         authedFetch<Overview>("/api/provisioning/overview", { method: "GET" }, 30_000),
@@ -133,8 +141,14 @@ export default function AgentCreation() {
   const openclawHost = overview?.hosts.find(host => host.runtimeType === "openclaw");
   const openclawTemplate = overview?.templates.find(template => template.runtimeType === "openclaw");
 
+  const setHireError = (message: string) => {
+    setError(message);
+    setHireStatus({ state: "error", message });
+  };
+
   const chooseRuntime = (choice: RuntimeChoice) => {
     setRuntimeChoice(choice);
+    setHireStatus({ state: "idle", message: "" });
     if (choice === "openclaw") {
       setForm(current => ({ ...current, runtimeHostId: String(openclawHost?.id ?? ""), templateId: String(openclawTemplate?.id ?? ""), model: openclawTemplate?.model || "openrouter/auto" }));
     }
@@ -142,11 +156,11 @@ export default function AgentCreation() {
 
   const uploadAvatar = (file?: File) => {
     if (!file) return;
-    if (!(["image/png", "image/jpeg", "image/webp"].includes(file.type))) return setError("Use a PNG, JPG or WebP employee image.");
-    if (file.size > 1_000_000) return setError("Employee image must be under 1 MB.");
+    if (!(["image/png", "image/jpeg", "image/webp"].includes(file.type))) return setHireError("Use a PNG, JPG or WebP employee image.");
+    if (file.size > 1_000_000) return setHireError("Employee image must be under 1 MB.");
     const reader = new FileReader();
-    reader.onload = () => { setAvatarDataUrl(String(reader.result || "")); setError(""); };
-    reader.onerror = () => setError("Mission Control could not read that image.");
+    reader.onload = () => { setAvatarDataUrl(String(reader.result || "")); setError(""); setHireStatus({ state: "idle", message: "" }); };
+    reader.onerror = () => setHireError("Mission Control could not read that image.");
     reader.readAsDataURL(file);
   };
 
@@ -156,33 +170,45 @@ export default function AgentCreation() {
     try {
       const secret = await authedFetch<SecretRef>("/api/provisioning/secrets", { method: "POST", body: JSON.stringify({ name: secretForm.name, provider: secretForm.provider, kind: "api_key", value: secretForm.value }) }, 30_000);
       setSecretForm(current => ({ ...current, value: "" })); setForm(current => ({ ...current, secretId: String(secret.id) })); setAddAccountOpen(false);
-      setSuccess(`${secret.name} is saved securely and ready to use.`); await load();
+      setSuccess(`${secret.name} is saved securely and ready to use.`); await load({ preserveMessages: true });
     } catch (err) { setError(err instanceof Error ? err.message : "Mission Control could not save this AI account."); }
     finally { setBusy(false); }
   };
 
   const hireEmployee = async () => {
-    if (!form.name.trim() || !form.role.trim()) return setError("Add the employee's name and job title first.");
-    if (!form.projectId) return setError("Choose the project this employee belongs to.");
-    if (runtimeChoice !== "openclaw") return setError("Automatic hiring is currently available for OpenClaw. Hermes and existing-agent connection are shown for planning but are not one-click ready yet.");
-    if (!form.runtimeHostId) return setError("Mission Control does not have an OpenClaw worker location ready yet.");
-    if (!form.secretId) return setError("Choose an AI account for this employee, or add one securely.");
-    setBusy(true); setError(""); setSuccess("");
+    setSuccess("");
+    setError("");
+    setHireStatus({ state: "idle", message: "" });
+    if (!form.name.trim() || !form.role.trim()) return setHireError("Add the employee's name and job title first.");
+    if (!form.projectId) return setHireError("Choose the project this employee belongs to.");
+    if (runtimeChoice !== "openclaw") return setHireError("Automatic hiring is currently available for OpenClaw. Hermes and existing-agent connection are not one-click ready yet.");
+    if (!form.runtimeHostId) return setHireError("Mission Control does not have an OpenClaw worker location ready yet.");
+    if (!form.secretId) return setHireError("Choose an AI account for this employee, or add one securely.");
+
+    const employeeName = form.name.trim();
+    setBusy(true);
+    setHireStatus({ state: "working", message: `Hiring ${employeeName}. Mission Control is creating the employee, setting up OpenClaw, connecting the AI account and running its connection check. Keep this page open until you see Ready or an error.` });
     try {
       const result = await authedFetch<{ agent: AgentSummary; instance: RuntimeInstance }>("/api/employee-factory/hire", {
         method: "POST",
         body: JSON.stringify({ ...form, projectId: Number(form.projectId), runtimeHostId: Number(form.runtimeHostId), templateId: form.templateId ? Number(form.templateId) : null, secretId: Number(form.secretId), runtimeType: runtimeChoice, avatarDataUrl }),
       });
-      setSuccess(`${result.agent.name} has been hired and connected. They start with no Mission Control skills; assign training from Skills when you are ready.`);
-      setForm(current => ({ ...current, name: "", role: "", department: "", projectId: "", owner: "", responsibilities: "" })); setAvatarDataUrl(""); await load();
-    } catch (err) { setError(err instanceof Error ? err.message : "Mission Control could not finish hiring this employee."); await load(); }
-    finally { setBusy(false); }
+      const readyMessage = `${result.agent.name} is hired and connected. Opening AI Team now.`;
+      setSuccess(readyMessage);
+      setHireStatus({ state: "ready", message: readyMessage });
+      await load({ preserveMessages: true });
+      window.setTimeout(() => window.location.assign("/team"), 900);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Mission Control could not finish hiring this employee.";
+      setHireError(message);
+      await load({ preserveMessages: true });
+    } finally { setBusy(false); }
   };
 
   const employeeAction = async (agentId: number, action: "start" | "stop" | "restart" | "health" | "decommission") => {
     const labels = { start: "Resume", stop: "Pause", restart: "Restart", health: "Connection check", decommission: "Remove" };
     setBusy(true); setError(""); setSuccess("");
-    try { const result = await authedFetch<{ ok: boolean; status: string }>(`/api/provisioning/agents/${agentId}/runtime/${action}`, { method: "POST", body: "{}" }); setSuccess(`${labels[action]} completed. Current status: ${friendlyHealth(result.status)}.`); await load(); }
+    try { const result = await authedFetch<{ ok: boolean; status: string }>(`/api/provisioning/agents/${agentId}/runtime/${action}`, { method: "POST", body: "{}" }); setSuccess(`${labels[action]} completed. Current status: ${friendlyHealth(result.status)}.`); await load({ preserveMessages: true }); }
     catch (err) { setError(err instanceof Error ? err.message : `${labels[action]} could not be completed.`); }
     finally { setBusy(false); }
   };
@@ -228,7 +254,10 @@ export default function AgentCreation() {
 
       <section className="employee-factory-card employee-advanced-card"><button type="button" className="employee-advanced-toggle" onClick={() => setAdvancedOpen(v => !v)}><div><h2>Advanced settings</h2><p>Technical defaults selected by Mission Control.</p></div>{advancedOpen ? <ChevronUp /> : <ChevronDown />}</button>{advancedOpen && <div className="employee-advanced-grid"><div className="employee-field"><Label>Worker setup</Label><Select value={form.templateId} onValueChange={value => setForm(c => ({ ...c, templateId: value }))}><SelectTrigger><SelectValue placeholder="Automatic" /></SelectTrigger><SelectContent>{overview?.templates.map(template => <SelectItem key={template.id} value={String(template.id)}>{template.name}</SelectItem>)}</SelectContent></Select></div><div className="employee-field"><Label>AI model</Label><Input value={form.model} onChange={e => setForm(c => ({ ...c, model: e.target.value }))} /></div><div className="employee-field"><Label>Worker location</Label><Select value={form.runtimeHostId} onValueChange={value => setForm(c => ({ ...c, runtimeHostId: value }))}><SelectTrigger><SelectValue placeholder="Automatic" /></SelectTrigger><SelectContent>{overview?.hosts.filter(host => host.runtimeType === "openclaw").map(host => <SelectItem key={host.id} value={String(host.id)}>{host.name}</SelectItem>)}</SelectContent></Select></div></div>}</section>
 
-      <section className="employee-hire-bar"><div><strong>Ready to hire {form.name || "this employee"}?</strong><span>Project, runtime and AI account are required. Skills and additional access are assigned after hiring.</span></div><Button size="lg" onClick={() => void hireEmployee()} disabled={busy || loading || runtimeChoice !== "openclaw"}>{busy ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <UserPlus className="mr-2 h-5 w-5" />}Hire employee</Button></section>
+      <section className={`employee-hire-bar ${hireStatus.state !== "idle" ? `hire-${hireStatus.state}` : ""}`}>
+        <div className="employee-hire-copy"><strong>Ready to hire {form.name || "this employee"}?</strong><span>Project, runtime and AI account are required. Skills and additional access are assigned after hiring.</span>{hireStatus.state !== "idle" && <div className="employee-hire-status">{hireStatus.state === "working" && <Loader2 className="animate-spin" />}{hireStatus.state === "ready" && <CheckCircle2 />}{hireStatus.state === "error" && <CircleAlert />}<span>{hireStatus.message}</span></div>}</div>
+        <Button size="lg" onClick={() => void hireEmployee()} disabled={busy || loading || runtimeChoice !== "openclaw"}>{busy ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <UserPlus className="mr-2 h-5 w-5" />}{busy ? "Hiring…" : "Hire employee"}</Button>
+      </section>
     </main>
 
     <aside className="employee-factory-sidebar">
