@@ -19,7 +19,7 @@ const AVATAR_EXTENSIONS: Record<string, string> = {
 };
 
 function avatarDirectory() {
-  const dataDir = process.env.MISSION_CONTROL_DATA_DIR || path.resolve(process.cwd(), "../../data");
+  const dataDir = process.env.MISSION_CONTROL_DATA_DIR || "/var/lib/ai-mission-control";
   return path.join(dataDir, "avatars");
 }
 
@@ -117,7 +117,11 @@ router.post("/employee-factory/hire", createRateLimit("admin-write", 10, 60_000)
   try {
     avatarUrl = validateAvatarUrl(textOrNull(req.body?.avatarUrl));
     const [project] = await db.select({ id: projectsTable.id, name: projectsTable.name }).from(projectsTable).where(sql`${projectsTable.id} = ${projectId}`);
-    if (!project) { res.status(400).json({ error: "Selected project no longer exists." }); return; }
+    if (!project) {
+      await removeUploadedAvatar(avatarUrl);
+      res.status(400).json({ error: "Selected project no longer exists." });
+      return;
+    }
 
     const result = await provisionEmployee({
       name,
