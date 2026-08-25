@@ -1,3 +1,4 @@
+import path from "node:path";
 import express, { type Express, type ErrorRequestHandler } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
@@ -57,6 +58,16 @@ app.use(cors({
     return cb(new CorsForbiddenError(origin));
   },
 }));
+
+const dataDir = process.env.MISSION_CONTROL_DATA_DIR || path.resolve(process.cwd(), "../../data");
+app.use("/employee-avatars", express.static(path.join(dataDir, "avatars"), {
+  fallthrough: false,
+  immutable: true,
+  maxAge: "30d",
+  dotfiles: "deny",
+  index: false,
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
