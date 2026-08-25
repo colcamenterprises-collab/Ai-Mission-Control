@@ -1,4 +1,7 @@
-import { Router, type IRouter } from "express";
+import { randomUUID } from "node:crypto";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
+import express, { Router, type IRouter } from "express";
 import { sql } from "drizzle-orm";
 import { db, projectsTable } from "@workspace/db";
 import { createRateLimit } from "../lib/rate-limit.js";
@@ -7,8 +10,18 @@ import { provisionEmployee } from "../services/agent-provisioner.js";
 
 const router: IRouter = Router();
 
-const MAX_AVATAR_DATA_URL_LENGTH = 1_500_000;
-const AVATAR_PATTERN = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+const MAX_AVATAR_BYTES = 512_000;
+const AVATAR_PUBLIC_PREFIX = "/employee-avatars/";
+const AVATAR_EXTENSIONS: Record<string, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/webp": ".webp",
+};
+
+function avatarDirectory() {
+  const dataDir = process.env.MISSION_CONTROL_DATA_DIR || path.resolve(process.cwd(), "../../data");
+  return path.join(dataDir, "avatars");
+}
 
 function numberOrNull(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -22,12 +35,18 @@ function textOrNull(value: unknown): string | null {
   return trimmed || null;
 }
 
-function validateAvatar(value: string | null): string | null {
+function validateAvatarUrl(value: string | null): string | null {
   if (!value) return null;
-  if (value.length > MAX_AVATAR_DATA_URL_LENGTH || !AVATAR_PATTERN.test(value)) {
-    throw new Error("Employee image must be a PNG, JPG or WebP image under 1 MB.");
+  if (!/^\/employee-avatars\/[a-f0-9-]+\.(?:png|jpg|webp)$/.test(value)) {
+    throw new Error("Employee photo reference is invalid. Upload the photo again.");
   }
   return value;
+}
+
+async function removeUploadedAvatar(avatarUrl: string | null) {
+  if (!avatarUrl) return;
+  const filename = path.basename(avatarUrl);
+  await rm(path.join(avatarDirectory(), filename), { force: true }).catch(() => undefined);
 }
 
 router.get("/employee-factory/projects", async (_req, res): Promise<void> => {
@@ -40,12 +59,37 @@ router.get("/employee-factory/projects", async (_req, res): Promise<void> => {
 router.get("/employee-factory/profiles", async (_req, res): Promise<void> => {
   const result = await db.execute(sql`
     SELECT agent_id AS "agentId", project_id AS "projectId", project_name AS "projectName",
-           avatar_data_url AS "avatarDataUrl", created_at AS "createdAt", updated_at AS "updatedAt"
+           avatar_data_url AS "avatarUrl", created_at AS "createdAt", updated_at AS "updatedAt"
     FROM agent_employee_profiles
     ORDER BY agent_id
   `);
   res.json(result.rows ?? []);
 });
+
+router.post(
+  "/employee-factory/avatar",
+  createRateLimit("admin-write", 20, 60_000),
+  express.raw({ type: ["image/png", "image/jpeg", "image/webp"], limit: MAX_AVATAR_BYTES }),
+  async (req, res): Promise<void> => {
+    try {
+      const contentType = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+      const extension = AVATAR_EXTENSIONS[contentType];
+      const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      if (!extension) { res.status(415).json({ error: "Use a PNG, JPG or WebP employee photo." }); return; }
+      if (!body.length) { res.status(400).json({ error: "Choose an employee photo to upload." }); return; }
+      if (body.length > MAX_AVATAR_BYTES) { res.status(413).json({ error: "Employee photo is still too large after resizing. Choose a smaller image." }); return; }
+
+      await mkdir(avatarDirectory(), { recursive: true });
+      const filename = `${randomUUID()}${extension}`;
+      await writeFile(path.join(avatarDirectory(), filename), body, { flag: "wx" });
+      const avatarUrl = `${AVATAR_PUBLIC_PREFIX}${filename}`;
+      await auditLog({ action: "uploaded", entityType: "agent_employee_avatar", entityId: filename, actorType: "admin", actorName: "Mission Control" });
+      res.status(201).json({ avatarUrl });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : "Mission Control could not save the employee photo." });
+    }
+  },
+);
 
 router.post("/employee-factory/hire", createRateLimit("admin-write", 10, 60_000), async (req, res): Promise<void> => {
   const name = textOrNull(req.body?.name);
@@ -59,6 +103,7 @@ router.post("/employee-factory/hire", createRateLimit("admin-write", 10, 60_000)
   const templateId = numberOrNull(req.body?.templateId);
   const runtimeType = textOrNull(req.body?.runtimeType) || "openclaw";
   const model = textOrNull(req.body?.model);
+  let avatarUrl: string | null = null;
 
   if (!name || !role) { res.status(400).json({ error: "Employee name and job title are required." }); return; }
   if (!projectId) { res.status(400).json({ error: "Choose a Mission Control project for this employee." }); return; }
@@ -70,7 +115,7 @@ router.post("/employee-factory/hire", createRateLimit("admin-write", 10, 60_000)
   if (!secretId) { res.status(400).json({ error: "Choose an AI account for this employee." }); return; }
 
   try {
-    const avatarDataUrl = validateAvatar(textOrNull(req.body?.avatarDataUrl));
+    avatarUrl = validateAvatarUrl(textOrNull(req.body?.avatarUrl));
     const [project] = await db.select({ id: projectsTable.id, name: projectsTable.name }).from(projectsTable).where(sql`${projectsTable.id} = ${projectId}`);
     if (!project) { res.status(400).json({ error: "Selected project no longer exists." }); return; }
 
@@ -91,7 +136,7 @@ router.post("/employee-factory/hire", createRateLimit("admin-write", 10, 60_000)
 
     await db.execute(sql`
       INSERT INTO agent_employee_profiles (agent_id, project_id, project_name, avatar_data_url, updated_at)
-      VALUES (${result.agent.id}, ${project.id}, ${project.name}, ${avatarDataUrl}, now())
+      VALUES (${result.agent.id}, ${project.id}, ${project.name}, ${avatarUrl}, now())
       ON CONFLICT (agent_id) DO UPDATE SET
         project_id = EXCLUDED.project_id,
         project_name = EXCLUDED.project_name,
@@ -100,9 +145,10 @@ router.post("/employee-factory/hire", createRateLimit("admin-write", 10, 60_000)
     `);
 
     await auditLog({ action: "hired", entityType: "agent_employee", entityId: result.agent.id, actorType: "admin", actorName: "Mission Control" });
-    res.status(201).json({ ...result, profile: { agentId: result.agent.id, projectId: project.id, projectName: project.name, avatarDataUrl } });
+    res.status(201).json({ ...result, profile: { agentId: result.agent.id, projectId: project.id, projectName: project.name, avatarUrl } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Mission Control could not finish hiring this employee.";
+    await removeUploadedAvatar(avatarUrl);
     await auditLog({
       action: "hire_failed",
       entityType: "agent_employee",
@@ -122,7 +168,7 @@ router.put("/employee-factory/agents/:id/profile", createRateLimit("admin-write"
   try {
     const projectId = numberOrNull(req.body?.projectId);
     const projectName = textOrNull(req.body?.projectName);
-    const avatarDataUrl = validateAvatar(textOrNull(req.body?.avatarDataUrl));
+    const avatarUrl = validateAvatarUrl(textOrNull(req.body?.avatarUrl));
 
     if (projectId) {
       const [project] = await db.select({ id: projectsTable.id, name: projectsTable.name }).from(projectsTable).where(sql`${projectsTable.id} = ${projectId}`);
@@ -132,18 +178,18 @@ router.put("/employee-factory/agents/:id/profile", createRateLimit("admin-write"
 
     const result = await db.execute(sql`
       INSERT INTO agent_employee_profiles (agent_id, project_id, project_name, avatar_data_url, updated_at)
-      VALUES (${agentId}, ${projectId}, ${projectName}, ${avatarDataUrl}, now())
+      VALUES (${agentId}, ${projectId}, ${projectName}, ${avatarUrl}, now())
       ON CONFLICT (agent_id) DO UPDATE SET
         project_id = EXCLUDED.project_id,
         project_name = EXCLUDED.project_name,
         avatar_data_url = EXCLUDED.avatar_data_url,
         updated_at = now()
       RETURNING agent_id AS "agentId", project_id AS "projectId", project_name AS "projectName",
-                avatar_data_url AS "avatarDataUrl", updated_at AS "updatedAt"
+                avatar_data_url AS "avatarUrl", updated_at AS "updatedAt"
     `);
 
     await auditLog({ action: "updated", entityType: "agent_employee_profile", entityId: agentId, actorType: "admin", actorName: "Mission Control" });
-    res.json(result.rows?.[0] ?? { agentId, projectId, projectName, avatarDataUrl });
+    res.json(result.rows?.[0] ?? { agentId, projectId, projectName, avatarUrl });
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : "Employee profile could not be saved." });
   }
