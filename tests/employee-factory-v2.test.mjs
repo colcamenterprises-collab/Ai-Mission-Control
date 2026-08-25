@@ -33,17 +33,27 @@ test("new employees start without Mission Control skills", async () => {
   assert.match(schema, /'\[\]'::jsonb/);
 });
 
-test("employee photo and project profile are persisted server-side", async () => {
-  const [route, schema, page] = await Promise.all([
+test("employee photo uploads separately and hire payload stays lightweight", async () => {
+  const [route, app, schema, page] = await Promise.all([
     read("artifacts/api-server/src/routes/employee-factory.ts"),
+    read("artifacts/api-server/src/app.ts"),
     read("lib/db/src/ensure-agent-provisioning-schema.ts"),
     read("artifacts/mission-control/src/pages/agent-creation.tsx"),
   ]);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS agent_employee_profiles/);
-  assert.match(route, /avatar_data_url/);
-  assert.match(route, /project_id/);
-  assert.match(route, /\/employee-factory\/hire/);
-  assert.match(page, /accept="image\/png,image\/jpeg,image\/webp"/);
+  assert.match(route, /\/employee-factory\/avatar/);
+  assert.match(route, /express\.raw/);
+  assert.match(route, /MAX_AVATAR_BYTES = 512_000/);
+  assert.match(route, /avatar_data_url AS "avatarUrl"/);
+  assert.match(route, /validateAvatarUrl/);
+  assert.match(app, /\/employee-avatars/);
+  assert.match(app, /express\.static/);
+  assert.match(page, /resizeAvatar/);
+  assert.match(page, /uploadAvatarBinary/);
+  assert.match(page, /avatarUrl: avatarUrl \|\| null/);
+  assert.match(page, /Photo ready/);
+  assert.doesNotMatch(page, /runtimeChoice, avatarDataUrl/);
+  assert.doesNotMatch(route, /AVATAR_PATTERN/);
 });
 
 test("hire failures remain visible beside the hire button", async () => {
