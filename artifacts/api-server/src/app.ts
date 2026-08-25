@@ -59,7 +59,7 @@ app.use(cors({
   },
 }));
 
-const dataDir = process.env.MISSION_CONTROL_DATA_DIR || path.resolve(process.cwd(), "../../data");
+const dataDir = process.env.MISSION_CONTROL_DATA_DIR || "/var/lib/ai-mission-control";
 app.use("/employee-avatars", express.static(path.join(dataDir, "avatars"), {
   fallthrough: false,
   immutable: true,
