@@ -89,6 +89,15 @@ export async function ensureAgentProvisioningSchema(database: SqlExecutor): Prom
       updated_at timestamptz NOT NULL DEFAULT now()
     );
 
+    CREATE TABLE IF NOT EXISTS agent_profile_definitions (
+      agent_id integer PRIMARY KEY REFERENCES agents(id) ON DELETE CASCADE,
+      profile_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+      generated_files jsonb NOT NULL DEFAULT '{}'::jsonb,
+      version integer NOT NULL DEFAULT 1,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+
     INSERT INTO runtime_hosts (name, runtime_type, host_type, root_dir, cli_path, status, capabilities)
     VALUES (
       'Hostinger Production',
