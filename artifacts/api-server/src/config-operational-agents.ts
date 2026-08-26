@@ -15,6 +15,7 @@ type PublicAgent = Omit<typeof agentsTable.$inferSelect, "apiKey" | "createdAt">
 export const OPERATIONAL_AGENTS: PublicAgent[] = [];
 
 export const CURRENT_ORCHESTRATOR_NAME = "Mission Control";
+const NO_SKILLS_SENTINEL = "__none__";
 
 // Compatibility defaults are used only to bootstrap durable grants for existing
 // agents. Once initialization completes, agent_execution_scopes is authoritative.
@@ -36,7 +37,7 @@ let durableAssignmentsLoaded = false;
 let durableAssignments = new Map<string, string[]>();
 
 function normalizeSkills(skills: string[]): string[] {
-  return [...new Set(skills.map((skill) => skill.trim()).filter(Boolean))];
+  return [...new Set(skills.map((skill) => skill.trim()).filter((skill) => skill && skill !== NO_SKILLS_SENTINEL))];
 }
 
 function legacySkills(agentName: string): string[] {
@@ -93,7 +94,9 @@ export async function initializeAgentSkillAssignments(): Promise<{
   const agentsWithExplicitGrants = new Set(existing.map((row) => row.agentId));
   const bootstrapRows = agents.flatMap((agent) => {
     if (agentsWithExplicitGrants.has(agent.id)) return [];
-    return legacySkills(agent.name).map((skill) => ({
+    const defaults = legacySkills(agent.name);
+    if (!defaults.length) return [];
+    return defaults.map((skill) => ({
       agentId: agent.id,
       scopeType: "skill",
       scopeValue: skill,
@@ -134,17 +137,15 @@ export async function setAssignedSkillNamesForAgent(
           eq(agentExecutionScopesTable.operation, "use"),
         ),
       );
-    if (normalized.length) {
-      await transaction.insert(agentExecutionScopesTable).values(
-        normalized.map((skill) => ({
-          agentId,
-          scopeType: "skill",
-          scopeValue: skill,
-          operation: "use",
-          grantedBy: "Mission Control",
-        })),
-      );
-    }
+    await transaction.insert(agentExecutionScopesTable).values(
+      (normalized.length ? normalized : [NO_SKILLS_SENTINEL]).map((skill) => ({
+        agentId,
+        scopeType: "skill",
+        scopeValue: skill,
+        operation: "use",
+        grantedBy: "Mission Control",
+      })),
+    );
   });
 
   durableAssignments.set(agentName.toLowerCase(), normalized);
