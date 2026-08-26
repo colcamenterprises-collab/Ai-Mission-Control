@@ -27,6 +27,7 @@ import operationsRouter from "./operations";
 import inboxRouter from "./inbox";
 import provisioningRouter from "./provisioning";
 import employeeFactoryRouter from "./employee-factory";
+import agentProfileRouter from "./agent-profile";
 import { requireAdminAuth } from "../lib/auth.js";
 
 const router: IRouter = Router();
@@ -50,6 +51,7 @@ router.use(executionsRouter);
 router.use(intelligenceRouter);
 router.use(operationsRouter);
 router.use(inboxRouter);
+router.use(agentProfileRouter);
 router.use(employeeFactoryRouter);
 router.use(provisioningRouter);
 router.use(taskAttachmentsRouter);

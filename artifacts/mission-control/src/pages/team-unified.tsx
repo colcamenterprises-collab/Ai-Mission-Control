@@ -1,17 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Bot, MessageCircle, Plus, Send, Settings2, Sparkles, Wifi } from "lucide-react";
+import { Bot, MessageCircle, Plus, Settings2, Sparkles } from "lucide-react";
 import { getListAgentsQueryKey, useListAgents, type Agent } from "@workspace/api-client-react";
 import AgentCreation from "@/pages/agent-creation";
-import { Button } from "@/components/ui/button";
+import AgentProfilePanel from "@/pages/agent-profile-panel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import "./team-unified.css";
-
-const PRIMARY_TOKEN_STORAGE_KEY = "mission_control_admin_token";
-const LEGACY_TOKEN_STORAGE_KEY = "missionControlAdminToken";
-const CHAT_HISTORY_PREFIX = "mission_control_agent_chat";
 
 type EmployeeProfile = {
   agentId: number;
@@ -19,54 +14,6 @@ type EmployeeProfile = {
   projectName?: string | null;
   avatarUrl?: string | null;
 };
-
-type ChatEntry = {
-  id: string;
-  role: "owner" | "agent" | "system";
-  text: string;
-  taskId?: number;
-};
-
-type RuntimeResult = {
-  output?: string | null;
-  error?: string | null;
-  taskId?: number;
-  result?: { output?: string | null; error?: string | null };
-};
-
-type AgentWithSkills = Agent & { assignedSkills?: string[] };
-
-function getAdminToken() {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(PRIMARY_TOKEN_STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_TOKEN_STORAGE_KEY) ?? "";
-}
-
-async function authedFetch<T>(path: string, init?: RequestInit, timeoutMs = 70_000): Promise<T> {
-  const token = getAdminToken();
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(path, {
-      ...init,
-      signal: controller.signal,
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}`, "x-admin-token": token } : {}),
-        ...(init?.headers as Record<string, string> | undefined),
-      },
-    });
-    const text = await response.text();
-    const payload = text.trim() ? JSON.parse(text) : {};
-    if (!response.ok) throw new Error(payload.error ?? payload.result?.error ?? `${response.status} ${response.statusText}`);
-    return payload as T;
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw new Error("The agent did not respond before the request timed out.");
-    throw error;
-  } finally {
-    window.clearTimeout(timeout);
-  }
-}
 
 function statusLabel(agent: Agent) {
   if (agent.status === "active") return "Working";
@@ -85,86 +32,8 @@ function description(agent: Agent) {
   return sentence.length > 140 ? `${sentence.slice(0, 137).trimEnd()}…` : sentence;
 }
 
-function formatLastSeen(value?: string | null) {
-  if (!value) return "Not yet recorded";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
-
-function chatStorageKey(agentId: number) {
-  return `${CHAT_HISTORY_PREFIX}:${agentId}`;
-}
-
-function loadChatHistory(agentId: number): ChatEntry[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.sessionStorage.getItem(chatStorageKey(agentId));
-    const parsed = raw ? JSON.parse(raw) as ChatEntry[] : [];
-    return Array.isArray(parsed) ? parsed.filter((entry) => entry.text?.trim()).slice(-20) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveChatHistory(agentId: number, entries: ChatEntry[]) {
-  if (typeof window === "undefined") return;
-  try { window.sessionStorage.setItem(chatStorageKey(agentId), JSON.stringify(entries.slice(-20))); } catch { /* chat remains available in memory */ }
-}
-
 function AgentModal({ agent, mode, onClose, onChanged }: { agent: Agent | null; mode: "manage" | "chat"; onClose: () => void; onChanged: () => void }) {
-  const [chat, setChat] = useState<ChatEntry[]>([]);
-  const [brief, setBrief] = useState("");
-  const [error, setError] = useState("");
-  const [checking, setChecking] = useState(false);
-  const [sending, setSending] = useState(false);
-  const composerRef = useRef<HTMLTextAreaElement | null>(null);
-
-  useEffect(() => {
-    if (!agent) return;
-    setChat(loadChatHistory(agent.id));
-    setError("");
-    if (mode === "chat") window.setTimeout(() => composerRef.current?.focus(), 80);
-  }, [agent?.id, mode]);
-
   if (!agent) return null;
-  const skills = (agent as AgentWithSkills).assignedSkills ?? [];
-
-  const appendChat = (entry: Omit<ChatEntry, "id">) => {
-    setChat((current) => {
-      const next = [...current, { id: `${Date.now()}-${current.length}`, ...entry }].slice(-20);
-      saveChatHistory(agent.id, next);
-      return next;
-    });
-  };
-
-  const checkConnection = async () => {
-    setChecking(true); setError("");
-    try {
-      const result = await authedFetch<RuntimeResult>(`/api/agents/${agent.id}/test`, { method: "POST", body: "{}" }, agent.provider === "hermes" ? 190_000 : 30_000);
-      const output = result.result?.output?.trim() || result.output?.trim() || "Connection check passed.";
-      appendChat({ role: "system", text: output });
-      onChanged();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Connection check failed.");
-    } finally { setChecking(false); }
-  };
-
-  const sendChat = async () => {
-    const instructions = brief.trim();
-    if (!instructions) return;
-    appendChat({ role: "owner", text: instructions });
-    setBrief(""); setSending(true); setError("");
-    try {
-      const result = await authedFetch<RuntimeResult>(`/api/agents/${agent.id}/test-task`, { method: "POST", body: JSON.stringify({ instructions }) }, agent.provider === "hermes" ? 190_000 : 90_000);
-      const output = result.result?.output?.trim() || result.output?.trim() || "The request was completed.";
-      appendChat({ role: "agent", text: output, taskId: result.taskId });
-      onChanged();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "The message could not be completed.");
-    } finally { setSending(false); }
-  };
-
   return (
     <Dialog open={Boolean(agent)} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="team-agent-modal">
@@ -174,43 +43,7 @@ function AgentModal({ agent, mode, onClose, onChanged }: { agent: Agent | null; 
             <span><strong>{agent.name}</strong><em>{statusLabel(agent)} · {agent.role}</em></span>
           </DialogTitle>
         </DialogHeader>
-
-        <div className="team-agent-summary-grid">
-          <div><span>Department</span><strong>{agent.department}</strong></div>
-          <div><span>Provider</span><strong>{agent.provider || "Not connected"}</strong></div>
-          <div><span>Model</span><strong>{agent.model || "Default"}</strong></div>
-          <div><span>Current work</span><strong>{agent.currentTask || "Available"}</strong></div>
-          <div><span>Completed</span><strong>{agent.tasksCompleted ?? 0} tasks</strong></div>
-          <div><span>Last response</span><strong>{formatLastSeen(agent.lastPing)}</strong></div>
-        </div>
-
-        <div className="team-agent-responsibility">
-          <span>What this employee is responsible for</span>
-          <p>{agent.responsibilities || description(agent)}</p>
-        </div>
-
-        <div className="team-agent-skill-row">
-          <span>Assigned skills</span>
-          <div>{skills.length ? skills.map((skill) => <b key={skill}>{skill}</b>) : <em>No specific skills assigned yet</em>}</div>
-          <Button size="sm" variant="outline" onClick={checkConnection} disabled={checking}><Wifi className="h-3.5 w-3.5" /> {checking ? "Checking" : "Check connection"}</Button>
-        </div>
-
-        <section className={`team-mini-chat ${mode === "chat" ? "team-mini-chat-focus" : ""}`}>
-          <div className="team-mini-chat-head"><MessageCircle className="h-4 w-4" /><strong>Direct chat with {agent.name}</strong></div>
-          <div className="team-mini-chat-log">
-            {chat.length ? chat.map((entry) => (
-              <div key={entry.id} className={`team-mini-bubble ${entry.role}`}>
-                <p>{entry.text}</p>
-                {entry.taskId && <small>Task #{entry.taskId}</small>}
-              </div>
-            )) : <div className="team-mini-chat-empty">Send a message or instruction directly to this employee.</div>}
-          </div>
-          {error && <div className="team-mini-chat-error">{error}</div>}
-          <div className="team-mini-chat-composer">
-            <Textarea ref={composerRef} value={brief} onChange={(event) => setBrief(event.target.value)} rows={2} placeholder={`Message ${agent.name}…`} />
-            <Button size="sm" onClick={sendChat} disabled={sending || !brief.trim()}><Send className="h-3.5 w-3.5" /> {sending ? "Sending" : "Send"}</Button>
-          </div>
-        </section>
+        <AgentProfilePanel agent={agent} initialMode={mode} onChanged={onChanged} />
       </DialogContent>
     </Dialog>
   );
