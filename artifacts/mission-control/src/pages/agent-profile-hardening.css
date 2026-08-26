@@ -1,3 +1,4 @@
+/* Agent Profile modal containment and avatar controls. Keep this file limited to Manage-modal hardening overrides. */
 .team-agent-modal{
   width:min(92vw,62rem)!important;
   max-width:min(92vw,62rem)!important;
