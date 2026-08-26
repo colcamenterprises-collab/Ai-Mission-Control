@@ -29,41 +29,26 @@ test("agent list reconciles stale state instead of trusting cached Amanda or Jam
   assert.doesNotMatch(route, /Amanda.*status|James.*status/i);
 });
 
-test("skill assignments are durable grants rather than runtime name rules", async () => {
-  const config = await read("artifacts/api-server/src/config-operational-agents.ts");
-  assert.match(config, /agentExecutionScopesTable/);
-  assert.match(config, /scopeType, "skill"/);
-  assert.match(config, /initializeAgentSkillAssignments/);
-  assert.match(config, /legacy-bootstrap/);
-  assert.match(config, /NO_SKILLS_SENTINEL/);
-  assert.match(config, /setAssignedSkillNamesForAgent/);
-});
-
-test("an explicit empty grant survives restart and cannot silently restore legacy skills", async () => {
-  const config = await read("artifacts/api-server/src/config-operational-agents.ts");
-  assert.match(config, /normalized\.length \? normalized : \[NO_SKILLS_SENTINEL\]/);
-  assert.match(config, /skill !== NO_SKILLS_SENTINEL/);
-});
-
-test("authenticated agents can only read explicitly granted skills", async () => {
+test("authenticated employees can discover the shared company skill library", async () => {
   const route = await read("artifacts/api-server/src/routes/agent-skills.ts");
-  assert.match(route, /getAssignedSkillNamesForAgent/);
-  assert.match(route, /isGranted/);
-  assert.match(route, /grantedNative/);
-  assert.match(route, /!isGranted\(selectors, skill\)/);
+  assert.match(route, /getAgentFromBearer/);
+  assert.match(route, /skills: \[\.\.\.native\.skills, \.\.\.approvedShared\]/);
+  assert.match(route, /accessModel: "shared-company-capability"/);
+  assert.doesNotMatch(route, /getAssignedSkillNamesForAgent/);
+  assert.doesNotMatch(route, /isGranted/);
+});
+
+test("shared vault skills still require company approval and an enabled source", async () => {
+  const route = await read("artifacts/api-server/src/routes/agent-skills.ts");
   assert.match(route, /skill\.status !== "approved"/);
+  assert.match(route, /skill\.source\.enabled !== true/);
 });
 
-test("Mission Control exposes an audited durable skill assignment endpoint", async () => {
-  const route = await read("artifacts/api-server/src/routes/agents.ts");
-  assert.match(route, /router\.put\("\/agents\/:id\/skills"/);
-  assert.match(route, /setAssignedSkillNamesForAgent/);
-  assert.match(route, /action: "skills_updated"/);
-});
-
-test("skill grant cache is initialized before the API starts listening", async () => {
-  const entry = await read("artifacts/api-server/src/index.ts");
-  const init = entry.indexOf("await initializeAgentSkillAssignments()");
-  const listen = entry.indexOf("app.listen");
-  assert.ok(init >= 0 && listen > init, "durable skill grants must load before accepting requests");
+test("work eligibility no longer duplicates per-employee capability grants", async () => {
+  const permissions = await read("artifacts/api-server/src/services/execution-permissions.ts");
+  assert.match(permissions, /Company capabilities are shared infrastructure/);
+  assert.match(permissions, /eligible: true/);
+  assert.match(permissions, /code: "ELIGIBLE"/);
+  assert.doesNotMatch(permissions, /agentExecutionScopesTable/);
+  assert.doesNotMatch(permissions, /agentToolAccessTable/);
 });
