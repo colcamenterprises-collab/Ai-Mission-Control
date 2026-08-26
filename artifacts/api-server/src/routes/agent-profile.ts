@@ -71,7 +71,7 @@ function generateMarkdown(agent: AgentRow, business: string | null, profile: Age
     "AGENTS.md": `# Operating Instructions\n\n## Mission\n${md(profile.identity.mission)}\n\n## Core responsibilities\n${md(agent.responsibilities || "")}\n\n## Autonomous authority\n${md(profile.operating.autonomy)}\n\n## Owner approval required\n${md(profile.operating.approvalRequired)}\n\n## Completion standard\n${md(profile.operating.completionStandard)}\n\n## Reporting style\n${md(profile.operating.reportingStyle)}\n`,
     "USER.md": `# Owner and User Context\n\n## Primary manager\n${md(profile.user.managerName)}\n\n## Communication preferences\n${md(profile.user.communicationPreferences)}\n\n## Escalation rules\n${md(profile.user.escalationRules)}\n`,
     "TOOLS.md": `# Company Capability Access\n\nSkills, tools, systems, memory and shared knowledge are company infrastructure available to authenticated employees when their assigned work requires them. Employee profiles do not duplicate per-person capability grants. Credentials remain centrally protected and are never stored in this file. Consequential actions remain subject to company execution policy and approval controls.\n`,
-    "HEARTBEAT.md": `# Heartbeat and Recurring Duties\n\n## Recurring duties\n${md(profile.heartbeat.recurringDuties)}\n\n## Alert conditions\n${md(profile.heartbeat.alertConditions)}\n`,
+    "HEARTBEAT.md": `# Work Scheduling and Alerts\n\nRecurring work, schedules, triggers and alerts are not defined in an employee profile. They must be created and managed as canonical Mission Control tasks so assignment, approvals, execution state, evidence, retries and completion history remain auditable.\n`,
     "MEMORY.md": `# Memory\n\nUse shared company memory and retrieve only context relevant to assigned work. Durable employee behaviour and authority belong in Identity, Soul and Operating Instructions rather than a separate manually seeded memory profile.\n`,
   };
 }
@@ -81,7 +81,7 @@ function profileCompleteness(profile: AgentProfile): number {
     profile.identity.mission, profile.identity.successDefinition, profile.soul.communicationStyle, profile.soul.decisionStyle,
     profile.soul.initiative, profile.soul.challengeOwner, profile.soul.principles, profile.soul.neverDo, profile.operating.autonomy,
     profile.operating.approvalRequired, profile.operating.completionStandard, profile.operating.reportingStyle, profile.user.managerName,
-    profile.user.communicationPreferences, profile.user.escalationRules, profile.heartbeat.recurringDuties, profile.heartbeat.alertConditions,
+    profile.user.communicationPreferences, profile.user.escalationRules,
   ];
   return Math.round((values.filter(Boolean).length / values.length) * 100);
 }
