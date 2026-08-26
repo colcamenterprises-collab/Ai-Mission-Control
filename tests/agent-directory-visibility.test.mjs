@@ -6,18 +6,18 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
 test("business-specific departments cannot break the whole agent directory", async () => {
   const route = await read("artifacts/api-server/src/routes/agents.ts");
-  assert.match(route, /department: z\.string\(\)\.trim\(\)\.min\(1\)/);
-  assert.match(route, /const ListAgentsResponse = z\.array\(AgentResponse\)/);
-  assert.match(route, /res\.json\(ListAgentsResponse\.parse/);
+  assert.match(route, /normalizeDepartment/);
+  assert.match(route, /res\.json\(serializeDates\(agents\.map\(maskAgentForResponse\)\)\)/);
+  assert.doesNotMatch(route, /ListAgentsResponse\.parse/);
   assert.doesNotMatch(route, /Finance.*Operators|Developers.*Writers.*Researchers.*Operators/s);
 });
 
-test("agent create and update accept real business departments", async () => {
+test("agent create and update accept real business departments without weakening other validation", async () => {
   const route = await read("artifacts/api-server/src/routes/agents.ts");
-  assert.match(route, /const CreateAgentRequest = CreateAgentBody\.extend/);
-  assert.match(route, /const UpdateAgentRequest = UpdateAgentBody\.extend/);
-  assert.match(route, /CreateAgentRequest\.safeParse/);
-  assert.match(route, /UpdateAgentRequest\.safeParse/);
+  assert.match(route, /CreateAgentBody\.safeParse\(\{ \.\.\.req\.body, department: LEGACY_DEPARTMENT_PLACEHOLDER \}\)/);
+  assert.match(route, /UpdateAgentBody\.safeParse/);
+  assert.match(route, /department must be a non-empty string/);
+  assert.match(route, /const rest = \{ \.\.\.validated, department \}/);
 });
 
 test("AI Team dashboard metric counts hired agents including idle-ready employees", async () => {
