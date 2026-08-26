@@ -84,15 +84,15 @@ export default function AgentAvatarEditor({ agent, profile, onChanged }: { agent
 
   const choose = async (file?: File) => {
     if (!file || busy) return;
-    if (!profile) { setError("Employee profile record is still loading. Try again in a moment."); return; }
     if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) { setError("Use a PNG, JPG or WebP image."); return; }
     setBusy(true); setError("");
     try {
+      const baseProfile: EmployeeProfile = profile ?? { agentId: agent.id, projectId: null, projectName: null, avatarUrl: null };
       const blob = await resizeAvatar(file);
       const uploadedUrl = await uploadAvatar(blob);
-      const updated = await saveProfile(profile, uploadedUrl);
+      const updated = await saveProfile(baseProfile, uploadedUrl);
       setAvatarUrl(uploadedUrl);
-      onChanged({ ...profile, ...updated, avatarUrl: uploadedUrl });
+      onChanged({ ...baseProfile, ...updated, avatarUrl: uploadedUrl });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Employee avatar could not be updated.");
     } finally { setBusy(false); }
