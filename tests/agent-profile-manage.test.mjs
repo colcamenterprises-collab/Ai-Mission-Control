@@ -19,16 +19,20 @@ test("agent profile API generates portable markdown without credentials", async 
   assert.match(source, /credentialsIncluded: false/);
   assert.match(source, /assertManagedWorkspace/);
   assert.match(source, /profileCompleteness/);
+  assert.match(source, /shared-company-capability/);
 });
 
-test("team manage modal exposes agent profile sections and keeps health out of chat", async () => {
+test("team manage modal focuses employee setup on identity, work and audit surfaces", async () => {
   const panel = await read("artifacts/mission-control/src/pages/agent-profile-panel.tsx");
+  const hardening = await read("artifacts/mission-control/src/pages/agent-profile-hardening.css");
   const team = await read("artifacts/mission-control/src/pages/team-unified.tsx");
-  for (const label of ["Overview", "Identity & Soul", "Skills", "Memory", "Knowledge", "Tools & Access", "Automations", "Activity", "Chat", "Export"]) {
+  for (const label of ["Overview", "Identity & Soul", "Automations", "Activity", "Chat", "Export"]) {
     assert.match(panel, new RegExp(label));
   }
+  assert.match(hardening, /Skills, memory,/);
+  assert.match(hardening, /nth-child\(3\)/);
+  assert.match(hardening, /nth-child\(6\)/);
   assert.match(panel, /setHealth\(\{ ok: true, text \}\)/);
-  assert.match(panel, /firstVisibleText\(JSON\.parse\(trimmed\)\)/);
   assert.doesNotMatch(panel, /appendChat.*Connection/);
   assert.match(team, /<AgentProfilePanel/);
 });
@@ -41,4 +45,12 @@ test("questionnaire answers remain the source record and save syncs workspace ma
   assert.match(panel, /Save & sync agent/);
   assert.match(panel, /What is this employee's mission\?/);
   assert.match(panel, /What must they never do\?/);
+});
+
+test("profile completeness excludes shared company infrastructure", async () => {
+  const api = await read("artifacts/api-server/src/routes/agent-profile.ts");
+  const completeness = api.slice(api.indexOf("function profileCompleteness"), api.indexOf("function assertManagedWorkspace"));
+  assert.doesNotMatch(completeness, /profile\.tools/);
+  assert.doesNotMatch(completeness, /profile\.memory/);
+  assert.match(completeness, /profile\.heartbeat\.recurringDuties/);
 });

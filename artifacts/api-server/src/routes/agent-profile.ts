@@ -70,9 +70,9 @@ function generateMarkdown(agent: AgentRow, business: string | null, profile: Age
     "SOUL.md": `# Soul\n\n## Communication style\n${md(profile.soul.communicationStyle)}\n\n## Decision style\n${md(profile.soul.decisionStyle)}\n\n## Initiative\n${md(profile.soul.initiative)}\n\n## Challenging the owner\n${md(profile.soul.challengeOwner)}\n\n## Guiding principles\n${md(profile.soul.principles)}\n\n## Never do\n${md(profile.soul.neverDo)}\n`,
     "AGENTS.md": `# Operating Instructions\n\n## Mission\n${md(profile.identity.mission)}\n\n## Core responsibilities\n${md(agent.responsibilities || "")}\n\n## Autonomous authority\n${md(profile.operating.autonomy)}\n\n## Owner approval required\n${md(profile.operating.approvalRequired)}\n\n## Completion standard\n${md(profile.operating.completionStandard)}\n\n## Reporting style\n${md(profile.operating.reportingStyle)}\n`,
     "USER.md": `# Owner and User Context\n\n## Primary manager\n${md(profile.user.managerName)}\n\n## Communication preferences\n${md(profile.user.communicationPreferences)}\n\n## Escalation rules\n${md(profile.user.escalationRules)}\n`,
-    "TOOLS.md": `# Tools and Access\n\n## Allowed tools and systems\n${md(profile.tools.allowedTools)}\n\n## Access and usage rules\n${md(profile.tools.accessRules)}\n\n> Credentials are never stored in this file. Mission Control supplies approved secret references at runtime.\n`,
+    "TOOLS.md": `# Company Capability Access\n\nSkills, tools, systems, memory and shared knowledge are company infrastructure available to authenticated employees when their assigned work requires them. Employee profiles do not duplicate per-person capability grants. Credentials remain centrally protected and are never stored in this file. Consequential actions remain subject to company execution policy and approval controls.\n`,
     "HEARTBEAT.md": `# Heartbeat and Recurring Duties\n\n## Recurring duties\n${md(profile.heartbeat.recurringDuties)}\n\n## Alert conditions\n${md(profile.heartbeat.alertConditions)}\n`,
-    "MEMORY.md": `# Agent-owned Memory Seed\n\n${md(profile.memory.seed, "No agent-specific memory has been seeded yet.")}\n`,
+    "MEMORY.md": `# Memory\n\nUse shared company memory and retrieve only context relevant to assigned work. Durable employee behaviour and authority belong in Identity, Soul and Operating Instructions rather than a separate manually seeded memory profile.\n`,
   };
 }
 
@@ -81,8 +81,7 @@ function profileCompleteness(profile: AgentProfile): number {
     profile.identity.mission, profile.identity.successDefinition, profile.soul.communicationStyle, profile.soul.decisionStyle,
     profile.soul.initiative, profile.soul.challengeOwner, profile.soul.principles, profile.soul.neverDo, profile.operating.autonomy,
     profile.operating.approvalRequired, profile.operating.completionStandard, profile.operating.reportingStyle, profile.user.managerName,
-    profile.user.communicationPreferences, profile.user.escalationRules, profile.tools.allowedTools, profile.tools.accessRules,
-    profile.heartbeat.recurringDuties, profile.heartbeat.alertConditions, profile.memory.seed,
+    profile.user.communicationPreferences, profile.user.escalationRules, profile.heartbeat.recurringDuties, profile.heartbeat.alertConditions,
   ];
   return Math.round((values.filter(Boolean).length / values.length) * 100);
 }
@@ -176,19 +175,17 @@ router.get("/employee-factory/agents/:id/export", async (req, res): Promise<void
   if (!Number.isInteger(agentId) || agentId <= 0) { res.status(400).json({ error: "Invalid employee id." }); return; }
   const bundle = await getAgentBundle(agentId);
   if (!bundle) { res.status(404).json({ error: "Employee not found." }); return; }
-  const skillsResult = await db.execute(sql`SELECT scope_value FROM agent_execution_scopes WHERE agent_id = ${agentId} AND scope_type = 'skill' AND operation = 'use' ORDER BY scope_value`);
-  const skills = (skillsResult.rows ?? []).map(row => String((row as Record<string, unknown>).scope_value || "")).filter(Boolean);
   const files = generateMarkdown(bundle.agent, bundle.projectName, bundle.profile);
   const slug = bundle.agent.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `agent-${agentId}`;
   res.setHeader("Content-Disposition", `attachment; filename=\"${slug}.agent.json\"`);
   res.json({
-    schemaVersion: 1,
+    schemaVersion: 2,
     exportedAt: new Date().toISOString(),
     agent: { name: bundle.agent.name, role: bundle.agent.role, department: bundle.agent.department, responsibilities: bundle.agent.responsibilities, project: bundle.projectName },
     profile: bundle.profile,
     markdown: files,
-    dependencies: { assignedSkills: skills, runtimeType: bundle.runtimeType },
-    security: { credentialsIncluded: false, note: "Credentials and secret values are intentionally excluded. Reconnect approved credentials in the destination system." },
+    dependencies: { accessModel: "shared-company-capability", runtimeType: bundle.runtimeType },
+    security: { credentialsIncluded: false, note: "Credentials and secret values are intentionally excluded. Reconnect company credentials in the destination system." },
   });
 });
 
