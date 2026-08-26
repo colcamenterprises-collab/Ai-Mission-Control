@@ -43,6 +43,27 @@ test("OpenClaw employee is not marked ready until a real agent turn succeeds", a
   assert.match(source, /cleanupFailedDatabaseAttempt/);
 });
 
+test("OpenClaw live certification accepts documented successful gateway response shapes", async () => {
+  const source = await read("artifacts/api-server/src/services/agent-provisioner.ts");
+
+  assert.match(source, /function hasLiveInferencePayload/);
+  assert.match(source, /if \(value\.ok === true\) return true/);
+  assert.match(source, /isNonEmptyText\(value\.final\)/);
+  assert.match(source, /Array\.isArray\(value\.payloads\)/);
+  assert.match(source, /value\.result && typeof value\.result === "object"/);
+  assert.doesNotMatch(source, /!\("ok" in parsed\)/);
+  assert.doesNotMatch(source, /\(parsed as \{ ok\?: unknown \}\)\.ok !== true/);
+});
+
+test("OpenClaw live certification rejects explicit failure, timeout and in-flight outcomes", async () => {
+  const source = await read("artifacts/api-server/src/services/agent-provisioner.ts");
+
+  assert.match(source, /"error", "failed", "cancelled", "canceled", "timeout", "timed_out", "in_flight"/);
+  assert.match(source, /if \(value\.error\) return false/);
+  assert.match(source, /if \(result\.error\) return false/);
+  assert.match(source, /returned no successful response payload/);
+});
+
 test("OpenClaw employee restart re-certifies only that employee and never restarts the shared gateway", async () => {
   const source = await read("artifacts/api-server/src/services/agent-provisioner.ts");
 
