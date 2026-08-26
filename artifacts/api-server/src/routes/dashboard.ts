@@ -3,7 +3,7 @@ import { count, inArray, isNull } from "drizzle-orm";
 import { db, tasksTable, contentTable, eventsTable, agentsTable, activityTable } from "@workspace/db";
 import { GetDashboardSummaryResponse } from "@workspace/api-zod";
 import { sql } from "drizzle-orm";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, gte, lte } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -30,10 +30,13 @@ router.get("/dashboard/summary", async (_req, res): Promise<void> => {
     .from(eventsTable)
     .where(and(gte(eventsTable.startDate, now), lte(eventsTable.startDate, in48h)));
 
+  // The dashboard tile is labelled "AI Team" / "agents", so it must show
+  // the number of hired agents, not only agents that happen to be executing
+  // a task at this instant. Idle/ready employees such as James and Amanda are
+  // still members of the AI Team.
   const [activeAgentCount] = await db
     .select({ count: count() })
-    .from(agentsTable)
-    .where(eq(agentsTable.status, "active"));
+    .from(agentsTable);
 
   const [recentActivityCount] = await db
     .select({ count: count() })
