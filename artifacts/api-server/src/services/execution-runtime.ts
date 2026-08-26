@@ -73,7 +73,11 @@ export async function reconcileAgentStates(agentIds?: number[]): Promise<void> {
 
   for (const agent of agents) {
     const active = activeByAgent.get(agent.id);
-    const status = active ? "active" : "idle";
+    const status = active
+      ? "active"
+      : ["error", "pending"].includes(agent.status)
+        ? agent.status
+        : "idle";
     const currentTask = active ? active.requestedAction : null;
     if (agent.status === status && agent.currentTask === currentTask) continue;
     await db
