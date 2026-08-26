@@ -5,23 +5,27 @@
   max-height:90dvh!important;
   overflow:hidden!important;
   padding:1rem!important;
+  display:flex!important;
+  flex-direction:column!important;
 }
 .team-agent-modal>div,
 .team-agent-modal .agent-profile-panel,
 .team-agent-modal .agent-profile-content,
 .team-agent-modal .agent-question-grid,
 .team-agent-modal .agent-profile-summary-grid{min-width:0;max-width:100%}
-.team-agent-modal .agent-profile-panel{width:100%;overflow:hidden}
-.team-agent-modal .agent-profile-tabs{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:.35rem}
+.team-agent-modal>div:not(.agent-profile-panel){flex:0 0 auto}
+.team-agent-modal .agent-profile-panel{width:100%;flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.team-agent-modal .agent-profile-tabs{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:.35rem;flex:0 0 auto}
 .team-agent-modal .agent-profile-tabs::-webkit-scrollbar{width:0;height:0;background:transparent}
-.team-agent-modal .agent-profile-content{max-height:calc(90dvh - 15rem);overflow-y:auto;overflow-x:hidden;padding-right:0;scrollbar-width:none;-ms-overflow-style:none}
+.team-agent-modal .agent-profile-progress,.team-agent-modal .agent-profile-notice{flex:0 0 auto}
+.team-agent-modal .agent-profile-content{flex:1 1 auto;min-height:0;max-height:none!important;overflow-y:auto;overflow-x:hidden;padding-right:0;scrollbar-width:none;-ms-overflow-style:none}
 .team-agent-modal .agent-profile-content::-webkit-scrollbar{width:0;height:0;background:transparent}
-.team-agent-modal .agent-profile-save{position:sticky;bottom:0;z-index:4;margin:0 -.15rem -.15rem;padding:.7rem .15rem .15rem;background:linear-gradient(180deg,rgba(12,15,23,0),rgba(12,15,23,.98) 28%);min-width:0}
+.team-agent-modal .agent-profile-save{position:sticky;bottom:0;z-index:8;flex:0 0 auto;margin:0 -.15rem -.15rem;padding:.7rem .15rem .15rem;background:linear-gradient(180deg,rgba(12,15,23,0),rgba(12,15,23,.98) 28%);min-width:0}
 .team-agent-modal .agent-profile-save button{max-width:100%;white-space:nowrap}
 .team-agent-modal .agent-question,.team-agent-modal .agent-profile-card,.team-agent-modal .agent-profile-summary-grid>div{min-width:0;overflow:hidden}
 .team-agent-modal textarea{width:100%;max-width:100%;box-sizing:border-box}
 
-.agent-avatar-editor{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:.75rem;border:1px solid rgba(255,255,255,.075);border-radius:.9rem;background:rgba(255,255,255,.022);padding:.65rem .75rem;min-width:0}
+.agent-avatar-editor{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:.75rem;border:1px solid rgba(255,255,255,.075);border-radius:.9rem;background:rgba(255,255,255,.022);padding:.65rem .75rem;min-width:0;flex:0 0 auto}
 .agent-avatar-preview{width:3.25rem;height:3.25rem;flex:none;border-radius:1rem;overflow:hidden;border:1px solid rgba(167,139,250,.22);background:linear-gradient(145deg,rgba(76,29,149,.72),rgba(15,23,42,.96));display:grid;place-items:center;color:rgba(245,243,255,.96);font-size:.9rem;font-weight:800}
 .agent-avatar-preview img{width:100%;height:100%;object-fit:cover}
 .agent-avatar-copy{display:grid;gap:.16rem;min-width:0}
@@ -39,7 +43,6 @@
   .team-agent-modal{width:min(94vw,54rem)!important;max-width:min(94vw,54rem)!important}
   .team-agent-modal .agent-question-grid{grid-template-columns:1fr!important}
   .team-agent-modal .agent-profile-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
-  .team-agent-modal .agent-profile-content{max-height:calc(90dvh - 16rem)}
 }
 @media(max-width:640px){
   .team-agent-modal{width:96vw!important;max-width:96vw!important;max-height:92dvh!important;padding:.8rem!important}
@@ -49,5 +52,4 @@
   .agent-avatar-action span{width:100%;justify-content:center}
   .team-agent-modal .agent-profile-progress{grid-template-columns:1fr auto}
   .team-agent-modal .agent-profile-progress>div{grid-column:1/-1;grid-row:2}
-  .team-agent-modal .agent-profile-content{max-height:calc(92dvh - 18rem)}
 }
