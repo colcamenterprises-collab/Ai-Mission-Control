@@ -14,6 +14,12 @@ test("agent execution state is derived centrally from work request lifecycle", a
   assert.match(runtime, /currentTask: otherActive \? otherActive\.requestedAction : null/);
 });
 
+test("agent reconciliation preserves legitimate runtime error and pending states", async () => {
+  const runtime = await read("artifacts/api-server/src/services/execution-runtime.ts");
+  assert.match(runtime, /\["error", "pending"\]\.includes\(agent\.status\)/);
+  assert.match(runtime, /\? agent\.status\s*:\s*"idle"/);
+});
+
 test("agent list reconciles stale state instead of trusting cached Amanda or James rows", async () => {
   const route = await read("artifacts/api-server/src/routes/agents.ts");
   const listStart = route.indexOf('router.get("/agents"');
