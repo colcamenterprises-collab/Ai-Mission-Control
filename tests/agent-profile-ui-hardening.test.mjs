@@ -14,6 +14,14 @@ test("agent profile modal stays contained on tablet layouts", async () => {
   assert.match(css, /\.agent-profile-save\{position:sticky/);
 });
 
+test("agent profile save action remains visible while questionnaire content scrolls", async () => {
+  const css = await read("artifacts/mission-control/src/pages/agent-profile-hardening.css");
+  assert.match(css, /\.team-agent-modal\{[^}]*display:flex!important;[^}]*flex-direction:column!important/s);
+  assert.match(css, /\.team-agent-modal \.agent-profile-panel\{[^}]*flex:1 1 auto;[^}]*min-height:0;[^}]*display:flex;[^}]*flex-direction:column/s);
+  assert.match(css, /\.team-agent-modal \.agent-profile-content\{[^}]*flex:1 1 auto;[^}]*min-height:0;[^}]*max-height:none!important;[^}]*overflow-y:auto/s);
+  assert.match(css, /\.team-agent-modal \.agent-profile-save\{[^}]*bottom:0;[^}]*flex:0 0 auto/s);
+});
+
 test("manage modal supports add and change avatar for legacy and provisioned agents", async () => {
   const team = await read("artifacts/mission-control/src/pages/team-unified.tsx");
   const avatar = await read("artifacts/mission-control/src/pages/agent-avatar-editor.tsx");
