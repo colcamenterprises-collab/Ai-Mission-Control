@@ -11,7 +11,9 @@ import { provisionEmployee } from "../services/agent-provisioner.js";
 const router: IRouter = Router();
 
 const MAX_AVATAR_BYTES = 512_000;
-const AVATAR_PUBLIC_PREFIX = "/employee-avatars/";
+const AVATAR_API_PREFIX = "/api/employee-factory/avatar/";
+const LEGACY_AVATAR_PREFIX = "/employee-avatars/";
+const AVATAR_FILENAME_RE = /^[a-f0-9-]+\.(?:png|jpg|webp)$/;
 const AVATAR_EXTENSIONS: Record<string, string> = {
   "image/png": ".png",
   "image/jpeg": ".jpg",
@@ -35,17 +37,32 @@ function textOrNull(value: unknown): string | null {
   return trimmed || null;
 }
 
+function avatarFilename(value: string | null): string | null {
+  if (!value) return null;
+  const prefixes = [AVATAR_API_PREFIX, LEGACY_AVATAR_PREFIX];
+  const prefix = prefixes.find((candidate) => value.startsWith(candidate));
+  if (!prefix) return null;
+  const filename = value.slice(prefix.length);
+  return AVATAR_FILENAME_RE.test(filename) ? filename : null;
+}
+
+function publicAvatarUrl(value: string | null): string | null {
+  const filename = avatarFilename(value);
+  return filename ? `${AVATAR_API_PREFIX}${filename}` : null;
+}
+
 function validateAvatarUrl(value: string | null): string | null {
   if (!value) return null;
-  if (!/^\/employee-avatars\/[a-f0-9-]+\.(?:png|jpg|webp)$/.test(value)) {
+  const canonical = publicAvatarUrl(value);
+  if (!canonical) {
     throw new Error("Employee photo reference is invalid. Upload the photo again.");
   }
-  return value;
+  return canonical;
 }
 
 async function removeUploadedAvatar(avatarUrl: string | null) {
-  if (!avatarUrl) return;
-  const filename = path.basename(avatarUrl);
+  const filename = avatarFilename(avatarUrl);
+  if (!filename) return;
   await rm(path.join(avatarDirectory(), filename), { force: true }).catch(() => undefined);
 }
 
@@ -63,7 +80,32 @@ router.get("/employee-factory/profiles", async (_req, res): Promise<void> => {
     FROM agent_employee_profiles
     ORDER BY agent_id
   `);
-  res.json(result.rows ?? []);
+  const rows = (result.rows ?? []).map((row) => {
+    const profile = row as Record<string, unknown>;
+    const storedAvatar = typeof profile.avatarUrl === "string" ? profile.avatarUrl : null;
+    return { ...profile, avatarUrl: publicAvatarUrl(storedAvatar) };
+  });
+  res.json(rows);
+});
+
+router.get("/employee-factory/avatar/:filename", async (req, res): Promise<void> => {
+  const filename = String(req.params.filename || "").trim().toLowerCase();
+  if (!AVATAR_FILENAME_RE.test(filename)) {
+    res.status(400).json({ error: "Invalid employee avatar reference." });
+    return;
+  }
+
+  res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
+  res.sendFile(filename, {
+    root: avatarDirectory(),
+    dotfiles: "deny",
+    index: false,
+  }, (error) => {
+    if (!error || res.headersSent) return;
+    res.status(error.statusCode === 404 ? 404 : 500).json({
+      error: error.statusCode === 404 ? "Employee avatar not found." : "Employee avatar could not be loaded.",
+    });
+  });
 });
 
 router.post(
@@ -82,7 +124,7 @@ router.post(
       await mkdir(avatarDirectory(), { recursive: true });
       const filename = `${randomUUID()}${extension}`;
       await writeFile(path.join(avatarDirectory(), filename), body, { flag: "wx" });
-      const avatarUrl = `${AVATAR_PUBLIC_PREFIX}${filename}`;
+      const avatarUrl = `${AVATAR_API_PREFIX}${filename}`;
       await auditLog({ action: "uploaded", entityType: "agent_employee_avatar", entityId: filename, actorType: "admin", actorName: "Mission Control" });
       res.status(201).json({ avatarUrl });
     } catch (error) {
@@ -193,7 +235,9 @@ router.put("/employee-factory/agents/:id/profile", createRateLimit("admin-write"
     `);
 
     await auditLog({ action: "updated", entityType: "agent_employee_profile", entityId: agentId, actorType: "admin", actorName: "Mission Control" });
-    res.json(result.rows?.[0] ?? { agentId, projectId, projectName, avatarUrl });
+    const row = (result.rows?.[0] ?? { agentId, projectId, projectName, avatarUrl }) as Record<string, unknown>;
+    const storedAvatar = typeof row.avatarUrl === "string" ? row.avatarUrl : null;
+    res.json({ ...row, avatarUrl: publicAvatarUrl(storedAvatar) });
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : "Employee profile could not be saved." });
   }
