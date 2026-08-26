@@ -3,10 +3,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Bot, MessageCircle, Plus, Settings2, Sparkles } from "lucide-react";
 import { getListAgentsQueryKey, useListAgents, type Agent } from "@workspace/api-client-react";
 import AgentCreation from "@/pages/agent-creation";
+import AgentAvatarEditor from "@/pages/agent-avatar-editor";
 import AgentProfilePanel from "@/pages/agent-profile-panel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import "./team-unified.css";
+import "./agent-profile-hardening.css";
 
 type EmployeeProfile = {
   agentId: number;
@@ -32,7 +34,7 @@ function description(agent: Agent) {
   return sentence.length > 140 ? `${sentence.slice(0, 137).trimEnd()}…` : sentence;
 }
 
-function AgentModal({ agent, mode, onClose, onChanged }: { agent: Agent | null; mode: "manage" | "chat"; onClose: () => void; onChanged: () => void }) {
+function AgentModal({ agent, profile, mode, onClose, onChanged, onProfileChanged }: { agent: Agent | null; profile?: EmployeeProfile; mode: "manage" | "chat"; onClose: () => void; onChanged: () => void; onProfileChanged: (profile: EmployeeProfile) => void }) {
   if (!agent) return null;
   return (
     <Dialog open={Boolean(agent)} onOpenChange={(open) => !open && onClose()}>
@@ -43,6 +45,7 @@ function AgentModal({ agent, mode, onClose, onChanged }: { agent: Agent | null; 
             <span><strong>{agent.name}</strong><em>{statusLabel(agent)} · {agent.role}</em></span>
           </DialogTitle>
         </DialogHeader>
+        {mode === "manage" && <AgentAvatarEditor agent={agent} profile={profile} onChanged={onProfileChanged} />}
         <AgentProfilePanel agent={agent} initialMode={mode} onChanged={onChanged} />
       </DialogContent>
     </Dialog>
@@ -67,7 +70,12 @@ export default function TeamUnified() {
 
   const profileByAgent = useMemo(() => new Map(profiles.map((profile) => [profile.agentId, profile])), [profiles]);
   const selectedAgent = selectedAgentId ? agents.find((agent) => agent.id === selectedAgentId) ?? null : null;
+  const selectedProfile = selectedAgentId ? profileByAgent.get(selectedAgentId) : undefined;
   const refreshAgents = () => { void queryClient.invalidateQueries({ queryKey: getListAgentsQueryKey() }); };
+  const updateProfile = (updated: EmployeeProfile) => setProfiles((current) => {
+    const exists = current.some((profile) => profile.agentId === updated.agentId);
+    return exists ? current.map((profile) => profile.agentId === updated.agentId ? { ...profile, ...updated } : profile) : [...current, updated];
+  });
 
   const openAgent = (agentId: number, mode: "manage" | "chat") => {
     setSelectedAgentId(agentId);
@@ -127,7 +135,7 @@ export default function TeamUnified() {
         </section>
       </div>
 
-      <AgentModal agent={selectedAgent} mode={modalMode} onClose={() => setSelectedAgentId(null)} onChanged={refreshAgents} />
+      <AgentModal agent={selectedAgent} profile={selectedProfile} mode={modalMode} onClose={() => setSelectedAgentId(null)} onChanged={refreshAgents} onProfileChanged={updateProfile} />
 
       <Dialog open={hireOpen} onOpenChange={(open) => !open && closeHire()}>
         <DialogContent className="team-hire-dialog">
