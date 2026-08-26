@@ -25,9 +25,10 @@ test("team manage modal exposes agent profile sections and keeps health out of c
   const panel = await read("artifacts/mission-control/src/pages/agent-profile-panel.tsx");
   const team = await read("artifacts/mission-control/src/pages/team-unified.tsx");
   for (const label of ["Overview", "Identity & Soul", "Skills", "Memory", "Knowledge", "Tools & Access", "Automations", "Activity", "Chat", "Export"]) {
-    assert.match(panel, new RegExp(label.replace("&", "&")));
+    assert.match(panel, new RegExp(label));
   }
   assert.match(panel, /setHealth\(\{ ok: true, text \}\)/);
+  assert.match(panel, /firstVisibleText\(JSON\.parse\(trimmed\)\)/);
   assert.doesNotMatch(panel, /appendChat.*Connection/);
   assert.match(team, /<AgentProfilePanel/);
 });
