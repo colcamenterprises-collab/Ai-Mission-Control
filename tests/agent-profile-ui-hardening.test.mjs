@@ -21,17 +21,24 @@ test("manage modal supports add and change avatar for legacy and provisioned age
   assert.match(avatar, /\/api\/employee-factory\/avatar/);
   assert.match(avatar, /\/api\/employee-factory\/agents\/\$\{profile\.agentId\}\/profile/);
   assert.match(avatar, /profile \?\? \{ agentId: agent\.id/);
+  assert.match(avatar, /AVATAR_MAX_EDGE = 512/);
+  assert.match(avatar, /image\/webp/);
   assert.match(avatar, /Change avatar/);
   assert.match(avatar, /Add avatar/);
   assert.doesNotMatch(avatar, /password|apiKey/i);
 });
 
-test("employee avatars are delivered through the API proxy and legacy URLs are repaired", async () => {
+test("employee avatars are publicly readable through nginx API proxy while writes stay protected", async () => {
+  const app = await read("artifacts/api-server/src/app.ts");
   const route = await read("artifacts/api-server/src/routes/employee-factory.ts");
-  assert.match(route, /AVATAR_API_PREFIX = "\/api\/employee-factory\/avatar\/"/);
+  const routesIndex = await read("artifacts/api-server/src/routes/index.ts");
+  assert.match(app, /app\.use\("\/api\/employee-avatars", avatarStatic\)/);
+  assert.match(app, /express\.static\(path\.join\(dataDir, "avatars"\)/);
+  assert.match(route, /AVATAR_PUBLIC_PREFIX = "\/api\/employee-avatars\/"/);
+  assert.match(route, /PREVIOUS_AVATAR_PREFIX = "\/api\/employee-factory\/avatar\/"/);
   assert.match(route, /LEGACY_AVATAR_PREFIX = "\/employee-avatars\/"/);
-  assert.match(route, /router\.get\("\/employee-factory\/avatar\/:filename"/);
-  assert.match(route, /sendFile\(filename/);
   assert.match(route, /publicAvatarUrl\(storedAvatar\)/);
-  assert.match(route, /const avatarUrl = `\$\{AVATAR_API_PREFIX\}\$\{filename\}`/);
+  assert.match(route, /const avatarUrl = `\$\{AVATAR_PUBLIC_PREFIX\}\$\{filename\}`/);
+  assert.match(routesIndex, /router\.use\(requireAdminAuth\)/);
+  assert.match(route, /router\.post\(\s*"\/employee-factory\/avatar"/s);
 });
