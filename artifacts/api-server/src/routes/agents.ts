@@ -87,7 +87,7 @@ router.put("/agents/:id/skills", createRateLimit("admin-write", 40, 60_000), asy
     entityId: agent.id,
     actorType: "admin",
     actorName: "Mission Control",
-    metadata: { assignedSkills },
+    metadata: `assignedSkills=${assignedSkills.join(",")}`,
   });
   res.json({ agentId: agent.id, assignedSkills });
 });
