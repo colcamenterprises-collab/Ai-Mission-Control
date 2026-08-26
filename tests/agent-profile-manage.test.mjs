@@ -26,9 +26,12 @@ test("team manage modal focuses employee setup on identity, work and audit surfa
   const panel = await read("artifacts/mission-control/src/pages/agent-profile-panel.tsx");
   const hardening = await read("artifacts/mission-control/src/pages/agent-profile-hardening.css");
   const team = await read("artifacts/mission-control/src/pages/team-unified.tsx");
-  for (const label of ["Overview", "Identity & Soul", "Automations", "Activity", "Chat", "Export"]) {
+  for (const label of ["Overview", "Identity & Soul", "Activity", "Chat", "Export"]) {
     assert.match(panel, new RegExp(label));
   }
+  assert.doesNotMatch(panel, /\["automations", "Automations"/);
+  assert.doesNotMatch(panel, /What should this employee check or do repeatedly\?/);
+  assert.doesNotMatch(panel, /What should trigger an alert\?/);
   assert.match(hardening, /Skills, memory,/);
   assert.match(hardening, /nth-child\(3\)/);
   assert.match(hardening, /nth-child\(6\)/);
@@ -47,10 +50,19 @@ test("questionnaire answers remain the source record and save syncs workspace ma
   assert.match(panel, /What must they never do\?/);
 });
 
-test("profile completeness excludes shared company infrastructure", async () => {
+test("profile completeness excludes shared infrastructure and recurring task configuration", async () => {
   const api = await read("artifacts/api-server/src/routes/agent-profile.ts");
   const completeness = api.slice(api.indexOf("function profileCompleteness"), api.indexOf("function assertManagedWorkspace"));
   assert.doesNotMatch(completeness, /profile\.tools/);
   assert.doesNotMatch(completeness, /profile\.memory/);
-  assert.match(completeness, /profile\.heartbeat\.recurringDuties/);
+  assert.doesNotMatch(completeness, /profile\.heartbeat/);
+});
+
+test("recurring work is defined only by canonical Mission Control tasks", async () => {
+  const api = await read("artifacts/api-server/src/routes/agent-profile.ts");
+  assert.match(api, /Recurring work, schedules, triggers and alerts are not defined in an employee profile/);
+  assert.match(api, /canonical Mission Control tasks/);
+  const heartbeatMarkdown = api.slice(api.indexOf('"HEARTBEAT.md"'), api.indexOf('"MEMORY.md"'));
+  assert.doesNotMatch(heartbeatMarkdown, /profile\.heartbeat\.recurringDuties/);
+  assert.doesNotMatch(heartbeatMarkdown, /profile\.heartbeat\.alertConditions/);
 });
