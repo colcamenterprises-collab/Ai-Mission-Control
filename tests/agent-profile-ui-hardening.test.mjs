@@ -25,3 +25,13 @@ test("manage modal supports add and change avatar for legacy and provisioned age
   assert.match(avatar, /Add avatar/);
   assert.doesNotMatch(avatar, /password|apiKey/i);
 });
+
+test("employee avatars are delivered through the API proxy and legacy URLs are repaired", async () => {
+  const route = await read("artifacts/api-server/src/routes/employee-factory.ts");
+  assert.match(route, /AVATAR_API_PREFIX = "\/api\/employee-factory\/avatar\/"/);
+  assert.match(route, /LEGACY_AVATAR_PREFIX = "\/employee-avatars\/"/);
+  assert.match(route, /router\.get\("\/employee-factory\/avatar\/:filename"/);
+  assert.match(route, /sendFile\(filename/);
+  assert.match(route, /publicAvatarUrl\(storedAvatar\)/);
+  assert.match(route, /const avatarUrl = `\$\{AVATAR_API_PREFIX\}\$\{filename\}`/);
+});
