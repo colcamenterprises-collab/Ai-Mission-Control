@@ -109,7 +109,7 @@ export default function AgentAvatarEditor({ agent, profile, onChanged }: { agent
     </div>
     <label className="agent-avatar-action">
       <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { void choose(event.target.files?.[0]); event.currentTarget.value = ""; }} disabled={busy} />
-      <Button type="button" variant="outline" asChild disabled={busy}><span>{busy ? <Loader2 className="agent-avatar-spinner" /> : <ImagePlus />}{busy ? "Uploading" : avatarUrl ? "Change avatar" : "Add avatar"}</span></Button>
+      <Button type="button" variant="outline" disabled={busy}>{busy ? <Loader2 className="agent-avatar-spinner" /> : <ImagePlus />}{busy ? "Uploading" : avatarUrl ? "Change avatar" : "Add avatar"}</Button>
     </label>
   </section>;
 }
