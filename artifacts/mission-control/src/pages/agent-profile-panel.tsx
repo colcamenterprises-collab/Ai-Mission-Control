@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Activity, BookOpen, Brain, Download, HeartPulse, KeyRound, MessageCircle, Save, Send, ShieldCheck, Sparkles, UserRound, Wifi, Wrench } from "lucide-react";
+import { Activity, BookOpen, Brain, Download, KeyRound, MessageCircle, Save, Send, ShieldCheck, Sparkles, UserRound, Wifi, Wrench } from "lucide-react";
 import { type Agent } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,7 +32,7 @@ type DefinitionResponse = {
 
 type ChatEntry = { id: string; role: "owner" | "agent"; text: string; taskId?: number };
 type AgentWithSkills = Agent & { assignedSkills?: string[] };
-type Tab = "overview" | "identity" | "skills" | "memory" | "knowledge" | "tools" | "automations" | "activity" | "chat" | "export";
+type Tab = "overview" | "identity" | "skills" | "memory" | "knowledge" | "tools" | "activity" | "chat" | "export";
 
 const emptyProfile: Profile = {
   identity: { mission: "", successDefinition: "" },
@@ -185,7 +185,7 @@ export default function AgentProfilePanel({ agent, initialMode = "manage", onCha
 
   const tabs = useMemo(() => [
     ["overview", "Overview", UserRound], ["identity", "Identity & Soul", Sparkles], ["skills", "Skills", ShieldCheck], ["memory", "Memory", Brain],
-    ["knowledge", "Knowledge", BookOpen], ["tools", "Tools & Access", Wrench], ["automations", "Automations", HeartPulse], ["activity", "Activity", Activity],
+    ["knowledge", "Knowledge", BookOpen], ["tools", "Tools & Access", Wrench], ["activity", "Activity", Activity],
     ["chat", "Chat", MessageCircle], ["export", "Export", Download],
   ] as const, []);
 
@@ -244,8 +244,6 @@ export default function AgentProfilePanel({ agent, initialMode = "manage", onCha
 
       {tab === "tools" && <div className="agent-question-grid"><Question label="What tools and systems may this employee use?" hint="Name approved systems, capabilities and tool categories. Do not enter passwords or API keys." value={profile.tools.allowedTools} onChange={v => patch("tools", "allowedTools", v)} /><Question label="What are the access rules?" hint="Read/write boundaries, production restrictions and credential-use rules." value={profile.tools.accessRules} onChange={v => patch("tools", "accessRules", v)} /><section className="agent-profile-card security"><KeyRound/><div><h3>Credentials stay in the vault</h3><p>Agent files contain permission references only. Secret values are never written into the portable employee profile.</p></div></section></div>}
 
-      {tab === "automations" && <div className="agent-question-grid"><Question label="What should this employee check or do repeatedly?" hint="Daily, weekly, monthly, after a shift, or when another event occurs." value={profile.heartbeat.recurringDuties} onChange={v => patch("heartbeat", "recurringDuties", v)} /><Question label="What should trigger an alert?" hint="Conditions that require the owner or another employee to be notified." value={profile.heartbeat.alertConditions} onChange={v => patch("heartbeat", "alertConditions", v)} /></div>}
-
       {tab === "activity" && <div className="agent-profile-summary-grid"><div><span>Tasks completed</span><strong>{agent.tasksCompleted ?? 0}</strong></div><div><span>Success rate</span><strong>{agent.successRate ?? 0}%</strong></div><div><span>Current work</span><strong>{agent.currentTask || "Available"}</strong></div><div><span>Last response</span><strong>{formatLastSeen(agent.lastPing)}</strong></div><div><span>Runtime health</span><strong>{definition?.runtimeHealth || "Unknown"}</strong></div><div><span>Profile version</span><strong>v{definition?.version ?? 1}</strong></div></div>}
 
       {tab === "chat" && <section className="agent-direct-chat"><div className="agent-chat-log">{chat.length ? chat.map(entry => <div key={entry.id} className={`agent-chat-bubble ${entry.role}`}><p>{entry.text}</p>{entry.taskId && <small>Task #{entry.taskId}</small>}</div>) : <div className="agent-chat-empty">Send a message or instruction directly to {agent.name}.</div>}</div><div className="agent-chat-composer"><Textarea ref={composerRef} rows={3} value={brief} onChange={event => setBrief(event.target.value)} placeholder={`Message ${agent.name}…`} /><Button onClick={sendChat} disabled={sending || !brief.trim()}><Send />{sending ? "Sending" : "Send"}</Button></div></section>}
@@ -253,6 +251,6 @@ export default function AgentProfilePanel({ agent, initialMode = "manage", onCha
       {tab === "export" && <section className="agent-profile-card export"><Download/><div><h3>Portable Agent Package</h3><p>Export this employee's structured profile, generated Markdown files and dependency manifest. Credentials and secret values are intentionally excluded.</p><Button onClick={exportAgent}><Download/>Export {agent.name}</Button></div></section>}
     </div>
 
-    {["identity", "memory", "tools", "automations"].includes(tab) && <div className="agent-profile-save"><Button onClick={save} disabled={saving}><Save />{saving ? "Saving" : "Save & sync agent"}</Button></div>}
+    {["identity", "memory", "tools"].includes(tab) && <div className="agent-profile-save"><Button onClick={save} disabled={saving}><Save />{saving ? "Saving" : "Save & sync agent"}</Button></div>}
   </div>;
 }
