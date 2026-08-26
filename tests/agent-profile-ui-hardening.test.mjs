@@ -42,3 +42,12 @@ test("employee avatars are publicly readable through nginx API proxy while write
   assert.match(routesIndex, /router\.use\(requireAdminAuth\)/);
   assert.match(route, /router\.post\(\s*"\/employee-factory\/avatar"/s);
 });
+
+test("team loads protected employee profiles with the admin token so saved avatars can render", async () => {
+  const team = await read("artifacts/mission-control/src/pages/team-unified.tsx");
+  assert.match(team, /mission_control_admin_token/);
+  assert.match(team, /fetch\("\/api\/employee-factory\/profiles"/);
+  assert.match(team, /Authorization: `Bearer \$\{token\}`/);
+  assert.match(team, /"x-admin-token": token/);
+  assert.match(team, /profile\?\.avatarUrl \? <img src=\{profile\.avatarUrl\}/);
+});

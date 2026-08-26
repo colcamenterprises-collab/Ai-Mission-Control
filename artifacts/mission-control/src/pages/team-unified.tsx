@@ -10,12 +10,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import "./team-unified.css";
 import "./agent-profile-hardening.css";
 
+const PRIMARY_TOKEN_STORAGE_KEY = "mission_control_admin_token";
+const LEGACY_TOKEN_STORAGE_KEY = "missionControlAdminToken";
+
 type EmployeeProfile = {
   agentId: number;
   projectId?: number | null;
   projectName?: string | null;
   avatarUrl?: string | null;
 };
+
+function getAdminToken() {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(PRIMARY_TOKEN_STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_TOKEN_STORAGE_KEY) ?? "";
+}
 
 function statusLabel(agent: Agent) {
   if (agent.status === "active") return "Working";
@@ -62,10 +70,22 @@ export default function TeamUnified() {
   const [hireOpen, setHireOpen] = useState(initialHireMode);
 
   useEffect(() => {
-    fetch("/api/employee-factory/profiles", { headers: { Accept: "application/json" } })
-      .then((response) => response.ok ? response.json() : [])
+    const token = getAdminToken();
+    fetch("/api/employee-factory/profiles", {
+      headers: {
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}`, "x-admin-token": token } : {}),
+      },
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Employee profiles request failed with ${response.status}`);
+        return response.json();
+      })
       .then((rows) => setProfiles(Array.isArray(rows) ? rows : []))
-      .catch(() => setProfiles([]));
+      .catch((error) => {
+        console.error("Mission Control could not load employee profiles", error);
+        setProfiles([]);
+      });
   }, [agents.length]);
 
   const profileByAgent = useMemo(() => new Map(profiles.map((profile) => [profile.agentId, profile])), [profiles]);
