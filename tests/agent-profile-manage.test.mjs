@@ -66,3 +66,15 @@ test("recurring work is defined only by canonical Mission Control tasks", async 
   assert.doesNotMatch(heartbeatMarkdown, /profile\.heartbeat\.recurringDuties/);
   assert.doesNotMatch(heartbeatMarkdown, /profile\.heartbeat\.alertConditions/);
 });
+
+test("all employees research available Mission Control context before asking the owner factual questions", async () => {
+  const runtime = await read("artifacts/api-server/src/services/agent-runtime.ts");
+  assert.match(runtime, /Search before asking the owner factual questions/);
+  assert.match(runtime, /Do not ask the owner to repeat information that can be established from available evidence/);
+  assert.match(runtime, /Verified source data/);
+  assert.match(runtime, /Calculated result/);
+  assert.match(runtime, /Assumption/);
+  assert.match(runtime, /Unknown/);
+  assert.match(runtime, /If sources disagree, surface the conflict/);
+  assert.match(runtime, /Recurring work must still be created and approved as a canonical Mission Control task/);
+});
