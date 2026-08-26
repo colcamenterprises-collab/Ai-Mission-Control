@@ -60,13 +60,20 @@ app.use(cors({
 }));
 
 const dataDir = process.env.MISSION_CONTROL_DATA_DIR || "/var/lib/ai-mission-control";
-app.use("/employee-avatars", express.static(path.join(dataDir, "avatars"), {
+const avatarStatic = express.static(path.join(dataDir, "avatars"), {
   fallthrough: false,
   immutable: true,
   maxAge: "30d",
   dotfiles: "deny",
   index: false,
-}));
+});
+
+// Employee photos are intentionally public read-only assets. The /api prefix is
+// required in production because nginx proxies /api/* to this service. Uploads
+// and profile changes remain protected by the authenticated employee-factory API.
+app.use("/api/employee-avatars", avatarStatic);
+// Retain the original direct mount for local/dev compatibility.
+app.use("/employee-avatars", avatarStatic);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
