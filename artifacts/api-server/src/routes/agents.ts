@@ -3,12 +3,10 @@ import { auditLog } from "../lib/audit.js";
 import { createRateLimit } from "../lib/rate-limit.js";
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
 import { db, agentsTable } from "@workspace/db";
 import {
   CreateAgentBody,
   GetAgentParams,
-  GetAgentResponse,
   UpdateAgentParams,
   UpdateAgentBody,
 } from "@workspace/api-zod";
@@ -22,20 +20,13 @@ import { reconcileAgentStates } from "../services/execution-runtime.js";
 
 const router: IRouter = Router();
 
-// The persisted agent model intentionally supports business-specific departments
-// (Finance, Marketing, Operations, etc.). The generated API contract still carries
-// the original four demo departments, so make the live route validate the real
-// domain instead of allowing one valid department to break the entire directory.
-const AgentResponse = GetAgentResponse.extend({
-  department: z.string().trim().min(1),
-});
-const ListAgentsResponse = z.array(AgentResponse);
-const CreateAgentRequest = CreateAgentBody.extend({
-  department: z.string().trim().min(1),
-});
-const UpdateAgentRequest = UpdateAgentBody.extend({
-  department: z.string().trim().min(1).optional(),
-});
+const LEGACY_DEPARTMENT_PLACEHOLDER = "Operators";
+
+function normalizeDepartment(value: unknown, required: boolean): string | undefined {
+  if (value === undefined && !required) return undefined;
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  return value.trim();
+}
 
 function maskApiKey(apiKey: string | null | undefined): string | null {
   if (!apiKey) return null;
@@ -55,17 +46,25 @@ function maskAgentForResponse(agent: typeof agentsTable.$inferSelect) {
 router.get("/agents", async (_req, res): Promise<void> => {
   await reconcileAgentStates();
   const agents = await db.select().from(agentsTable).orderBy(agentsTable.id);
-  const masked = agents.map(maskAgentForResponse);
-  res.json(ListAgentsResponse.parse(serializeDates(masked)));
+  res.json(serializeDates(agents.map(maskAgentForResponse)));
 });
 
 router.post("/agents", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
-  const parsed = CreateAgentRequest.safeParse(req.body);
+  const department = normalizeDepartment(req.body?.department, true);
+  if (!department) {
+    res.status(400).json({ error: "department must be a non-empty string" });
+    return;
+  }
+
+  // Keep the generated validator authoritative for every other field while
+  // bypassing its obsolete four-value department enum.
+  const parsed = CreateAgentBody.safeParse({ ...req.body, department: LEGACY_DEPARTMENT_PLACEHOLDER });
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { apiKey, ...rest } = parsed.data;
+  const { apiKey, ...validated } = parsed.data;
+  const rest = { ...validated, department };
   const insertData = {
     ...rest,
     apiKey: encryptSecret(apiKey ?? null),
@@ -76,7 +75,7 @@ router.post("/agents", createRateLimit("admin-write", 40, 60_000), async (req, r
   const [agent] = await db.insert(agentsTable).values(insertData).returning();
   await initializeAgentSkillAssignments();
   await auditLog({ action: "created", entityType: "agent", entityId: agent.id, actorType: "admin", actorName: "Mission Control" });
-  res.status(201).json(AgentResponse.parse(serializeDates(maskAgentForResponse(agent))));
+  res.status(201).json(serializeDates(maskAgentForResponse(agent)));
 });
 
 router.put("/agents/:id/skills", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
@@ -118,7 +117,7 @@ router.get("/agents/:id", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Agent not found" });
     return;
   }
-  res.json(AgentResponse.parse(serializeDates(maskAgentForResponse(agent))));
+  res.json(serializeDates(maskAgentForResponse(agent)));
 });
 
 router.patch("/agents/:id", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
@@ -127,12 +126,23 @@ router.patch("/agents/:id", createRateLimit("admin-write", 40, 60_000), async (r
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const parsed = UpdateAgentRequest.safeParse(req.body);
+
+  const hasDepartment = Object.prototype.hasOwnProperty.call(req.body ?? {}, "department");
+  const department = normalizeDepartment(req.body?.department, hasDepartment);
+  if (hasDepartment && !department) {
+    res.status(400).json({ error: "department must be a non-empty string" });
+    return;
+  }
+
+  const parsed = UpdateAgentBody.safeParse(
+    hasDepartment ? { ...req.body, department: LEGACY_DEPARTMENT_PLACEHOLDER } : req.body,
+  );
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { apiKey, ...rest } = parsed.data;
+  const { apiKey, ...validated } = parsed.data;
+  const rest = department ? { ...validated, department } : validated;
   const updateData: Partial<typeof agentsTable.$inferInsert> = { ...rest };
   if (apiKey !== undefined) {
     updateData.apiKey = encryptSecret(apiKey);
@@ -144,7 +154,7 @@ router.patch("/agents/:id", createRateLimit("admin-write", 40, 60_000), async (r
   }
   await initializeAgentSkillAssignments();
   await auditLog({ action: "updated", entityType: "agent", entityId: agent.id, actorType: "admin", actorName: "Mission Control" });
-  res.json(AgentResponse.parse(serializeDates(maskAgentForResponse(agent))));
+  res.json(serializeDates(maskAgentForResponse(agent)));
 });
 
 router.delete("/agents/:id", createRateLimit("admin-write", 40, 60_000), async (req, res): Promise<void> => {
