@@ -25,6 +25,14 @@
 .team-agent-modal .agent-question,.team-agent-modal .agent-profile-card,.team-agent-modal .agent-profile-summary-grid>div{min-width:0;overflow:hidden}
 .team-agent-modal textarea{width:100%;max-width:100%;box-sizing:border-box}
 
+/* Employee profiles describe the employee and their work. Skills, memory,
+   knowledge and systems are shared company infrastructure and are deliberately
+   not administered employee-by-employee. */
+.team-agent-modal .agent-profile-tabs>button:nth-child(3),
+.team-agent-modal .agent-profile-tabs>button:nth-child(4),
+.team-agent-modal .agent-profile-tabs>button:nth-child(5),
+.team-agent-modal .agent-profile-tabs>button:nth-child(6){display:none!important}
+
 .agent-avatar-editor{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:.75rem;border:1px solid rgba(255,255,255,.075);border-radius:.9rem;background:rgba(255,255,255,.022);padding:.65rem .75rem;min-width:0;flex:0 0 auto}
 .agent-avatar-preview{width:3.25rem;height:3.25rem;flex:none;border-radius:1rem;overflow:hidden;border:1px solid rgba(167,139,250,.22);background:linear-gradient(145deg,rgba(76,29,149,.72),rgba(15,23,42,.96));display:grid;place-items:center;color:rgba(245,243,255,.96);font-size:.9rem;font-weight:800}
 .agent-avatar-preview img{width:100%;height:100%;object-fit:cover}
