@@ -2,6 +2,17 @@
   height: 100%;
   overflow-y: auto;
   padding: clamp(1rem, 2vw, 1.6rem);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.team-unified-shell::-webkit-scrollbar,
+.team-employee-grid::-webkit-scrollbar,
+.team-mini-chat-log::-webkit-scrollbar,
+.team-hire-dialog-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  background: transparent;
 }
 
 .team-unified-canvas {
@@ -29,8 +40,7 @@
   text-transform: uppercase;
 }
 
-.team-unified-eyebrow svg,
-.team-manage-link svg { width: 1rem; height: 1rem; }
+.team-unified-eyebrow svg { width: 1rem; height: 1rem; }
 
 .team-unified-header h1 {
   margin: 0.3rem 0 0;
@@ -39,43 +49,37 @@
   line-height: 0.95;
 }
 
-.team-manage-link,
-.team-close-hire {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 999px;
-  background: rgba(255,255,255,0.045);
-  backdrop-filter: blur(18px);
-  padding: 0.65rem 0.85rem;
-  color: rgba(241,245,249,0.84);
-  font-size: 0.78rem;
+.team-unified-subtitle {
+  margin: 0.75rem 0 0;
+  max-width: 48rem;
+  color: rgba(203, 213, 225, 0.62);
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
-.team-five-grid {
+.team-employee-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr));
   gap: clamp(0.7rem, 1vw, 1rem);
+  align-items: stretch;
+  scrollbar-width: none;
 }
 
 .team-glass-card {
   position: relative;
-  min-height: 15rem;
+  min-height: 19rem;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 1rem;
+  justify-content: flex-start;
+  gap: 0.9rem;
   border: 1px solid rgba(255,255,255,0.11);
   border-radius: 1.5rem;
   background:
     radial-gradient(circle at 30% 12%, rgba(139,92,246,0.18), transparent 40%),
     linear-gradient(145deg, rgba(255,255,255,0.075), rgba(255,255,255,0.025));
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.08),
-    0 24px 60px rgba(0,0,0,0.22);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 24px 60px rgba(0,0,0,0.22);
   backdrop-filter: blur(24px) saturate(125%);
   -webkit-backdrop-filter: blur(24px) saturate(125%);
   padding: 1rem;
@@ -99,20 +103,21 @@
     linear-gradient(145deg, rgba(255,255,255,0.09), rgba(255,255,255,0.035));
 }
 
-.team-glass-skeleton { min-height: 15rem; }
+.team-glass-skeleton { min-height: 19rem; }
 
 .team-avatar-wrap {
   position: relative;
-  width: 6.2rem;
-  height: 6.2rem;
-  border-radius: 1.7rem;
+  width: 5.8rem;
+  height: 5.8rem;
+  flex: 0 0 5.8rem;
+  border-radius: 1.6rem;
 }
 
 .team-agent-photo,
 .team-agent-initials {
   width: 100%;
   height: 100%;
-  border-radius: 1.7rem;
+  border-radius: 1.6rem;
   object-fit: cover;
   border: 1px solid rgba(255,255,255,0.14);
   box-shadow: 0 16px 36px rgba(0,0,0,0.3);
@@ -147,9 +152,12 @@
 .team-card-identity {
   position: relative;
   z-index: 1;
-  display: grid;
-  gap: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.28rem;
   min-width: 0;
+  width: 100%;
 }
 
 .team-card-identity strong {
@@ -159,14 +167,27 @@
   letter-spacing: -0.035em;
 }
 
-.team-card-identity span {
-  display: block;
+.team-card-role {
+  display: -webkit-box;
+  min-height: 1.85rem;
   overflow: hidden;
-  color: rgba(203,213,225,0.58);
+  color: rgba(203,213,225,0.62);
   font-size: 0.72rem;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.team-card-identity p {
+  display: -webkit-box;
+  min-height: 3rem;
+  margin: 0.25rem 0 0;
+  overflow: hidden;
+  color: rgba(203,213,225,0.55);
+  font-size: 0.7rem;
+  line-height: 1.42;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .team-card-status {
@@ -192,11 +213,38 @@
   color: rgba(254,202,202,0.92);
 }
 
+.team-card-actions {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+
+.team-card-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 2.2rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 0.72rem;
+  background: rgba(255,255,255,0.035);
+  color: rgba(226,232,240,0.82);
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+
+.team-card-actions button:hover { border-color: rgba(167,139,250,0.32); background: rgba(139,92,246,0.09); }
+.team-card-actions svg { width: 0.82rem; height: 0.82rem; }
+
 .team-hire-card {
+  justify-content: center;
   border-style: dashed;
-  background:
-    radial-gradient(circle at 50% 22%, rgba(139,92,246,0.13), transparent 38%),
-    rgba(255,255,255,0.025);
+  background: radial-gradient(circle at 50% 22%, rgba(139,92,246,0.13), transparent 38%), rgba(255,255,255,0.025);
+  cursor: pointer;
 }
 
 .team-hire-icon {
@@ -214,35 +262,105 @@
 
 .team-hire-icon svg { width: 1.7rem; height: 1.7rem; }
 
-.team-more-strip {
+.team-agent-modal {
+  width: min(94vw, 62rem) !important;
+  max-width: 62rem !important;
+  max-height: 92vh;
+  overflow-y: auto;
+  border-color: rgba(255,255,255,0.1) !important;
+  background: rgba(12,15,23,0.98) !important;
+  scrollbar-width: none;
+}
+
+.team-modal-title {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.team-modal-title > span:last-child { display: grid; gap: 0.12rem; }
+.team-modal-title strong { font-size: 1rem; }
+.team-modal-title em { color: rgba(203,213,225,0.58); font-size: 0.72rem; font-style: normal; font-weight: 500; }
+.team-modal-live-dot { width: 0.72rem; height: 0.72rem; border-radius: 999px; background: rgba(148,163,184,0.65); }
+.team-modal-live-dot.status-active { background: rgb(52,211,153); box-shadow: 0 0 14px rgba(52,211,153,0.65); }
+.team-modal-live-dot.status-error { background: rgb(248,113,113); }
+
+.team-agent-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 0.55rem;
+}
+
+.team-agent-summary-grid > div,
+.team-agent-responsibility,
+.team-agent-skill-row,
+.team-mini-chat {
   border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 1rem;
+  border-radius: 0.9rem;
   background: rgba(255,255,255,0.025);
-  padding: 0.7rem 0.9rem;
-  color: rgba(203,213,225,0.64);
-  font-size: 0.78rem;
 }
 
-.team-more-strip a { color: rgba(196,181,253,0.92); }
+.team-agent-summary-grid > div { display: grid; gap: 0.25rem; padding: 0.7rem 0.8rem; }
+.team-agent-summary-grid span,
+.team-agent-responsibility > span,
+.team-agent-skill-row > span { color: rgba(148,163,184,0.62); font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.team-agent-summary-grid strong { overflow: hidden; color: rgba(241,245,249,0.9); font-size: 0.76rem; text-overflow: ellipsis; white-space: nowrap; }
 
-.team-hire-workspace {
-  position: relative;
-  border-top: 1px solid rgba(255,255,255,0.08);
-  padding-top: 1rem;
+.team-agent-responsibility { padding: 0.78rem 0.85rem; }
+.team-agent-responsibility p { margin: 0.4rem 0 0; color: rgba(226,232,240,0.72); font-size: 0.76rem; line-height: 1.5; }
+
+.team-agent-skill-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.7rem; padding: 0.7rem 0.85rem; }
+.team-agent-skill-row > div { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.team-agent-skill-row b { border-radius: 999px; background: rgba(139,92,246,0.11); padding: 0.25rem 0.48rem; color: rgba(216,180,254,0.85); font-size: 0.64rem; font-weight: 600; }
+.team-agent-skill-row em { color: rgba(148,163,184,0.5); font-size: 0.7rem; font-style: normal; }
+.team-agent-skill-row button { gap: 0.35rem; }
+
+.team-mini-chat { overflow: hidden; }
+.team-mini-chat-focus { border-color: rgba(139,92,246,0.3); box-shadow: 0 0 0 1px rgba(139,92,246,0.08); }
+.team-mini-chat-head { display: flex; align-items: center; gap: 0.45rem; border-bottom: 1px solid rgba(255,255,255,0.07); padding: 0.65rem 0.8rem; color: rgba(241,245,249,0.82); font-size: 0.74rem; }
+.team-mini-chat-log { min-height: 8rem; max-height: 14rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem; scrollbar-width: none; }
+.team-mini-chat-empty { margin: auto; color: rgba(148,163,184,0.45); font-size: 0.72rem; }
+.team-mini-bubble { max-width: 82%; border-radius: 0.75rem; padding: 0.55rem 0.7rem; background: rgba(255,255,255,0.045); color: rgba(226,232,240,0.78); font-size: 0.72rem; line-height: 1.45; }
+.team-mini-bubble.owner { align-self: flex-end; background: rgba(109,40,217,0.2); }
+.team-mini-bubble.agent { align-self: flex-start; }
+.team-mini-bubble.system { align-self: center; max-width: 94%; background: rgba(15,118,110,0.12); }
+.team-mini-bubble p { margin: 0; white-space: pre-wrap; }
+.team-mini-bubble small { display: block; margin-top: 0.3rem; color: rgba(167,139,250,0.7); }
+.team-mini-chat-error { margin: 0 0.75rem 0.55rem; color: rgba(254,202,202,0.9); font-size: 0.7rem; }
+.team-mini-chat-composer { display: grid; grid-template-columns: 1fr auto; gap: 0.55rem; border-top: 1px solid rgba(255,255,255,0.07); padding: 0.65rem; }
+.team-mini-chat-composer textarea { min-height: 3.2rem; resize: none; }
+.team-mini-chat-composer button { align-self: end; gap: 0.35rem; }
+
+.team-hire-dialog {
+  width: min(96vw, 78rem) !important;
+  max-width: 78rem !important;
+  height: min(92vh, 58rem);
+  overflow: hidden;
+  border-color: rgba(255,255,255,0.1) !important;
+  background: rgba(10,12,18,0.99) !important;
 }
 
-.team-close-hire { margin-bottom: 0.75rem; }
+.team-hire-dialog-body {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
 
-.team-hire-workspace .employee-factory-shell,
-.team-hire-workspace .workspaces-shell {
+.team-hire-dialog-body .employee-factory-shell,
+.team-hire-dialog-body .workspaces-shell {
   min-height: auto;
   height: auto;
 }
 
-@media (max-width: 1180px) {
-  .team-five-grid { grid-template-columns: repeat(5, minmax(10rem, 1fr)); overflow-x: auto; padding-bottom: 0.4rem; }
-  .team-glass-card { min-width: 10rem; }
+@media (max-width: 900px) {
+  .team-employee-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .team-agent-summary-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .team-agent-skill-row { grid-template-columns: 1fr; align-items: start; }
+}
+
+@media (max-width: 620px) {
+  .team-employee-grid { grid-template-columns: 1fr; }
+  .team-glass-card { min-height: 18rem; }
+  .team-agent-summary-grid { grid-template-columns: 1fr 1fr; }
+  .team-mini-chat-composer { grid-template-columns: 1fr; }
 }
