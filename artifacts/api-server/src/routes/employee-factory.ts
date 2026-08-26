@@ -54,9 +54,7 @@ function publicAvatarUrl(value: string | null): string | null {
 function validateAvatarUrl(value: string | null): string | null {
   if (!value) return null;
   const canonical = publicAvatarUrl(value);
-  if (!canonical) {
-    throw new Error("Employee photo reference is invalid. Upload the photo again.");
-  }
+  if (!canonical) throw new Error("Employee photo reference is invalid. Upload the photo again.");
   return canonical;
 }
 
@@ -88,23 +86,17 @@ router.get("/employee-factory/profiles", async (_req, res): Promise<void> => {
   res.json(rows);
 });
 
-router.get("/employee-factory/avatar/:filename", async (req, res): Promise<void> => {
+router.get("/employee-factory/avatar/:filename", (req, res): void => {
   const filename = String(req.params.filename || "").trim().toLowerCase();
   if (!AVATAR_FILENAME_RE.test(filename)) {
     res.status(400).json({ error: "Invalid employee avatar reference." });
     return;
   }
-
   res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
   res.sendFile(filename, {
     root: avatarDirectory(),
     dotfiles: "deny",
     index: false,
-  }, (error) => {
-    if (!error || res.headersSent) return;
-    res.status(error.statusCode === 404 ? 404 : 500).json({
-      error: error.statusCode === 404 ? "Employee avatar not found." : "Employee avatar could not be loaded.",
-    });
   });
 });
 
