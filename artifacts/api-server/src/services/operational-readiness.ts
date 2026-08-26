@@ -1,4 +1,4 @@
-import { count, sql } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
 import {
   db,
   agentsTable,
@@ -28,6 +28,10 @@ export type OperationalReadiness = {
   };
 };
 
+function emptyTotals(): OperationalReadiness["totals"] {
+  return { agents: 0, routableAgents: 0, healthyRuntimeInstances: 0, tasks: 0, workRequests: 0, pendingApprovals: 0 };
+}
+
 function isRoutableAgent(agent: typeof agentsTable.$inferSelect): boolean {
   return Boolean(
     agent.isPluggedIn ||
@@ -48,25 +52,25 @@ export async function getOperationalReadiness(): Promise<OperationalReadiness> {
       status: "not_ready",
       generatedAt: new Date().toISOString(),
       checks: [{ key: "database", status: "fail", summary: "Database unavailable" }],
-      totals: { agents: 0, routableAgents: 0, healthyRuntimeInstances: 0, tasks: 0, workRequests: 0, pendingApprovals: 0 },
+      totals: emptyTotals(),
     };
   }
 
   try {
-    const [agents, runtimeInstances, [taskCount], [workRequestCount], [approvalCount]] = await Promise.all([
+    const [agents, runtimeInstances, [taskCount], [workRequestCount], [pendingApprovalCount]] = await Promise.all([
       db.select().from(agentsTable).orderBy(agentsTable.id),
       db.select().from(agentRuntimeInstancesTable),
       db.select({ count: count() }).from(tasksTable),
       db.select({ count: count() }).from(workRequestsTable),
-      db.select({ count: count() }).from(approvalsTable),
+      db.select({ count: count() }).from(approvalsTable).where(eq(approvalsTable.status, "pending")),
     ]);
 
     const routableAgents = agents.filter(isRoutableAgent);
     const healthyRuntimeInstances = runtimeInstances.filter(
-      (runtime) => runtime.status === "running" && ["healthy", "ready", "online"].includes(runtime.health.toLowerCase()),
+      (runtime) =>
+        runtime.status === "running" &&
+        ["healthy", "ready", "online"].includes(runtime.health.toLowerCase()),
     );
-    const pendingApprovals = await db.execute<{ count: number }>(sql`select count(*)::int as count from approvals where status = 'pending'`);
-    const pendingApprovalCount = Number(pendingApprovals.rows[0]?.count ?? 0);
 
     checks.push({
       key: "agents",
@@ -83,15 +87,14 @@ export async function getOperationalReadiness(): Promise<OperationalReadiness> {
       status: runtimeInstances.length === 0 ? "warn" : healthyRuntimeInstances.length > 0 ? "pass" : "warn",
       summary:
         runtimeInstances.length === 0
-          ? "No managed runtime instances recorded; legacy/runtime-adapter workers may still operate"
+          ? "No managed runtime instances recorded; adapter-based workers may still operate"
           : `${healthyRuntimeInstances.length}/${runtimeInstances.length} managed runtime instance${runtimeInstances.length === 1 ? "" : "s"} healthy`,
     });
     checks.push({ key: "tasks", status: "pass", summary: "Task store readable" });
     checks.push({ key: "execution_control_plane", status: "pass", summary: "Execution and approval stores readable" });
 
-    const criticalFailure = checks.some((check) => check.status === "fail");
     return {
-      status: criticalFailure ? "not_ready" : "ready",
+      status: checks.some((check) => check.status === "fail") ? "not_ready" : "ready",
       generatedAt: new Date().toISOString(),
       checks,
       totals: {
@@ -100,7 +103,7 @@ export async function getOperationalReadiness(): Promise<OperationalReadiness> {
         healthyRuntimeInstances: healthyRuntimeInstances.length,
         tasks: taskCount?.count ?? 0,
         workRequests: workRequestCount?.count ?? 0,
-        pendingApprovals: pendingApprovalCount || approvalCount?.count === 0 ? pendingApprovalCount : pendingApprovalCount,
+        pendingApprovals: pendingApprovalCount?.count ?? 0,
       },
     };
   } catch {
@@ -109,7 +112,7 @@ export async function getOperationalReadiness(): Promise<OperationalReadiness> {
       status: "not_ready",
       generatedAt: new Date().toISOString(),
       checks,
-      totals: { agents: 0, routableAgents: 0, healthyRuntimeInstances: 0, tasks: 0, workRequests: 0, pendingApprovals: 0 },
+      totals: emptyTotals(),
     };
   }
 }
