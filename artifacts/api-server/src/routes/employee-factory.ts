@@ -11,7 +11,8 @@ import { provisionEmployee } from "../services/agent-provisioner.js";
 const router: IRouter = Router();
 
 const MAX_AVATAR_BYTES = 512_000;
-const AVATAR_API_PREFIX = "/api/employee-factory/avatar/";
+const AVATAR_PUBLIC_PREFIX = "/api/employee-avatars/";
+const PREVIOUS_AVATAR_PREFIX = "/api/employee-factory/avatar/";
 const LEGACY_AVATAR_PREFIX = "/employee-avatars/";
 const AVATAR_FILENAME_RE = /^[a-f0-9-]+\.(?:png|jpg|webp)$/;
 const AVATAR_EXTENSIONS: Record<string, string> = {
@@ -39,7 +40,7 @@ function textOrNull(value: unknown): string | null {
 
 function avatarFilename(value: string | null): string | null {
   if (!value) return null;
-  const prefixes = [AVATAR_API_PREFIX, LEGACY_AVATAR_PREFIX];
+  const prefixes = [AVATAR_PUBLIC_PREFIX, PREVIOUS_AVATAR_PREFIX, LEGACY_AVATAR_PREFIX];
   const prefix = prefixes.find((candidate) => value.startsWith(candidate));
   if (!prefix) return null;
   const filename = value.slice(prefix.length);
@@ -48,7 +49,7 @@ function avatarFilename(value: string | null): string | null {
 
 function publicAvatarUrl(value: string | null): string | null {
   const filename = avatarFilename(value);
-  return filename ? `${AVATAR_API_PREFIX}${filename}` : null;
+  return filename ? `${AVATAR_PUBLIC_PREFIX}${filename}` : null;
 }
 
 function validateAvatarUrl(value: string | null): string | null {
@@ -86,20 +87,6 @@ router.get("/employee-factory/profiles", async (_req, res): Promise<void> => {
   res.json(rows);
 });
 
-router.get("/employee-factory/avatar/:filename", (req, res): void => {
-  const filename = String(req.params.filename || "").trim().toLowerCase();
-  if (!AVATAR_FILENAME_RE.test(filename)) {
-    res.status(400).json({ error: "Invalid employee avatar reference." });
-    return;
-  }
-  res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
-  res.sendFile(filename, {
-    root: avatarDirectory(),
-    dotfiles: "deny",
-    index: false,
-  });
-});
-
 router.post(
   "/employee-factory/avatar",
   createRateLimit("admin-write", 20, 60_000),
@@ -116,7 +103,7 @@ router.post(
       await mkdir(avatarDirectory(), { recursive: true });
       const filename = `${randomUUID()}${extension}`;
       await writeFile(path.join(avatarDirectory(), filename), body, { flag: "wx" });
-      const avatarUrl = `${AVATAR_API_PREFIX}${filename}`;
+      const avatarUrl = `${AVATAR_PUBLIC_PREFIX}${filename}`;
       await auditLog({ action: "uploaded", entityType: "agent_employee_avatar", entityId: filename, actorType: "admin", actorName: "Mission Control" });
       res.status(201).json({ avatarUrl });
     } catch (error) {
