@@ -181,6 +181,42 @@ async function cleanupPriorFailedAttempts(
   }
 }
 
+function isNonEmptyText(value: unknown): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasLiveInferencePayload(parsed: unknown): boolean {
+  if (!parsed || typeof parsed !== "object") return false;
+  const value = parsed as Record<string, unknown>;
+
+  const status = typeof value.status === "string" ? value.status.toLowerCase() : null;
+  if (status && ["error", "failed", "cancelled", "canceled", "timeout", "timed_out", "in_flight"].includes(status)) return false;
+  if (value.error) return false;
+
+  if (value.ok === true) return true;
+  if (isNonEmptyText(value.final)) return true;
+
+  if (Array.isArray(value.payloads) && value.payloads.some((payload) => {
+    if (!payload || typeof payload !== "object") return false;
+    return isNonEmptyText((payload as Record<string, unknown>).text);
+  })) return true;
+
+  if (value.result && typeof value.result === "object") {
+    const result = value.result as Record<string, unknown>;
+    const resultStatus = typeof result.status === "string" ? result.status.toLowerCase() : null;
+    if (resultStatus && ["error", "failed", "cancelled", "canceled", "timeout", "timed_out", "in_flight"].includes(resultStatus)) return false;
+    if (result.error) return false;
+    if (isNonEmptyText(result.final)) return true;
+    if (Array.isArray(result.payloads) && result.payloads.some((payload) => {
+      if (!payload || typeof payload !== "object") return false;
+      return isNonEmptyText((payload as Record<string, unknown>).text);
+    })) return true;
+    return Object.keys(result).length > 0;
+  }
+
+  return Object.keys(value).length > 0;
+}
+
 async function certifyProvisionedAgent(
   cliPath: string,
   env: NodeJS.ProcessEnv,
@@ -210,8 +246,8 @@ async function certifyProvisionedAgent(
     throw new Error("OpenClaw agent certification returned invalid JSON.");
   }
 
-  if (!parsed || typeof parsed !== "object" || !("ok" in parsed) || (parsed as { ok?: unknown }).ok !== true) {
-    throw new Error("OpenClaw agent was registered but failed its live inference certification turn.");
+  if (!hasLiveInferencePayload(parsed)) {
+    throw new Error("OpenClaw agent was registered but its live inference certification returned no successful response payload.");
   }
 }
 
