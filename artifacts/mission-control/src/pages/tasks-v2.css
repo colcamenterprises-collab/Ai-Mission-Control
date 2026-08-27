@@ -1,0 +1,125 @@
+/* Kanban V2 operational interaction layer.
+ * The card being dragged is rendered by dnd-kit DragOverlay at document level.
+ * Source cards never translate through lane overflow or stacking contexts.
+ */
+.mc-kanban-v2 {
+  overflow: hidden;
+}
+
+.mc-kanban-v2-board {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: minmax(100%, max-content);
+  gap: 0.9rem;
+  overflow: auto;
+  isolation: isolate;
+}
+
+.mc-kanban-v2-board .mc-task-lane {
+  min-width: 0;
+  width: 100%;
+}
+
+.mc-kanban-v2-card-shell {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.mc-kanban-v2-card-shell.is-dragging {
+  opacity: 0.22;
+}
+
+.mc-kanban-v2-card-shell.is-dragging .mc-task-card {
+  box-shadow: none;
+}
+
+.mc-kanban-v2-overlay-card {
+  width: var(--kanban-overlay-width, 20rem);
+  max-width: min(22rem, calc(100vw - 2rem));
+  margin: 0;
+  opacity: 0.98;
+  cursor: grabbing;
+  pointer-events: none;
+  z-index: 100000;
+  transform: rotate(0.35deg) scale(1.015);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.24);
+}
+
+.mc-kanban-v2 .mc-task-card {
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.mc-kanban-v2 .mc-task-lane-over {
+  outline: 2px solid rgba(129, 111, 255, 0.72);
+  outline-offset: -2px;
+  transform: translateY(-1px);
+}
+
+.mc-kanban-v2-error {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.5rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid rgba(255, 193, 92, 0.3);
+  border-radius: 0.75rem;
+  background: rgba(112, 72, 17, 0.2);
+  color: #f4ce86;
+  font-size: 0.72rem;
+}
+
+.mc-kanban-v2-error svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+.mc-kanban-v2-error button {
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: rgba(255,255,255,0.07);
+  color: inherit;
+}
+
+.mc-kanban-v2-error button svg { width: 0.85rem; height: 0.85rem; }
+
+/* Newest canonical tasks are rendered first by TasksV2; no CSS order tricks. */
+.mc-kanban-v2 .mc-task-lane-scroll {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Tablet is still four genuine lanes; allow horizontal board scroll before crushing cards. */
+@media (max-width: 1180px) {
+  .mc-kanban-v2-board {
+    grid-template-columns: repeat(4, minmax(17.5rem, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .mc-kanban-v2 {
+    padding-inline: 0.7rem;
+  }
+  .mc-kanban-v2-board {
+    grid-template-columns: repeat(4, minmax(16.5rem, 18rem));
+    scroll-snap-type: x proximity;
+  }
+  .mc-kanban-v2-board .mc-task-lane {
+    scroll-snap-align: start;
+  }
+  .mc-kanban-v2 .mc-task-header {
+    align-items: flex-start;
+    gap: 0.6rem;
+  }
+  .mc-kanban-v2 .mc-task-header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
