@@ -8,7 +8,7 @@ import { OperatingSurfaceEnhancements } from "@/components/operating-surface-enh
 import { KanbanReviewFixes } from "@/components/kanban-review-fixes";
 import { ThemeProvider } from "@/lib/theme";
 import Dashboard from "@/pages/dashboard";
-import Tasks from "@/pages/tasks";
+import Tasks from "@/pages/tasks-v2";
 import Notes from "@/pages/notes";
 import ContentPipeline from "@/pages/content";
 import Memory from "@/pages/memory";
