@@ -45,9 +45,10 @@ test("board remains four real Kanban lanes and tablet preserves card geometry", 
 
 test("task lifecycle controls stay inside the task detail workflow", () => {
   assert.match(page, /action\("approve"/);
-  assert.match(page, /action\("request-changes"/);
-  assert.match(page, /\/api\/tasks\/\$\{task\.id\}\/accept/);
-  assert.match(page, /\/api\/tasks\/\$\{task\.id\}\/archive/);
+  assert.match(page, /postAction\("request-changes"/);
+  assert.match(page, /postAction\("accept"/);
+  assert.match(page, /postAction\("archive"/);
+  assert.match(page, /status: "changes_required"/);
   assert.match(page, /Accept & Archive/);
   assert.match(page, /Approval Required/);
   assert.match(page, /Owner Review Required/);
