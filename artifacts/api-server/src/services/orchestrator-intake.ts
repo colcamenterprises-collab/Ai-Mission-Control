@@ -2,6 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { db, tasksTable, agentsTable, agentCommandsTable, activityTable, taskMessagesTable, inboxItemsTable, projectsTable } from "@workspace/db";
 import { dispatchRuntime, isRuntimeConfigured } from "./agent-runtime.js";
 import { formatSkillsForPrompt, readSkillsForDelegation } from "./skills.js";
+import { classifyTaskIntent, humanReadableWorkerOutput, queueJamesCompletionReview } from "./worker-supervision.js";
 
 const CORE_PLAYBOOK_CATEGORIES = ["Product", "Standard", "Spec"];
 type IntakeBody = { title?: unknown; description?: unknown; project?: unknown; priority?: unknown; requestedAgent?: unknown; dueDate?: unknown; recurrence?: unknown; approvalRequired?: unknown; ownerReviewRequired?: unknown; attachments?: unknown };
@@ -24,11 +25,29 @@ async function addTaskMessage(taskId: number, author: string, body: string) {
   if (author !== "Cameron") await db.update(tasksTable).set({ unreadMessages: 1 }).where(eq(tasksTable.id, taskId));
 }
 
-async function buildPlaybookContext(context: string): Promise<string> {
+function contextKeywords(agent: AgentRecord, taskText: string): string[] {
+  return [agent.role, agent.department, agent.responsibilities, taskText]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(word => word.length >= 5)
+    .slice(0, 80);
+}
+
+async function buildPlaybookContext(context: string, agent: AgentRecord, taskText: string): Promise<string> {
   const playbooks = await readSkillsForDelegation({ categories: CORE_PLAYBOOK_CATEGORIES });
-  const playbookContext = formatSkillsForPrompt(playbooks);
-  const attachedNames = playbooks.map(playbook => `${playbook.category}: ${playbook.name}`).join("; ");
-  return [context, attachedNames ? `Attached playbooks: ${attachedNames}` : null, playbookContext ? `Relevant operating playbooks:\n\n${playbookContext}` : null].filter(Boolean).join("\n\n");
+  const keywords = contextKeywords(agent, taskText);
+  const scored = playbooks.map(playbook => {
+    const haystack = `${playbook.name} ${playbook.title} ${playbook.description ?? ""} ${playbook.content.slice(0, 6000)}`.toLowerCase();
+    const score = keywords.reduce((total, keyword) => total + (haystack.includes(keyword) ? 1 : 0), 0)
+      + (/worker operating|operating standard|product mission/i.test(`${playbook.name} ${playbook.title}`) ? 3 : 0);
+    return { playbook, score };
+  }).sort((a, b) => b.score - a.score);
+  const selected = scored.filter(item => item.score > 0).slice(0, 4).map(item => item.playbook);
+  const playbookContext = formatSkillsForPrompt(selected);
+  const attachedNames = selected.map(playbook => `${playbook.category}: ${playbook.name}`).join("; ");
+  return [context, attachedNames ? `Role/task scoped playbooks: ${attachedNames}` : "No additional playbook was relevant enough to inject for this task.", playbookContext ? `Relevant operating playbooks:\n\n${playbookContext}` : null].filter(Boolean).join("\n\n");
 }
 
 async function chooseAgent(body: Required<Pick<IntakeBody, "title" | "description">> & IntakeBody): Promise<AgentCandidate> {
@@ -42,7 +61,7 @@ async function chooseAgent(body: Required<Pick<IntakeBody, "title" | "descriptio
     return { agent: null, name: requestedAgent, role: "Requested AI worker", department: "Unassigned", reason: "Requested AI worker is not connected yet. Work was kept in the board until the worker is connected.", confidence: 20 };
   }
   if (!connectedAgents.length) return { agent: null, name: UNASSIGNED_AGENT_NAME, role: "No connected AI worker", department: "Unassigned", reason: "No real connected AI workers exist yet. Work was added to the board but not sent outside Mission Control.", confidence: 0 };
-  const routingKeywords = ["code", "repo", "github", "deploy", "bug", "fix", "patch", "react", "api", "database", "typescript", "website", "build", "research", "compare", "market", "source", "verify", "competitor", "data", "latest", "news", "analysis", "write", "document", "markdown", "summary", "copy", "email", "brief", "sop", "proposal", "content", "marketing", "outreach", "campaign", "lead", "client", "ads", "social", "crm", "follow up", "sales", "operations", "report", "stock", "staff", "task", "schedule", "calendar", "customer", "support"];
+  const routingKeywords = ["code", "repo", "github", "deploy", "bug", "fix", "patch", "react", "api", "database", "typescript", "website", "build", "research", "compare", "market", "source", "verify", "competitor", "data", "latest", "news", "analysis", "write", "document", "markdown", "summary", "copy", "email", "brief", "sop", "proposal", "content", "marketing", "outreach", "campaign", "lead", "client", "ads", "social", "crm", "follow up", "sales", "operations", "report", "stock", "staff", "task", "schedule", "calendar", "customer", "support", "finance", "reconcile", "bank", "expense", "cash"];
   const ranked = connectedAgents.map(agent => ({ agent, score: keywordScore(`${agentSearchText(agent)} ${text}`, routingKeywords) + (agent.isLead ? 1 : 0) + (agent.status === "active" ? 1 : 0) + (isJamesHermes(agent) ? 2 : 0) })).sort((a, b) => b.score - a.score || a.agent.id - b.agent.id);
   const winner = ranked[0];
   const agent = winner.agent;
@@ -50,7 +69,11 @@ async function chooseAgent(body: Required<Pick<IntakeBody, "title" | "descriptio
 }
 
 function buildInstructions(params: { taskId: number; title: string; description: string; project: string; priority: string; assignee: string; recommendation: AgentCandidate }): string {
-  return [`Mission Control assigned task #${params.taskId}: ${params.title}`, "", `Priority: ${params.priority}`, `Project: ${params.project}`, `Assigned AI worker: ${params.assignee}`, `Routing confidence: ${params.recommendation.confidence}%`, `Routing reason: ${params.recommendation.reason}`, "", "Task brief:", params.description, "", "Operating rules:", "1. Review the task and attached playbook context.", "2. Keep every task-specific question, finding, action and result inside the Mission Control task conversation.", "3. Identify blockers, required access, and safest next action.", "4. If owner approval is required, clearly state what needs approval and why; do not continue past that approval gate.", "5. Use only the tools and secrets assigned to your agent token.", "6. Report progress and completion back to Mission Control. Never claim work you did not perform."].join("\n");
+  const classification = classifyTaskIntent(params.title, params.description);
+  const proportionalRule = classification.intent === "acknowledgement_test"
+    ? "This is a trivial acknowledgement/allocation test. Do not perform operational work, browse unrelated context, make readiness claims, or produce a long report. Confirm receipt/allocation and state that no action was taken."
+    : "Keep the response proportional to the task. Material claims require evidence; distinguish verified facts, calculations, assumptions and unknowns where relevant.";
+  return [`Mission Control assigned task #${params.taskId}: ${params.title}`, "", `Priority: ${params.priority}`, `Project: ${params.project}`, `Assigned AI worker: ${params.assignee}`, `Task intent: ${classification.intent}`, `Task complexity: ${classification.complexity}`, `Routing confidence: ${params.recommendation.confidence}%`, `Routing reason: ${params.recommendation.reason}`, "", "Task brief:", params.description, "", "Operating rules:", "1. The owner brief is authoritative.", `2. ${proportionalRule}`, "3. Keep task-specific questions, findings, actions and results inside the Mission Control task conversation.", "4. Identify blockers, required access, and safest next action.", "5. If protected-action approval is required, state exactly what requires approval and do not cross that gate.", "6. Use only role/task relevant tools, memory, knowledge and playbooks.", "7. Never claim work, evidence, access, readiness or completion you did not verify.", "8. Your completion claim is provisional. James Hermes independently reviews specialist work before Review or Done."].join("\n");
 }
 
 async function runAssignedWork(params: { agent: AgentRecord; task: typeof tasksTable.$inferSelect; command: typeof agentCommandsTable.$inferSelect; instructions: string; context: string }): Promise<void> {
@@ -61,8 +84,9 @@ async function runAssignedWork(params: { agent: AgentRecord; task: typeof tasksT
     return;
   }
   try {
+    const classification = classifyTaskIntent(task.title, task.description);
     await db.update(tasksTable).set({ status: "running" }).where(eq(tasksTable.id, task.id));
-    await addTaskMessage(task.id, agent.name, "Task received. I am reviewing the brief and beginning work.");
+    await addTaskMessage(task.id, agent.name, classification.intent === "acknowledgement_test" ? "Task received. Allocation confirmed; no work is requested." : "Task received. I am reviewing the assigned brief and relevant evidence.");
     const runtimeResult = await dispatchRuntime(agent, { mode: "work", instructions, context, taskId: task.id, commandId: command.id });
     await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: runtimeResult.ok }).where(eq(agentCommandsTable.id, command.id));
     if (runtimeResult.delivery === "queued" && runtimeResult.ok) {
@@ -71,12 +95,20 @@ async function runAssignedWork(params: { agent: AgentRecord; task: typeof tasksT
       await db.insert(activityTable).values({ agentName: agent.name, action: "Detached worker started", detail: runtimeResult.output ?? `Task #${task.id} queued for detached execution`, status: "active" });
       return;
     }
-    if (runtimeResult.output) await addTaskMessage(task.id, agent.name, runtimeResult.output);
-    const nextStatus = runtimeResult.ok ? (task.approvalRequired ? "review" : "running") : "blocked";
-    await db.update(tasksTable).set({ status: nextStatus }).where(eq(tasksTable.id, task.id));
-    if (task.approvalRequired && runtimeResult.ok) await addTaskMessage(task.id, "Mission Control", "OWNER APPROVAL REQUIRED — review the agent notes above, then approve or request changes from this task.");
-    await db.update(agentsTable).set({ currentTask: runtimeResult.ok ? (task.approvalRequired ? null : `Task #${task.id}: ${task.title}`) : `Task #${task.id}: ${task.title}`, status: runtimeResult.ok ? "active" : "error", lastActive: runtimeResult.ok ? (task.approvalRequired ? "response received — awaiting owner approval" : "task active — response recorded") : "runtime failed", lastPing: runtimeResult.ok ? new Date() : agent.lastPing }).where(eq(agentsTable.id, agent.id));
-    await db.insert(activityTable).values({ agentName: agent.name, action: runtimeResult.ok ? "Worker response recorded in task" : "Runtime failed orchestrated work", detail: runtimeResult.output ?? runtimeResult.error, status: runtimeResult.ok ? "pending" : "error" });
+    if (!runtimeResult.ok) {
+      await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, task.id));
+      await addTaskMessage(task.id, "Mission Control", `BLOCKED — ${runtimeResult.error ?? "agent runtime failed"}`);
+      await db.update(agentsTable).set({ currentTask: `Task #${task.id}: ${task.title}`, status: "error", lastActive: "runtime failed" }).where(eq(agentsTable.id, agent.id));
+      await db.insert(activityTable).values({ agentName: agent.name, action: "Runtime failed orchestrated work", detail: runtimeResult.error, status: "error" });
+      return;
+    }
+    const visible = humanReadableWorkerOutput(runtimeResult.output);
+    if (visible) await addTaskMessage(task.id, agent.name, visible);
+    await db.update(tasksTable).set({ status: "completion_pending" }).where(eq(tasksTable.id, task.id));
+    await addTaskMessage(task.id, "Mission Control", "AGENT REPORTED COMPLETE — James supervisory verification is required before Review or Done.");
+    await db.update(agentsTable).set({ currentTask: `Task #${task.id}: ${task.title}`, status: "active", lastActive: "response received — awaiting James QA", lastPing: new Date() }).where(eq(agentsTable.id, agent.id));
+    await db.insert(activityTable).values({ agentName: agent.name, action: "Worker response recorded; James QA pending", detail: runtimeResult.output, status: "pending" });
+    await queueJamesCompletionReview(task.id, agent.name, runtimeResult.output);
   } catch (error) {
     const detail = error instanceof Error ? error.message : "Unknown runtime dispatch error";
     await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, task.id));
@@ -85,7 +117,6 @@ async function runAssignedWork(params: { agent: AgentRecord; task: typeof tasksT
     await db.insert(activityTable).values({ agentName: agent.name, action: "Runtime dispatch failed", detail, status: "error" });
   }
 }
-
 
 export class IntakeValidationError extends Error {}
 
@@ -144,13 +175,14 @@ export async function intakeActionableTask(body: IntakeBody, options: { inboxIte
     const assignedAgent = recommendation.agent;
     const assignee = assignedAgent?.name ?? UNASSIGNED_AGENT_NAME;
     const [task] = await tx.insert(tasksTable).values({ title, description, project, priority, dueDate, recurrence, approvalRequired, ownerReviewRequired, attachments, assignee, status: assignedAgent ? "ready" : "backlog" }).returning();
+    const classification = classifyTaskIntent(title, description);
     await tx.insert(taskMessagesTable).values({ taskId: task.id, author: "Cameron", body: description });
-    await tx.insert(taskMessagesTable).values({ taskId: task.id, author: "Mission Control", body: `Orchestrator reviewed the task. ${recommendation.reason} ${assignedAgent ? `Allocated to ${assignee}.` : "Task remains unassigned."}` });
+    await tx.insert(taskMessagesTable).values({ taskId: task.id, author: "Mission Control", body: `Orchestrator reviewed the task. ${recommendation.reason} ${assignedAgent ? `Allocated to ${assignee}.` : "Task remains unassigned."} Intent: ${classification.intent}; complexity: ${classification.complexity}.` });
     let command: typeof agentCommandsTable.$inferSelect | null = null;
     if (assignedAgent) {
       const instructions = buildInstructions({ taskId: task.id, title, description, project, priority, assignee, recommendation });
-      const baseContext = JSON.stringify({ source: inboxItem ? "inbox-promotion" : "orchestrator-intake", inboxItemId: inboxItem?.id ?? null, recommendation: { recommendedAgent: recommendation.name, role: recommendation.role, department: recommendation.department, reason: recommendation.reason, confidence: recommendation.confidence }, createdBy: "Mission Control Orchestrator" }, null, 2);
-      const context = await buildPlaybookContext(baseContext);
+      const baseContext = JSON.stringify({ source: inboxItem ? "inbox-promotion" : "orchestrator-intake", inboxItemId: inboxItem?.id ?? null, taskClassification: classification, recommendation: { recommendedAgent: recommendation.name, role: recommendation.role, department: recommendation.department, reason: recommendation.reason, confidence: recommendation.confidence }, createdBy: "Mission Control Orchestrator" }, null, 2);
+      const context = await buildPlaybookContext(baseContext, assignedAgent, `${title} ${description} ${project}`);
       [command] = await tx.insert(agentCommandsTable).values({ agentId: assignedAgent.id, taskId: task.id, instructions, context }).returning();
       dispatch = { agent: assignedAgent, task, command, instructions, context };
     }
@@ -161,7 +193,7 @@ export async function intakeActionableTask(body: IntakeBody, options: { inboxIte
       duplicatePrevented: false,
       task,
       orchestratorReview: { recommendedAgent: recommendation.name, role: recommendation.role, department: recommendation.department, reason: recommendation.reason, confidence: recommendation.confidence },
-      allocation: assignedAgent && command ? { agentId: assignedAgent.id, agentName: assignedAgent.name, commandId: command.id, delivery: "queued_for_worker", nextStep: "Work has been queued. All worker responses will be recorded inside this task." } : null,
+      allocation: assignedAgent && command ? { agentId: assignedAgent.id, agentName: assignedAgent.name, commandId: command.id, delivery: "queued_for_worker", nextStep: "Work has been queued. Specialist completion will be independently reviewed by James before Review or Done." } : null,
     };
   });
   if (dispatch) void runAssignedWork(dispatch);
