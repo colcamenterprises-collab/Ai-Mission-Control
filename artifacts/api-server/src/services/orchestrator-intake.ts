@@ -84,7 +84,7 @@ async function runAssignedWork(params: { agent: AgentRecord; task: typeof tasksT
     return;
   }
   try {
-    const classification = classifyTaskIntent(task.title, task.description);
+    const classification = classifyTaskIntent(task.title, task.description ?? "");
     await db.update(tasksTable).set({ status: "running" }).where(eq(tasksTable.id, task.id));
     await addTaskMessage(task.id, agent.name, classification.intent === "acknowledgement_test" ? "Task received. Allocation confirmed; no work is requested." : "Task received. I am reviewing the assigned brief and relevant evidence.");
     const runtimeResult = await dispatchRuntime(agent, { mode: "work", instructions, context, taskId: task.id, commandId: command.id });
