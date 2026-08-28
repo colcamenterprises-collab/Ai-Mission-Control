@@ -27,6 +27,7 @@ import {
   ListTasksQueryParams,
 } from "@workspace/api-zod";
 import { routeVerifiedCompletion } from "../services/task-completion-policy.js";
+import { humanReadableWorkerOutput, queueJamesCompletionReview } from "../services/worker-supervision.js";
 
 const router: IRouter = Router();
 
@@ -60,7 +61,7 @@ async function queueTaskFollowUp(task: typeof tasksTable.$inferSelect, instructi
   if (isRuntimeConfigured(agent)) {
     void (async () => {
       try {
-        await addTaskMessage(task.id, agent.name, "Update received. I am reviewing the task conversation and continuing the work.");
+        await addTaskMessage(task.id, agent.name, "Update received. I am reviewing the new instruction against the original owner brief.");
         const result = await dispatchRuntime(agent, { mode: "work", instructions, context, taskId: task.id, commandId: command.id });
         await db.update(agentCommandsTable).set({ acknowledgedAt: new Date(), deliveredViaHttp: result.ok }).where(eq(agentCommandsTable.id, command.id));
         if (result.delivery === "queued" && result.ok) {
@@ -68,10 +69,18 @@ async function queueTaskFollowUp(task: typeof tasksTable.$inferSelect, instructi
           await db.insert(activityTable).values({ agentName: agent.name, action: "Detached task follow-up started", detail: result.output ?? `Task #${task.id} queued for detached execution`, status: "active" });
           return;
         }
-        if (result.output) await addTaskMessage(task.id, agent.name, result.output);
-        await db.update(tasksTable).set({ status: result.ok ? "review" : "blocked" }).where(eq(tasksTable.id, task.id));
-        await db.insert(activityTable).values({ agentName: agent.name, action: result.ok ? "Task follow-up response recorded" : "Task follow-up failed", detail: result.output ?? result.error, status: result.ok ? "active" : "error" });
-        if (!result.ok) await addTaskMessage(task.id, "Mission Control", `BLOCKED — ${result.error ?? "agent runtime failed"}`);
+        if (!result.ok) {
+          await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, task.id));
+          await db.insert(activityTable).values({ agentName: agent.name, action: "Task follow-up failed", detail: result.error, status: "error" });
+          await addTaskMessage(task.id, "Mission Control", `BLOCKED — ${result.error ?? "agent runtime failed"}`);
+          return;
+        }
+        const visible = humanReadableWorkerOutput(result.output);
+        if (visible) await addTaskMessage(task.id, agent.name, visible);
+        await db.update(tasksTable).set({ status: "completion_pending" }).where(eq(tasksTable.id, task.id));
+        await db.insert(activityTable).values({ agentName: agent.name, action: "Task follow-up response recorded; James QA pending", detail: result.output, status: "pending" });
+        await addTaskMessage(task.id, "Mission Control", "AGENT REPORTED COMPLETE — James supervisory verification is required before Review or Done.");
+        await queueJamesCompletionReview(task.id, agent.name, result.output);
       } catch (error) {
         const detail = error instanceof Error ? error.message : "Unknown task follow-up error";
         await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, task.id));
