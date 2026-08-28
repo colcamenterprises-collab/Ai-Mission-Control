@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { asc, eq } from "drizzle-orm";
@@ -11,6 +11,19 @@ const REVIEW_RUNNER = "/opt/apps/ai-mission-control/scripts/run-james-completion
 
 export type TaskIntent = "acknowledgement_test" | "information_request" | "analysis" | "execution" | "reconciliation" | "investigation" | "creation" | "approval_gated_action";
 export type TaskComplexity = "trivial" | "standard" | "material" | "high_risk";
+
+function activeReviewFile(taskId: number): string { return `${STATE_DIR}/task-${taskId}.active`; }
+
+export async function isActiveJamesReviewJob(taskId: number, jobId: string): Promise<boolean> {
+  if (!jobId) return false;
+  try { return (await readFile(activeReviewFile(taskId), "utf8")).trim() === jobId; }
+  catch { return false; }
+}
+
+export async function clearActiveJamesReviewJob(taskId: number, jobId: string): Promise<void> {
+  if (!(await isActiveJamesReviewJob(taskId, jobId))) return;
+  try { await unlink(activeReviewFile(taskId)); } catch {}
+}
 
 export function classifyTaskIntent(title: string, description: string): { intent: TaskIntent; complexity: TaskComplexity } {
   const text = `${title} ${description}`.toLowerCase();
@@ -47,7 +60,6 @@ export function humanReadableWorkerOutput(output: string | null | undefined): st
 export async function queueJamesCompletionReview(taskId: number, workerName: string, workerOutput: string | null | undefined): Promise<{ queued: boolean; jobId?: string; reason?: string }> {
   const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, taskId));
   if (!task) return { queued: false, reason: "task not found" };
-  if (workerName.toLowerCase().includes("james hermes")) return { queued: false, reason: "James is already the executing worker" };
 
   const history = await db.select().from(taskMessagesTable).where(eq(taskMessagesTable.taskId, taskId)).orderBy(asc(taskMessagesTable.createdAt));
   const compactHistory = history.slice(-12).map(item => `${item.author}: ${item.body.slice(0, 1800)}`).join("\n\n");
@@ -69,6 +81,7 @@ export async function queueJamesCompletionReview(taskId: number, workerName: str
     compactHistory || "No prior task history.",
     "",
     "JAMES SUPERVISORY QA CONTRACT:",
+    "Perform a fresh verification pass even when James Hermes was also the executing worker. Treat the execution result as unverified input.",
     "Independently judge whether the worker actually satisfied the owner's brief. Runtime/provider success is not task completion.",
     "Check task intent, requirements, evidence, accuracy, completeness, proportionality, playbook/policy compliance, unsupported claims and blockers.",
     "For a trivial acknowledgement/no-action test, a concise acknowledgement is sufficient and doing extra work is a quality failure.",
@@ -81,14 +94,16 @@ export async function queueJamesCompletionReview(taskId: number, workerName: str
   await mkdir(STATE_DIR, { recursive: true });
   const promptFile = `${STATE_DIR}/${jobId}.prompt`;
   await writeFile(promptFile, prompt, { encoding: "utf8", mode: 0o600 });
+  await writeFile(activeReviewFile(taskId), `${jobId}\n`, { encoding: "utf8", mode: 0o600 });
   try {
     await execFileAsync("systemd-run", [
       `--unit=james-review-${jobId}`, "--collect", "--no-block", "/bin/bash", REVIEW_RUNNER,
       jobId, String(taskId), workerName, promptFile,
     ], { timeout: 15_000, windowsHide: true });
-    await db.insert(taskMessagesTable).values({ taskId, author: "James Hermes", body: "Supervisory review started. I am checking the specialist result against the original owner brief and evidence." });
+    await db.insert(taskMessagesTable).values({ taskId, author: "James Hermes", body: "Supervisory review started. I am checking the worker result against the original owner brief and evidence." });
     return { queued: true, jobId };
   } catch (error) {
+    await clearActiveJamesReviewJob(taskId, jobId);
     const reason = error instanceof Error ? error.message : "unknown James review launch error";
     await db.insert(taskMessagesTable).values({ taskId, author: "Mission Control", body: `BLOCKED — James supervisory review could not be launched: ${reason}` });
     await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, taskId));
