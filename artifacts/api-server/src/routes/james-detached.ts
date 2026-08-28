@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { Router, type IRouter } from "express";
 import { asc, eq } from "drizzle-orm";
 import { db, tasksTable, taskMessagesTable, agentCommandsTable, activityTable } from "@workspace/db";
+import { queueJamesCompletionReview } from "../services/worker-supervision.js";
 
 const execFileAsync = promisify(execFile);
 const router: IRouter = Router();
@@ -37,7 +38,7 @@ function dbStateFor(result: WorkerResult): string {
 function missionControlNote(result: WorkerResult): string {
   switch (result) {
     case "COMPLETED":
-      return "AGENT REPORTED COMPLETE — completion evidence received. A separate orchestrator verification is required before Review or Done.";
+      return "AGENT REPORTED COMPLETE — completion evidence received. A fresh supervisory verification pass is required before Review or Done.";
     case "CHANGES_REQUIRED":
       return "CHANGES REQUIRED — the task remains active. James must continue the correction cycle; owner approval is not required.";
     case "BLOCKED":
@@ -185,6 +186,10 @@ router.post("/james/report", async (req, res): Promise<void> => {
     author: "Mission Control",
     body: missionControlNote(result),
   });
+
+  if (result === "COMPLETED") {
+    await queueJamesCompletionReview(taskId, "James Hermes", body);
+  }
 
   res.json({
     accepted: true,
