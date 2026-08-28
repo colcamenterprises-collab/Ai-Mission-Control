@@ -51,7 +51,7 @@ export async function queueJamesCompletionReview(taskId: number, workerName: str
 
   const history = await db.select().from(taskMessagesTable).where(eq(taskMessagesTable.taskId, taskId)).orderBy(asc(taskMessagesTable.createdAt));
   const compactHistory = history.slice(-12).map(item => `${item.author}: ${item.body.slice(0, 1800)}`).join("\n\n");
-  const classification = classifyTaskIntent(task.title, task.description);
+  const classification = classifyTaskIntent(task.title, task.description ?? "");
   const prompt = [
     `MISSION CONTROL SUPERVISORY REVIEW — Task #${task.id}: ${task.title}`,
     `Project: ${task.project}`,
@@ -60,7 +60,7 @@ export async function queueJamesCompletionReview(taskId: number, workerName: str
     `Task complexity: ${classification.complexity}`,
     "",
     "AUTHORITATIVE OWNER BRIEF:",
-    task.description,
+    task.description ?? "",
     "",
     "SPECIALIST WORKER RESULT:",
     humanReadableWorkerOutput(workerOutput) ?? "No owner-visible worker narrative was returned.",
