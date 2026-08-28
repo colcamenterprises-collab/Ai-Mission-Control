@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 const intake = fs.readFileSync("artifacts/api-server/src/services/orchestrator-intake.ts", "utf8");
 const tasks = fs.readFileSync("artifacts/api-server/src/routes/tasks.ts", "utf8");
+const jamesDetached = fs.readFileSync("artifacts/api-server/src/routes/james-detached.ts", "utf8");
 const supervision = fs.readFileSync("artifacts/api-server/src/services/worker-supervision.ts", "utf8");
 const supervisionRoute = fs.readFileSync("artifacts/api-server/src/routes/worker-supervision.ts", "utf8");
 const runner = fs.readFileSync("scripts/run-james-completion-review.sh", "utf8");
@@ -19,6 +20,12 @@ test("task conversation follow-ups also enter mandatory James QA", () => {
   assert.match(tasks, /status:\s*"completion_pending"/);
   assert.match(tasks, /queueJamesCompletionReview\(task\.id, agent\.name/);
   assert.doesNotMatch(tasks, /status: result\.ok \? "review" : "blocked"/);
+});
+
+test("detached James execution gets a separate fresh supervisory pass", () => {
+  assert.match(jamesDetached, /if \(result === "COMPLETED"\)/);
+  assert.match(jamesDetached, /queueJamesCompletionReview\(taskId, "James Hermes", body\)/);
+  assert.match(supervision, /Perform a fresh verification pass even when James Hermes was also the executing worker/);
 });
 
 test("trivial acknowledgement tasks are classified and constrained", () => {
@@ -41,10 +48,23 @@ test("James review has evidence gate and automatic bounded rework", () => {
   assert.match(supervisionRoute, /automatic James QA reached the \$\{MAX_AUTOMATIC_REWORKS\}-cycle safety limit/);
 });
 
+test("James QA reports are correlated with the active review job", () => {
+  assert.match(supervision, /activeReviewFile/);
+  assert.match(supervision, /isActiveJamesReviewJob/);
+  assert.match(supervisionRoute, /staleReviewIgnored/);
+  assert.match(supervisionRoute, /clearActiveJamesReviewJob/);
+});
+
 test("James review failure can never silently complete a task", () => {
   assert.match(supervisionRoute, /exitCode !== 0/);
   assert.match(supervisionRoute, /status: "blocked"/);
   assert.match(supervisionRoute, /The task was not marked complete/);
+});
+
+test("malformed owner-review escalation is surfaced safely instead of stranding completion_pending", () => {
+  assert.match(supervisionRoute, /escalatedOwnerReview && !reviewReason/);
+  assert.match(supervisionRoute, /INVALID_REVIEW_OUTPUT/);
+  assert.match(supervisionRoute, /requested owner review without a factual reason/);
 });
 
 test("owner review remains separate from James QA", () => {
