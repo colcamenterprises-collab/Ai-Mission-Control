@@ -452,11 +452,6 @@
   .mission-sidebar-collapsed .mission-sidebar-top {
     justify-content: flex-start !important;
   }
-
-  .mission-sidebar-collapsed .mission-logo,
-  .mission-sidebar-collapsed .mission-logo-compact {
-    margin-inline: 0 !important;
-  }
 }
 
 .mission-main-canvas {
