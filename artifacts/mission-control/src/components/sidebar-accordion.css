@@ -397,17 +397,6 @@
   justify-content: center !important;
 }
 
-@media (max-width: 760px) {
-  .mission-sidebar-collapsed .mission-sidebar-top {
-    justify-content: flex-start !important;
-  }
-
-  .mission-sidebar-collapsed .mission-logo,
-  .mission-sidebar-collapsed .mission-logo-compact {
-    margin-inline: 0;
-  }
-}
-
 .mission-sidebar-collapsed .mission-logo,
 .mission-sidebar-collapsed .mission-logo-compact {
   margin-inline: auto;
@@ -449,24 +438,13 @@
 }
 
 @media (max-width: 760px) {
-  .mission-sidebar,
-  .mission-sidebar-expanded {
-    width: 15.5rem !important;
-    min-width: 15.5rem !important;
-  }
-
-  .mission-sidebar-collapsed {
-    width: 4.5rem !important;
-    min-width: 4.5rem !important;
-  }
-
   .mission-sidebar-collapsed .mission-sidebar-top {
     justify-content: flex-start !important;
   }
 
   .mission-sidebar-collapsed .mission-logo,
   .mission-sidebar-collapsed .mission-logo-compact {
-    margin-inline: 0;
+    margin-inline: 0 !important;
   }
 }
 
