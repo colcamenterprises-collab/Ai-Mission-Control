@@ -2,6 +2,12 @@
 
 Mission Control separates organisational intelligence from the individual agent occupying a role.
 
+## Required system orientation
+
+Every current or future worker operating through Mission Control should review [`docs/mission-control/AGENT_SYSTEM_OVERVIEW.md`](../docs/mission-control/AGENT_SYSTEM_OVERVIEW.md) before undertaking platform work. The overview is provider/runtime agnostic and is reviewed manually at major Mission Control releases.
+
+For platform or architecture changes, also use [`docs/mission-control/README.md`](../docs/mission-control/README.md) as the canonical system-document index.
+
 ## Structure
 
 - `roles/` contains stable responsibilities, permissions and required capabilities.
