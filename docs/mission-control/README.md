@@ -18,6 +18,8 @@ Mission Control is the **agent-agnostic operating and orchestration system**. In
 | [ROUTES.md](ROUTES.md) | Complete user-facing route map and API route/module inventory, including aliases and compatibility paths. |
 | [LEGACY_AND_DEPRECATION.md](LEGACY_AND_DEPRECATION.md) | Current, transitional, legacy, shadowed/dead and investigation register with removal conditions. |
 | [AGENT_SYSTEM_OVERVIEW.md](AGENT_SYSTEM_OVERVIEW.md) | Generic orientation document every current or future Mission Control agent should read. Reviewed manually at major releases. |
+| [AGENT_EMPLOYMENT_PACK.md](AGENT_EMPLOYMENT_PACK.md) | Ground Zero employee operating standard: role, responsibilities, delegations, systems, skills, communication, escalation, success and boundaries. |
+| [GROUND_ZERO_OPERATING_MODEL.md](GROUND_ZERO_OPERATING_MODEL.md) | Ground Zero autonomy rule, James standing management responsibility, anti-stall supervision and owner-escalation contract. |
 | [SWOT_AND_RISK.md](SWOT_AND_RISK.md) | SWOT analysis, architectural risks and remediation priorities. |
 | [CHANGE_CONTROL.md](CHANGE_CONTROL.md) | Rules that keep these documents current and CI enforcement requirements. |
 
