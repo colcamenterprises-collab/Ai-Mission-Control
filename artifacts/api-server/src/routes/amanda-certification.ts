@@ -21,9 +21,9 @@ async function liveSystemNames(agentId: number): Promise<string[]> {
     WHERE ai.agent_id = ${agentId} AND lower(coalesce(i.status, '')) = 'connected'
     UNION
     SELECT t.name
-    FROM tools t
-    JOIN agent_tools at ON at.tool_id = t.id
-    WHERE at.agent_id = ${agentId} AND lower(coalesce(t.status, '')) = 'connected'
+    FROM agent_tools t
+    JOIN agent_tool_access ata ON ata.tool_id = t.id
+    WHERE ata.agent_id = ${agentId} AND t.is_active = true
   `);
   return (result.rows ?? []).map(row => String((row as Record<string, unknown>).name ?? "")).filter(Boolean);
 }
