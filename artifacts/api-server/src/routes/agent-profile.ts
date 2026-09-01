@@ -5,6 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { db, agentsTable } from "@workspace/db";
 import { createRateLimit } from "../lib/rate-limit.js";
 import { auditLog } from "../lib/audit.js";
+import { certifyEmploymentPack, emptyEmploymentPack, employmentPackMarkdown, normalizeEmploymentPack, type EmploymentPack } from "../services/agent-employment-pack.js";
 
 const router: IRouter = Router();
 
@@ -16,6 +17,7 @@ type AgentProfile = {
   tools: { allowedTools: string; accessRules: string };
   heartbeat: { recurringDuties: string; alertConditions: string };
   memory: { seed: string };
+  employment: EmploymentPack;
 };
 
 type AgentRow = typeof agentsTable.$inferSelect;
@@ -28,36 +30,25 @@ const emptyProfile = (): AgentProfile => ({
   tools: { allowedTools: "", accessRules: "" },
   heartbeat: { recurringDuties: "", alertConditions: "" },
   memory: { seed: "" },
+  employment: emptyEmploymentPack(),
 });
 
-function clean(value: unknown, max = 8000): string {
-  return typeof value === "string" ? value.trim().slice(0, max) : "";
-}
+function clean(value: unknown, max = 8000): string { return typeof value === "string" ? value.trim().slice(0, max) : ""; }
 
 function normalizeProfile(value: unknown): AgentProfile {
   const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const section = (name: string) => input[name] && typeof input[name] === "object" ? input[name] as Record<string, unknown> : {};
-  const identity = section("identity");
-  const soul = section("soul");
-  const operating = section("operating");
-  const user = section("user");
-  const tools = section("tools");
-  const heartbeat = section("heartbeat");
-  const memory = section("memory");
+  const identity = section("identity"); const soul = section("soul"); const operating = section("operating"); const user = section("user");
+  const tools = section("tools"); const heartbeat = section("heartbeat"); const memory = section("memory");
   return {
     identity: { mission: clean(identity.mission), successDefinition: clean(identity.successDefinition) },
-    soul: {
-      communicationStyle: clean(soul.communicationStyle), decisionStyle: clean(soul.decisionStyle), initiative: clean(soul.initiative),
-      challengeOwner: clean(soul.challengeOwner), principles: clean(soul.principles), neverDo: clean(soul.neverDo),
-    },
-    operating: {
-      autonomy: clean(operating.autonomy), approvalRequired: clean(operating.approvalRequired),
-      completionStandard: clean(operating.completionStandard), reportingStyle: clean(operating.reportingStyle),
-    },
+    soul: { communicationStyle: clean(soul.communicationStyle), decisionStyle: clean(soul.decisionStyle), initiative: clean(soul.initiative), challengeOwner: clean(soul.challengeOwner), principles: clean(soul.principles), neverDo: clean(soul.neverDo) },
+    operating: { autonomy: clean(operating.autonomy), approvalRequired: clean(operating.approvalRequired), completionStandard: clean(operating.completionStandard), reportingStyle: clean(operating.reportingStyle) },
     user: { managerName: clean(user.managerName), communicationPreferences: clean(user.communicationPreferences), escalationRules: clean(user.escalationRules) },
     tools: { allowedTools: clean(tools.allowedTools), accessRules: clean(tools.accessRules) },
     heartbeat: { recurringDuties: clean(heartbeat.recurringDuties), alertConditions: clean(heartbeat.alertConditions) },
     memory: { seed: clean(memory.seed, 16000) },
+    employment: normalizeEmploymentPack(input.employment),
   };
 }
 
@@ -73,22 +64,19 @@ function generateMarkdown(agent: AgentRow, business: string | null, profile: Age
     "TOOLS.md": `# Company Capability Access\n\nSkills, tools, systems, memory and shared knowledge are company infrastructure available to authenticated employees when their assigned work requires them. Employee profiles do not duplicate per-person capability grants. Credentials remain centrally protected and are never stored in this file. Consequential actions remain subject to company execution policy and approval controls.\n`,
     "HEARTBEAT.md": `# Work Scheduling and Alerts\n\nRecurring work, schedules, triggers and alerts are not defined in an employee profile. They must be created and managed as canonical Mission Control tasks so assignment, approvals, execution state, evidence, retries and completion history remain auditable.\n`,
     "MEMORY.md": `# Memory\n\nUse shared company memory and retrieve only context relevant to assigned work. Durable employee behaviour and authority belong in Identity, Soul and Operating Instructions rather than a separate manually seeded memory profile.\n`,
+    ...employmentPackMarkdown(profile.employment),
   };
 }
 
 function profileCompleteness(profile: AgentProfile): number {
-  const values = [
-    profile.identity.mission, profile.identity.successDefinition, profile.soul.communicationStyle, profile.soul.decisionStyle,
-    profile.soul.initiative, profile.soul.challengeOwner, profile.soul.principles, profile.soul.neverDo, profile.operating.autonomy,
-    profile.operating.approvalRequired, profile.operating.completionStandard, profile.operating.reportingStyle, profile.user.managerName,
-    profile.user.communicationPreferences, profile.user.escalationRules,
-  ];
-  return Math.round((values.filter(Boolean).length / values.length) * 100);
+  const values = [profile.identity.mission, profile.identity.successDefinition, profile.soul.communicationStyle, profile.soul.decisionStyle, profile.soul.initiative, profile.soul.challengeOwner, profile.soul.principles, profile.soul.neverDo, profile.operating.autonomy, profile.operating.approvalRequired, profile.operating.completionStandard, profile.operating.reportingStyle, profile.user.managerName, profile.user.communicationPreferences, profile.user.escalationRules];
+  const legacyScore = Math.round((values.filter(Boolean).length / values.length) * 100);
+  const employmentScore = certifyEmploymentPack(profile.employment).score;
+  return Math.round((legacyScore + employmentScore) / 2);
 }
 
 function assertManagedWorkspace(workspace: string): void {
-  const resolved = path.resolve(workspace);
-  const allowed = ["/root/.openclaw/", "/root/.hermes/"];
+  const resolved = path.resolve(workspace); const allowed = ["/root/.openclaw/", "/root/.hermes/"];
   if (!allowed.some(prefix => resolved.startsWith(prefix))) throw new Error("Refusing to write agent profile outside an approved managed runtime workspace.");
 }
 
@@ -107,86 +95,40 @@ async function getAgentBundle(agentId: number) {
   `);
   const row = (profileResult.rows?.[0] ?? {}) as Record<string, unknown>;
   const profile = normalizeProfile(row.profileJson ?? emptyProfile());
-  return {
-    agent,
-    profile,
-    projectName: typeof row.projectName === "string" ? row.projectName : null,
-    workspacePath: typeof row.workspacePath === "string" ? row.workspacePath : null,
-    runtimeType: typeof row.runtimeType === "string" ? row.runtimeType : null,
-    runtimeHealth: typeof row.runtimeHealth === "string" ? row.runtimeHealth : null,
-    version: Number(row.version || 1),
-  };
+  return { agent, profile, projectName: typeof row.projectName === "string" ? row.projectName : null, workspacePath: typeof row.workspacePath === "string" ? row.workspacePath : null, runtimeType: typeof row.runtimeType === "string" ? row.runtimeType : null, runtimeHealth: typeof row.runtimeHealth === "string" ? row.runtimeHealth : null, version: Number(row.version || 1) };
 }
 
 router.get("/employee-factory/agents/:id/definition", async (req, res): Promise<void> => {
-  const agentId = Number(req.params.id);
-  if (!Number.isInteger(agentId) || agentId <= 0) { res.status(400).json({ error: "Invalid employee id." }); return; }
-  const bundle = await getAgentBundle(agentId);
-  if (!bundle) { res.status(404).json({ error: "Employee not found." }); return; }
+  const agentId = Number(req.params.id); if (!Number.isInteger(agentId) || agentId <= 0) { res.status(400).json({ error: "Invalid employee id." }); return; }
+  const bundle = await getAgentBundle(agentId); if (!bundle) { res.status(404).json({ error: "Employee not found." }); return; }
   const generatedFiles = generateMarkdown(bundle.agent, bundle.projectName, bundle.profile);
-  res.json({
-    profile: bundle.profile,
-    completeness: profileCompleteness(bundle.profile),
-    projectName: bundle.projectName,
-    workspaceConnected: Boolean(bundle.workspacePath),
-    runtimeType: bundle.runtimeType,
-    runtimeHealth: bundle.runtimeHealth,
-    generatedFiles,
-    version: bundle.version,
-  });
+  res.json({ profile: bundle.profile, completeness: profileCompleteness(bundle.profile), employmentCertification: certifyEmploymentPack(bundle.profile.employment), projectName: bundle.projectName, workspaceConnected: Boolean(bundle.workspacePath), runtimeType: bundle.runtimeType, runtimeHealth: bundle.runtimeHealth, generatedFiles, version: bundle.version });
 });
 
 router.put("/employee-factory/agents/:id/definition", createRateLimit("admin-write", 30, 60_000), async (req, res): Promise<void> => {
-  const agentId = Number(req.params.id);
-  if (!Number.isInteger(agentId) || agentId <= 0) { res.status(400).json({ error: "Invalid employee id." }); return; }
+  const agentId = Number(req.params.id); if (!Number.isInteger(agentId) || agentId <= 0) { res.status(400).json({ error: "Invalid employee id." }); return; }
   try {
-    const bundle = await getAgentBundle(agentId);
-    if (!bundle) { res.status(404).json({ error: "Employee not found." }); return; }
-    const profile = normalizeProfile(req.body?.profile);
-    const files = generateMarkdown(bundle.agent, bundle.projectName, profile);
+    const bundle = await getAgentBundle(agentId); if (!bundle) { res.status(404).json({ error: "Employee not found." }); return; }
+    const profile = normalizeProfile(req.body?.profile); const files = generateMarkdown(bundle.agent, bundle.projectName, profile);
     const result = await db.execute(sql`
       INSERT INTO agent_profile_definitions (agent_id, profile_json, generated_files, version, updated_at)
       VALUES (${agentId}, ${JSON.stringify(profile)}::jsonb, ${JSON.stringify(files)}::jsonb, 1, now())
-      ON CONFLICT (agent_id) DO UPDATE SET
-        profile_json = EXCLUDED.profile_json,
-        generated_files = EXCLUDED.generated_files,
-        version = agent_profile_definitions.version + 1,
-        updated_at = now()
+      ON CONFLICT (agent_id) DO UPDATE SET profile_json = EXCLUDED.profile_json, generated_files = EXCLUDED.generated_files, version = agent_profile_definitions.version + 1, updated_at = now()
       RETURNING version, updated_at AS "updatedAt"
     `);
-
     let workspaceSynced = false;
-    if (bundle.workspacePath) {
-      assertManagedWorkspace(bundle.workspacePath);
-      await fs.mkdir(bundle.workspacePath, { recursive: true });
-      await Promise.all(Object.entries(files).map(([filename, content]) => fs.writeFile(path.join(bundle.workspacePath!, filename), content, "utf8")));
-      workspaceSynced = true;
-    }
-
-    await auditLog({ action: "profile_updated", entityType: "agent_profile", entityId: agentId, actorType: "admin", actorName: "Mission Control", metadata: `workspaceSynced=${workspaceSynced}` });
-    res.json({ profile, generatedFiles: files, completeness: profileCompleteness(profile), workspaceSynced, ...(result.rows?.[0] ?? {}) });
-  } catch (error) {
-    res.status(400).json({ error: error instanceof Error ? error.message : "Employee profile could not be saved." });
-  }
+    if (bundle.workspacePath) { assertManagedWorkspace(bundle.workspacePath); await fs.mkdir(bundle.workspacePath, { recursive: true }); await Promise.all(Object.entries(files).map(([filename, content]) => fs.writeFile(path.join(bundle.workspacePath!, filename), content, "utf8"))); workspaceSynced = true; }
+    await auditLog({ action: "profile_updated", entityType: "agent_profile", entityId: agentId, actorType: "admin", actorName: "Mission Control", metadata: `workspaceSynced=${workspaceSynced}; employmentReady=${certifyEmploymentPack(profile.employment).ready}` });
+    res.json({ profile, generatedFiles: files, completeness: profileCompleteness(profile), employmentCertification: certifyEmploymentPack(profile.employment), workspaceSynced, ...(result.rows?.[0] ?? {}) });
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Employee profile could not be saved." }); }
 });
 
 router.get("/employee-factory/agents/:id/export", async (req, res): Promise<void> => {
-  const agentId = Number(req.params.id);
-  if (!Number.isInteger(agentId) || agentId <= 0) { res.status(400).json({ error: "Invalid employee id." }); return; }
-  const bundle = await getAgentBundle(agentId);
-  if (!bundle) { res.status(404).json({ error: "Employee not found." }); return; }
-  const files = generateMarkdown(bundle.agent, bundle.projectName, bundle.profile);
-  const slug = bundle.agent.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `agent-${agentId}`;
+  const agentId = Number(req.params.id); if (!Number.isInteger(agentId) || agentId <= 0) { res.status(400).json({ error: "Invalid employee id." }); return; }
+  const bundle = await getAgentBundle(agentId); if (!bundle) { res.status(404).json({ error: "Employee not found." }); return; }
+  const files = generateMarkdown(bundle.agent, bundle.projectName, bundle.profile); const slug = bundle.agent.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `agent-${agentId}`;
   res.setHeader("Content-Disposition", `attachment; filename=\"${slug}.agent.json\"`);
-  res.json({
-    schemaVersion: 2,
-    exportedAt: new Date().toISOString(),
-    agent: { name: bundle.agent.name, role: bundle.agent.role, department: bundle.agent.department, responsibilities: bundle.agent.responsibilities, project: bundle.projectName },
-    profile: bundle.profile,
-    markdown: files,
-    dependencies: { accessModel: "shared-company-capability", runtimeType: bundle.runtimeType },
-    security: { credentialsIncluded: false, note: "Credentials and secret values are intentionally excluded. Reconnect company credentials in the destination system." },
-  });
+  res.json({ schemaVersion: 3, exportedAt: new Date().toISOString(), agent: { name: bundle.agent.name, role: bundle.agent.role, department: bundle.agent.department, responsibilities: bundle.agent.responsibilities, project: bundle.projectName }, profile: bundle.profile, employmentCertification: certifyEmploymentPack(bundle.profile.employment), markdown: files, dependencies: { accessModel: "shared-company-capability", runtimeType: bundle.runtimeType }, security: { credentialsIncluded: false, note: "Credentials and secret values are intentionally excluded. Reconnect company credentials in the destination system." } });
 });
 
 export default router;
