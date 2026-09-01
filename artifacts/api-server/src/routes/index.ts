@@ -30,6 +30,7 @@ import provisioningRouter from "./provisioning";
 import employeeFactoryRouter from "./employee-factory";
 import agentProfileRouter from "./agent-profile";
 import amandaCertificationRouter from "./amanda-certification";
+import modelPolicyRouter from "./model-policy";
 import { requireAdminAuth } from "../lib/auth.js";
 
 const router: IRouter = Router();
@@ -54,6 +55,7 @@ router.use(executionsRouter);
 router.use(intelligenceRouter);
 router.use(operationsRouter);
 router.use(inboxRouter);
+router.use(modelPolicyRouter);
 router.use(amandaCertificationRouter);
 router.use(agentProfileRouter);
 router.use(employeeFactoryRouter);

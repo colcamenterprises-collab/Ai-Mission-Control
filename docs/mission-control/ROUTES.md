@@ -1,7 +1,7 @@
 # Mission Control V1.0 — Route Inventory
 
 **Status:** CURRENT  
-**Reviewed:** 2026-09-01  
+**Reviewed:** 2026-09-02  
 **Router sources:** `artifacts/mission-control/src/App.tsx`, `artifacts/api-server/src/app.ts`, `artifacts/api-server/src/routes/*`
 
 This inventory records route ownership and compatibility status. Unless stated otherwise, API routes below are mounted under `/api`.
@@ -212,6 +212,14 @@ Uploaded/stored legacy avatar references beginning `/employee-avatars/` or the p
 
 `GET /api/employee-factory/amanda/certification` — reports Employment Pack readiness, live granted SBB systems and demonstrated operational certification; profile text alone cannot produce READY access.  
 `POST /api/employee-factory/amanda/apply-role-pack` — applies the canonical Patch 1.2 SBB Financial Controller Employment Pack to the existing Amanda employee without fabricating system grants.
+
+### Model policy and OpenRouter routing
+
+`GET /api/model-policy` — current employee policies, role defaults, runtime-model alignment.  
+`POST /api/model-policy/seed` — idempotently seeds role-aware policies for existing employees.  
+`GET /api/model-policy/recommend/:id` — recommended policy derived from employee role.  
+`PUT /api/agents/:id/model-policy` — updates the model independently of employee identity; direct providers apply immediately and OpenClaw is synchronized through its agent-scoped model command before the runtime metadata is marked aligned.  
+`GET /api/model-usage` — token/request/cost visibility aggregated by employee, provider, model and policy class.
 
 ### Provisioning/runtime lifecycle
 
