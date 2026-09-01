@@ -48,7 +48,7 @@ router.post("/model-policy/seed", createRateLimit("admin-write", 10, 60_000), as
   const agents = await db.select().from(agentsTable).orderBy(agentsTable.id);
   const policies = [];
   for (const agent of agents) policies.push(await seedRolePolicy(agent));
-  await auditLog({ action: "model_policy_seeded", entityType: "system", actorType: "admin", actorName: "Mission Control", metadata: `agents=${agents.length}` });
+  await auditLog({ action: "model_policy_seeded", entityType: "system", entityId: "model-policy", actorType: "admin", actorName: "Mission Control", metadata: `agents=${agents.length}` });
   res.json({ seeded: agents.length, policies });
 });
 
