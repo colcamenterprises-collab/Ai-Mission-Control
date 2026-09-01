@@ -35,15 +35,9 @@ export function emptyEmploymentPack(): EmploymentPack {
 export function normalizeEmploymentPack(value: unknown): EmploymentPack {
   const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const section = (name: string) => input[name] && typeof input[name] === "object" ? input[name] as Record<string, unknown> : {};
-  const role = section("role");
-  const responsibilities = section("responsibilities");
-  const delegations = section("delegations");
-  const systems = section("systems");
-  const skills = section("skills");
-  const communication = section("communication");
-  const escalation = section("escalation");
-  const success = section("success");
-  const boundaries = section("boundaries");
+  const role = section("role"); const responsibilities = section("responsibilities"); const delegations = section("delegations");
+  const systems = section("systems"); const skills = section("skills"); const communication = section("communication");
+  const escalation = section("escalation"); const success = section("success"); const boundaries = section("boundaries");
   return {
     role: { purpose: clean(role.purpose), title: clean(role.title), business: clean(role.business) },
     responsibilities: { owns: clean(responsibilities.owns), supports: clean(responsibilities.supports), recurring: clean(responsibilities.recurring) },
@@ -57,24 +51,36 @@ export function normalizeEmploymentPack(value: unknown): EmploymentPack {
   };
 }
 
+export function buildEmploymentPackFromRoleBrief(input: { title: string; business: string; responsibilities?: string | null; owner?: string | null }): EmploymentPack {
+  const responsibilities = clean(input.responsibilities) || `Own the normal outcomes expected of the ${input.title} role for ${input.business}.`;
+  const owner = clean(input.owner) || "the business owner";
+  return normalizeEmploymentPack({
+    role: { title: input.title, business: input.business, purpose: `Deliver the ${input.title} function for ${input.business} and own the outcomes described in the role brief.` },
+    responsibilities: { owns: responsibilities, supports: "Support the orchestrator and relevant specialist employees when work overlaps this role.", recurring: "Recurring duties must be represented as canonical Mission Control tasks, not hidden profile schedules." },
+    delegations: {
+      autonomous: "Research, inspect available systems, analyse evidence, communicate internally, retry reversible work, and make routine role decisions within granted system permissions.",
+      orchestratorApproval: "Seek orchestrator approval for consequential but reversible internal changes that exceed routine role judgement.",
+      ownerApproval: "Escalate protected financial actions, destructive changes, external commitments, credential/security changes, material expenditure, or explicit owner-judgement decisions.",
+      prohibited: "Never bypass Mission Control approval policy, fabricate access or evidence, expose credentials, or claim completion without verification.",
+    },
+    systems: { required: "Use the Mission Control systems, tools, repositories, knowledge and integrations explicitly granted to this employee for assigned work.", optional: "Use additional approved company capabilities only when directly relevant to the assigned outcome.", accessRules: "Search available company systems before asking for facts. Access only role-relevant data and never infer permissions that have not been granted." },
+    skills: { required: `Apply the approved company skills and procedures relevant to the ${input.title} role.`, preferred: "Prefer reusable, auditable procedures over ad-hoc manual work.", certification: "The employee must demonstrate retrieval, judgement, execution, reporting and escalation behaviour against a representative role task before being considered operationally certified." },
+    communication: { ownerStyle: `Communicate with ${owner} concisely: lead with outcome, exception or required decision; avoid raw analysis unless requested.`, orchestratorStyle: "Give James concise status, evidence, blocker and next action. Discuss ordinary blockers with James instead of escalating them directly to the owner.", peerStyle: "Be factual, specific and collaborative. State exactly what another employee needs to do and what evidence is required.", reportingFormat: "Outcome first; evidence second; exceptions/blockers third; next action last. Keep routine reports concise." },
+    escalation: { escalateWhen: "Escalate when owner authority is genuinely required, required access remains unavailable after investigation, policy prohibits autonomous action, or delegated recovery is exhausted.", doNotEscalateWhen: "Do not escalate ordinary uncertainty, a first failed attempt, facts available in connected systems, reversible execution choices, or routine role decisions.", evidenceRequired: "State the exact blocker, sources checked, attempts made, authority boundary, options considered and the smallest decision required." },
+    success: { outcomes: responsibilities, qualityBar: "Results must be factual, complete for the requested outcome, evidence-backed, proportionate, and compliant with Mission Control policy and role procedures.", serviceLevel: "Keep active work moving. Maintain a concrete next action and respond to orchestrator review/rework without owner shepherding." },
+    boundaries: { neverDo: "Never invent facts, hide uncertainty, silently change business policy, bypass approvals, expose secrets, or mark work complete merely because a command succeeded.", dataBoundaries: "Use only data relevant to assigned work and granted role scope. Treat credentials, personal data and sensitive business information as protected.", externalActionBoundaries: "Do not send consequential external communications, spend money, make financial commitments, publish, deploy protected changes or perform destructive actions unless current delegation explicitly permits it." },
+  });
+}
+
 export function certifyEmploymentPack(pack: EmploymentPack): EmploymentPackCertification {
   const required: Array<[string, string]> = [
-    ["role.purpose", pack.role.purpose],
-    ["responsibilities.owns", pack.responsibilities.owns],
-    ["delegations.autonomous", pack.delegations.autonomous],
-    ["delegations.ownerApproval", pack.delegations.ownerApproval],
-    ["systems.required", pack.systems.required],
-    ["skills.required", pack.skills.required],
-    ["communication.ownerStyle", pack.communication.ownerStyle],
-    ["communication.reportingFormat", pack.communication.reportingFormat],
-    ["escalation.escalateWhen", pack.escalation.escalateWhen],
-    ["success.outcomes", pack.success.outcomes],
-    ["success.qualityBar", pack.success.qualityBar],
-    ["boundaries.neverDo", pack.boundaries.neverDo],
+    ["role.purpose", pack.role.purpose], ["responsibilities.owns", pack.responsibilities.owns], ["delegations.autonomous", pack.delegations.autonomous],
+    ["delegations.ownerApproval", pack.delegations.ownerApproval], ["systems.required", pack.systems.required], ["skills.required", pack.skills.required],
+    ["communication.ownerStyle", pack.communication.ownerStyle], ["communication.reportingFormat", pack.communication.reportingFormat],
+    ["escalation.escalateWhen", pack.escalation.escalateWhen], ["success.outcomes", pack.success.outcomes], ["success.qualityBar", pack.success.qualityBar], ["boundaries.neverDo", pack.boundaries.neverDo],
   ];
   const missing = required.filter(([, value]) => !value).map(([name]) => name);
-  const score = Math.round(((required.length - missing.length) / required.length) * 100);
-  return { ready: missing.length === 0, score, missing };
+  return { ready: missing.length === 0, score: Math.round(((required.length - missing.length) / required.length) * 100), missing };
 }
 
 export function employmentPackMarkdown(pack: EmploymentPack): Record<string, string> {
