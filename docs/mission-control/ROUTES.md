@@ -208,6 +208,11 @@ Uploaded/stored legacy avatar references beginning `/employee-avatars/` or the p
 `PUT /api/employee-factory/agents/:id/definition`  
 `GET /api/employee-factory/agents/:id/export`
 
+### Amanda Financial Controller certification
+
+`GET /api/employee-factory/amanda/certification` — reports Employment Pack readiness, live granted SBB systems and demonstrated operational certification; profile text alone cannot produce READY access.  
+`POST /api/employee-factory/amanda/apply-role-pack` — applies the canonical Patch 1.2 SBB Financial Controller Employment Pack to the existing Amanda employee without fabricating system grants.
+
 ### Provisioning/runtime lifecycle
 
 `GET /api/provisioning/overview`  
