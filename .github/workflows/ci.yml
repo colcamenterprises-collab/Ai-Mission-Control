@@ -35,6 +35,9 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - name: Mission Control documentation coverage
+        run: pnpm test:mission-control-docs
+
       - name: Workflow tests
         run: pnpm test:workflow
 
