@@ -10,6 +10,7 @@
     "typecheck:production": "pnpm -r typecheck",
     "smoke:operational": "node scripts/smoke-operational.mjs",
     "sync:skills": "node scripts/sync-external-skills.mjs",
+    "test:mission-control-docs": "node scripts/check-mission-control-docs.mjs",
     "test:skills": "pnpm --filter @workspace/api-server run build && node tests/skills-service.test.mjs && node --test tests/operational-readiness.test.mjs && pnpm run test:operational-schema && pnpm run test:execution && pnpm run test:workflow",
     "db:ensure-operational-schema": "pnpm --filter @workspace/db run ensure-operational-schema",
     "test:operational-schema": "node tests/operational-schema.test.mjs",
