@@ -3,6 +3,7 @@ import pg from "pg";
 import * as schema from "./schema";
 import { ensureOperationalSchema as ensureOperationalSchemaWithDb } from "./ensure-operational-schema";
 import { ensureAgentProvisioningSchema as ensureAgentProvisioningSchemaWithDb } from "./ensure-agent-provisioning-schema";
+import { ensureAutonomySchema as ensureAutonomySchemaWithDb } from "./ensure-autonomy-schema";
 
 const { Pool } = pg;
 
@@ -20,4 +21,5 @@ export * from "./schema";
 export async function ensureOperationalSchema(): Promise<void> {
   await ensureOperationalSchemaWithDb(db);
   await ensureAgentProvisioningSchemaWithDb(db);
+  await ensureAutonomySchemaWithDb(db);
 }
