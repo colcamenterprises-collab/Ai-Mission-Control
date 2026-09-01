@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyModelTask, defaultPolicyFor, openRouterCostTier } from "../artifacts/api-server/src/services/model-policy.ts";
+import { classifyModelTask, defaultPolicyFor, openRouterCostTier } from "../artifacts/api-server/src/services/model-policy-rules.ts";
 
 test("research defaults to free OpenRouter routing", () => {
   const policy = defaultPolicyFor("research");
