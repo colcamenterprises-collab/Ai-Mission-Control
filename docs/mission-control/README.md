@@ -20,6 +20,7 @@ Mission Control is the **agent-agnostic operating and orchestration system**. In
 | [AGENT_SYSTEM_OVERVIEW.md](AGENT_SYSTEM_OVERVIEW.md) | Generic orientation document every current or future Mission Control agent should read. Reviewed manually at major releases. |
 | [AGENT_EMPLOYMENT_PACK.md](AGENT_EMPLOYMENT_PACK.md) | Ground Zero employee operating standard: role, responsibilities, delegations, systems, skills, communication, escalation, success and boundaries. |
 | [AMANDA_FINANCIAL_CONTROLLER.md](AMANDA_FINANCIAL_CONTROLLER.md) | Ground Zero Patch 1.2 role, SBB controls, access truth rules and operational certification for Amanda. |
+| [MODEL_POLICY_AND_OPENROUTER.md](MODEL_POLICY_AND_OPENROUTER.md) | Ground Zero Patch 1.3 model classes, OpenRouter routing, runtime synchronization, usage/cost visibility and model/identity separation. |
 | [GROUND_ZERO_OPERATING_MODEL.md](GROUND_ZERO_OPERATING_MODEL.md) | Ground Zero autonomy rule, James standing management responsibility, anti-stall supervision and owner-escalation contract. |
 | [SWOT_AND_RISK.md](SWOT_AND_RISK.md) | SWOT analysis, architectural risks and remediation priorities. |
 | [CHANGE_CONTROL.md](CHANGE_CONTROL.md) | Rules that keep these documents current and CI enforcement requirements. |
