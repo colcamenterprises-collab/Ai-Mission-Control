@@ -12,25 +12,30 @@ export type TaskSupervisionInput = {
   approvalDecision?: string | null;
 };
 
-const OWNER_DECISIONS = new Set(["OWNER_REQUIRED", "REQUIRE_OWNER", "MANUAL_APPROVAL"]);
+const OWNER_DECISIONS = new Set(["OWNER_APPROVAL", "OWNER_REQUIRED", "REQUIRE_OWNER", "MANUAL_APPROVAL", "DENIED"]);
+const ORCHESTRATOR_DECISIONS = new Set(["AUTO_EXECUTE", "ORCHESTRATOR_APPROVAL"]);
 
 export function delegationDecision(input: TaskSupervisionInput): DelegationDecision {
   if (input.approvalRequired) {
     return { authority: "OWNER", reason: "Task is explicitly marked as requiring owner approval." };
   }
 
-  if (input.approvalDecision && OWNER_DECISIONS.has(input.approvalDecision.toUpperCase())) {
-    return { authority: "OWNER", reason: `Execution policy requires owner authority (${input.approvalDecision}).` };
+  const approvalDecision = input.approvalDecision?.toUpperCase();
+  if (approvalDecision && OWNER_DECISIONS.has(approvalDecision)) {
+    return { authority: "OWNER", reason: `Execution policy requires owner authority (${approvalDecision}).` };
+  }
+  if (approvalDecision && ORCHESTRATOR_DECISIONS.has(approvalDecision)) {
+    return { authority: "ORCHESTRATOR", reason: `Execution policy delegates this action to Mission Control (${approvalDecision}).` };
   }
 
   const risk = Number.isFinite(Number(input.riskLevel)) ? Number(input.riskLevel) : 0;
-  if (risk >= 3) {
-    return { authority: "OWNER", reason: `Execution risk level ${risk} is outside the orchestrator standing delegation.` };
+  if (risk >= 2) {
+    return { authority: "OWNER", reason: `Risk level ${risk} has no explicit orchestrator approval and is outside automatic standing delegation.` };
   }
 
   return {
     authority: "ORCHESTRATOR",
-    reason: `Risk level ${risk} is within James Hermes standing delegation (levels 0-2).`,
+    reason: `Risk level ${risk} is within automatic standing delegation.`,
   };
 }
 
