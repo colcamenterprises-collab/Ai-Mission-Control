@@ -1,14 +1,37 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db, agentsTable } from "@workspace/db";
-import { agentRuntimeInstancesTable } from "@workspace/db/provisioning";
+import { agentRuntimeInstancesTable, runtimeHostsTable } from "@workspace/db/provisioning";
 import { createRateLimit } from "../lib/rate-limit.js";
 import { auditLog } from "../lib/audit.js";
 import { defaultPolicyFor, classifyModelTask, getAgentModelPolicy, seedRolePolicy, upsertAgentModelPolicy, type ModelCostClass, type ModelPolicyClass } from "../services/model-policy.js";
 
+const execFileAsync = promisify(execFile);
 const router: IRouter = Router();
 const POLICY_CLASSES = new Set<ModelPolicyClass>(["free", "economy", "balanced", "strong"]);
 const COST_CLASSES = new Set<ModelCostClass>(["free", "low", "standard", "high"]);
+
+async function syncOpenClawModel(agentId: number, model: string): Promise<{ status: "APPLIED" | "FAILED"; detail: string }> {
+  const [runtime] = await db.select().from(agentRuntimeInstancesTable).where(eq(agentRuntimeInstancesTable.agentId, agentId));
+  if (!runtime?.runtimeAgentId || !runtime.runtimeHostId) return { status: "FAILED", detail: "OpenClaw runtime instance is not provisioned." };
+  const [host] = await db.select().from(runtimeHostsTable).where(eq(runtimeHostsTable.id, runtime.runtimeHostId));
+  if (!host) return { status: "FAILED", detail: "OpenClaw runtime host is missing." };
+  const cliPath = host.cliPath?.trim() || "openclaw";
+  try {
+    const { stdout, stderr } = await execFileAsync(cliPath, [
+      "agent", "--agent", runtime.runtimeAgentId,
+      "--message", `/model ${model} -a`,
+      "--timeout", "45", "--json",
+    ], { env: { ...process.env, HOME: "/root" }, timeout: 60_000, maxBuffer: 2 * 1024 * 1024 });
+    const output = `${stdout ?? ""}\n${stderr ?? ""}`.trim();
+    if (/error|failed|denied|not allowed|unknown model/i.test(output)) return { status: "FAILED", detail: output.slice(0, 1000) || "OpenClaw rejected the model update." };
+    return { status: "APPLIED", detail: output.slice(0, 1000) || "OpenClaw agent default updated." };
+  } catch (error) {
+    return { status: "FAILED", detail: error instanceof Error ? error.message : "OpenClaw model synchronization failed." };
+  }
+}
 
 router.get("/model-policy", async (_req, res): Promise<void> => {
   const agents = await db.select().from(agentsTable).orderBy(agentsTable.id);
@@ -16,23 +39,9 @@ router.get("/model-policy", async (_req, res): Promise<void> => {
   for (const agent of agents) {
     const policy = await getAgentModelPolicy(agent.id, `${agent.name} ${agent.role}`);
     const [runtime] = await db.select().from(agentRuntimeInstancesTable).where(eq(agentRuntimeInstancesTable.agentId, agent.id));
-    rows.push({
-      agentId: agent.id,
-      name: agent.name,
-      role: agent.role,
-      runtimeProvider: agent.provider,
-      runtimeModel: runtime?.model ?? agent.model ?? null,
-      policy,
-      runtimeAligned: !runtime?.model || runtime.model === policy.primaryModel,
-    });
+    rows.push({ agentId: agent.id, name: agent.name, role: agent.role, runtimeProvider: agent.provider, runtimeModel: runtime?.model ?? agent.model ?? null, policy, runtimeAligned: !runtime?.model || runtime.model === policy.primaryModel });
   }
-  res.json({
-    agents: rows,
-    defaults: {
-      research: defaultPolicyFor("research"), marketing: defaultPolicyFor("marketing"), coding: defaultPolicyFor("coding"),
-      finance: defaultPolicyFor("finance"), orchestration: defaultPolicyFor("orchestration"), general: defaultPolicyFor("general"),
-    },
-  });
+  res.json({ agents: rows, defaults: { research: defaultPolicyFor("research"), marketing: defaultPolicyFor("marketing"), coding: defaultPolicyFor("coding"), finance: defaultPolicyFor("finance"), orchestration: defaultPolicyFor("orchestration"), general: defaultPolicyFor("general") } });
 });
 
 router.post("/model-policy/seed", createRateLimit("admin-write", 10, 60_000), async (_req, res): Promise<void> => {
@@ -57,10 +66,20 @@ router.put("/agents/:id/model-policy", createRateLimit("admin-write", 20, 60_000
   if (!POLICY_CLASSES.has(policyClass) || !COST_CLASSES.has(maxCostClass) || !primaryModel) { res.status(400).json({ error: "policyClass, maxCostClass and primaryModel must be valid" }); return; }
   const policy = { agentId, policyClass, provider, primaryModel, fallbackModel, maxCostClass, allowEscalation: req.body?.allowEscalation !== false, escalationConditions: conditions };
   await upsertAgentModelPolicy(policy);
+
+  let runtimeSync: { status: "APPLIED" | "FAILED"; detail: string } = { status: "APPLIED", detail: "Direct provider dispatch uses the new policy immediately." };
+  if ((agent.provider ?? "").toLowerCase() === "openclaw") {
+    runtimeSync = await syncOpenClawModel(agentId, primaryModel);
+    if (runtimeSync.status === "FAILED") {
+      await auditLog({ action: "model_policy_runtime_sync_failed", entityType: "agent", entityId: agentId, actorType: "admin", actorName: "Mission Control", metadata: runtimeSync.detail });
+      res.status(409).json({ error: "Model policy saved but OpenClaw runtime rejected synchronization.", policy, runtimeSync });
+      return;
+    }
+  }
   await db.update(agentsTable).set({ model: primaryModel }).where(eq(agentsTable.id, agentId));
   await db.update(agentRuntimeInstancesTable).set({ model: primaryModel, updatedAt: new Date() }).where(eq(agentRuntimeInstancesTable.agentId, agentId));
   await auditLog({ action: "model_policy_updated", entityType: "agent", entityId: agentId, actorType: "admin", actorName: "Mission Control", metadata: `${policyClass}:${primaryModel}:${maxCostClass}` });
-  res.json({ policy, runtimeSync: agent.provider === "openclaw" ? "PENDING_OPENCLAW_CONFIG_SYNC" : "APPLIED", note: agent.provider === "openclaw" ? "Mission Control metadata is updated; OpenClaw configured default must be synchronized through its runtime before claiming the new model is active." : "Direct provider dispatch uses the policy immediately." });
+  res.json({ policy, runtimeSync });
 });
 
 router.get("/model-usage", async (req, res): Promise<void> => {
