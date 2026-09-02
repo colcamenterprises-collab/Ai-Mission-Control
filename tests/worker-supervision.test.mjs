@@ -51,10 +51,17 @@ test("Ground Zero canonical Task intake immediately creates an execution request
 });
 
 test("continuous supervision backfills legacy Tasks before authority decisions", () => {
-  assert.match(taskSupervisor, /if \(!latestRequest\)/);
   assert.match(taskSupervisor, /ensureTaskWorkRequest\(\{/);
   assert.match(taskSupervisor, /executionRequestsCreated/);
   assert.match(taskSupervisor, /delegationDecision\(\{/);
+});
+
+test("legacy supervisor escalation cannot become a permanent owner approval gate", () => {
+  assert.match(taskSupervisor, /LEGACY_SUPERVISION_REASONS/);
+  assert.match(taskSupervisor, /repairLegacySupervisorApproval/);
+  assert.match(taskSupervisor, /legacyApprovalGatesRepaired/);
+  assert.match(taskSupervisor, /status: "cancelled"/);
+  assert.doesNotMatch(taskSupervisor, /approvalRequired:\s*true/);
 });
 
 test("Task execution lifecycle reaches running, blocked and James-verified completed states", () => {
@@ -65,11 +72,15 @@ test("Task execution lifecycle reaches running, blocked and James-verified compl
   assert.match(executionControl, /advance\(\s*refreshed,\s*"completed",\s*"James independently verified the Task outcome"\s*\)/);
 });
 
-test("James review has evidence gate and automatic bounded rework", () => {
+test("James review has evidence gate and bounded rework inside orchestrator recovery", () => {
   assert.match(supervisionRoute, /MAX_AUTOMATIC_REWORKS = 3/);
   assert.match(supervisionRoute, /requestedDecision === "VERIFIED_COMPLETE" && evidence\.length === 0 \? "REWORK_REQUIRED"/);
   assert.match(supervisionRoute, /dispatchRework\(task/);
   assert.match(supervisionRoute, /Automatic James QA reached the \$\{MAX_AUTOMATIC_REWORKS\}-cycle safety limit/);
+  assert.match(supervisionRoute, /nextActionOwner: "James Hermes"/);
+  assert.match(supervisionRoute, /Owner input is not required unless a protected action or owner-only access is identified/);
+  assert.match(supervisionRoute, /lastRecoveryIndex/);
+  assert.match(taskSupervisor, /QA RECOVERY CYCLE STARTED/);
 });
 
 test("James QA reports are correlated with the active review job", () => {
