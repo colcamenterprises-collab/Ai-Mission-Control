@@ -15,14 +15,29 @@ type RpcFrame = {
   payload?: Record<string, unknown>;
 };
 type PendingRpc = { resolve(value: unknown): void; reject(error: Error): void; timeout: number };
-type AudioSpeakResponse = { ok: boolean; data_url: string; mime_type: string };
 type AudioTranscriptionResponse = { ok?: boolean; transcript?: string; text?: string; error?: string };
+type WsTicketResponse = { ticket?: string; ttl_seconds?: number };
+type SpeechStream = {
+  append(text: string): void;
+  finish(): void;
+  stop(): void;
+  done: Promise<void>;
+};
 
-const HERMES_PROXY_BASE_PATH = "/hermes-james";
+const ADMIN_TOKEN_STORAGE_KEY = "mission_control_admin_token";
+const LEGACY_ADMIN_TOKEN_STORAGE_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
 const SESSION_KEY = "mission_control_james_hermes_session_v1";
+const HERMES_PROXY_BASE_PATH = "/hermes-james";
 const MAX_RECORDING_MS = 30_000;
 const SILENCE_AFTER_SPEECH_MS = 1_050;
 const SPEECH_RMS_THRESHOLD = 0.022;
+
+function adminToken() {
+  return localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY)?.trim()
+    || localStorage.getItem(LEGACY_ADMIN_TOKEN_STORAGE_KEY)?.trim()
+    || import.meta.env.VITE_MISSION_CONTROL_ADMIN_TOKEN?.trim()
+    || "change-this-later";
+}
 
 function uid(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -42,21 +57,27 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-function sentenceCut(buffer: string, flush = false): { sentences: string[]; rest: string } {
-  const sentences: string[] = [];
-  let rest = buffer;
-  while (true) {
-    const match = rest.match(/^([\s\S]*?[.!?])(?:\s+|$)/);
-    if (!match) break;
-    const sentence = match[1].trim();
-    if (sentence) sentences.push(sentence);
-    rest = rest.slice(match[0].length);
+async function voiceBridge<T>(voiceAction: "status" | "transcribe" | "ws-ticket", payload: Record<string, unknown> = {}): Promise<T> {
+  const response = await fetch("/api/james/message", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${adminToken()}`,
+    },
+    body: JSON.stringify({ voiceAction, ...payload }),
+  });
+  const raw = await response.text();
+  if (response.status === 402 || isCreditFailure(raw)) {
+    throw new Error(`HTTP ${response.status}: ${raw}`);
   }
-  if (flush && rest.trim()) {
-    sentences.push(rest.trim());
-    rest = "";
+  if (!response.ok) {
+    throw new Error(`Hermes ${voiceAction} failed (${response.status}): ${raw}`);
   }
-  return { sentences, rest };
+  try {
+    return JSON.parse(raw || "{}") as T;
+  } catch {
+    throw new Error(`Hermes ${voiceAction} returned invalid JSON`);
+  }
 }
 
 export default function JamesVoice() {
@@ -72,17 +93,14 @@ export default function JamesVoice() {
   const sessionId = useRef<string | null>(null);
   const activeAssistantId = useRef<string | null>(null);
   const assistantText = useRef("");
-  const sentenceBuffer = useRef("");
-  const speechQueue = useRef<string[]>([]);
-  const speaking = useRef(false);
-  const currentAudio = useRef<HTMLAudioElement | null>(null);
   const generationActive = useRef(false);
   const voiceModeRef = useRef(false);
+  const creditBlocked = useRef(false);
+  const activeSpeechStream = useRef<SpeechStream | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const recorderChunks = useRef<Blob[]>([]);
   const microphoneStream = useRef<MediaStream | null>(null);
-  const audioContext = useRef<AudioContext | null>(null);
-  const analyser = useRef<AnalyserNode | null>(null);
+  const vadContext = useRef<AudioContext | null>(null);
   const vadFrame = useRef<number | null>(null);
   const discardRecording = useRef(false);
   const bottom = useRef<HTMLDivElement>(null);
@@ -93,6 +111,7 @@ export default function JamesVoice() {
   function fail(error: unknown) {
     const message = error instanceof Error ? error.message : String(error ?? "Unknown voice error");
     if (isCreditFailure(message)) {
+      creditBlocked.current = true;
       voiceModeRef.current = false;
       setVoiceMode(false);
       setState("credit-limit");
@@ -117,66 +136,153 @@ export default function JamesVoice() {
     });
   }
 
+  function stopSpeechStream() {
+    activeSpeechStream.current?.stop();
+    activeSpeechStream.current = null;
+  }
+
   async function interruptJames() {
-    currentAudio.current?.pause();
-    currentAudio.current = null;
-    speechQueue.current = [];
-    sentenceBuffer.current = "";
-    speaking.current = false;
+    stopSpeechStream();
     if (sessionId.current && generationActive.current) {
       try { await rpc("session.interrupt", { session_id: sessionId.current }, 10_000); } catch { /* best effort */ }
     }
     generationActive.current = false;
   }
 
-  async function playNativeSpeech(text: string) {
-    if (!text.trim()) return;
-    const response = await fetch(`${HERMES_PROXY_BASE_PATH}/api/audio/speak`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text.trim() }),
-    });
-    const raw = await response.text();
-    if (response.status === 402 || isCreditFailure(raw)) throw new Error(`HTTP ${response.status}: ${raw}`);
-    if (!response.ok) throw new Error(`Hermes TTS failed (${response.status}): ${raw}`);
-    const payload = JSON.parse(raw) as AudioSpeakResponse;
-    if (!payload.ok || !payload.data_url) throw new Error("Hermes TTS returned no audio");
-    await new Promise<void>((resolve, reject) => {
-      const audio = new Audio(payload.data_url);
-      currentAudio.current = audio;
-      audio.onended = () => { currentAudio.current = null; resolve(); };
-      audio.onerror = () => { currentAudio.current = null; reject(new Error("Hermes audio playback failed")); };
-      void audio.play().catch(reject);
-    });
+  async function mintWsTicket(): Promise<string> {
+    const result = await voiceBridge<WsTicketResponse>("ws-ticket");
+    const ticket = result.ticket?.trim();
+    if (!ticket) throw new Error("Hermes did not return a WebSocket ticket");
+    return ticket;
   }
 
-  async function pumpSpeech() {
-    if (speaking.current) return;
-    speaking.current = true;
-    try {
-      while (speechQueue.current.length) {
-        setState("speaking");
-        setStatusText("James is speaking — tap the microphone to interrupt.");
-        await playNativeSpeech(speechQueue.current.shift()!);
+  async function openSpeechStream(): Promise<SpeechStream> {
+    const ticket = await mintWsTicket();
+    const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${scheme}//${window.location.host}${HERMES_PROXY_BASE_PATH}/api/audio/speak-stream?ticket=${encodeURIComponent(ticket)}`);
+    ws.binaryType = "arraybuffer";
+
+    let context: AudioContext | null = null;
+    let streamRate = 24_000;
+    let nextStartAt = 0;
+    let carry: Uint8Array | null = null;
+    let opened = false;
+    let finished = false;
+    let settled = false;
+    const pendingSends: string[] = [];
+    const scheduledSources = new Set<AudioBufferSourceNode>();
+
+    let resolveDone: () => void = () => undefined;
+    let rejectDone: (error: Error) => void = () => undefined;
+    const done = new Promise<void>((resolve, reject) => {
+      resolveDone = resolve;
+      rejectDone = reject;
+    });
+
+    const settle = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      try { ws.close(); } catch { /* already closed */ }
+      for (const source of scheduledSources) {
+        try { source.stop(); } catch { /* already stopped */ }
       }
-    } catch (error) {
-      fail(error);
-      return;
-    } finally {
-      speaking.current = false;
-    }
-    if (!generationActive.current && voiceModeRef.current) window.setTimeout(() => void beginListening(), 250);
-    else if (!generationActive.current) { setState("ready"); setStatusText("James is ready."); }
-  }
+      scheduledSources.clear();
+      void context?.close().catch(() => undefined);
+      context = null;
+      if (error) rejectDone(error); else resolveDone();
+    };
 
-  function queueSpeechDelta(delta: string, flush = false) {
-    sentenceBuffer.current += delta;
-    const cut = sentenceCut(sentenceBuffer.current, flush);
-    sentenceBuffer.current = cut.rest;
-    if (cut.sentences.length) {
-      speechQueue.current.push(...cut.sentences);
-      void pumpSpeech();
-    }
+    const send = (frame: object) => {
+      const encoded = JSON.stringify(frame);
+      if (ws.readyState === WebSocket.OPEN) ws.send(encoded);
+      else if (ws.readyState === WebSocket.CONNECTING) pendingSends.push(encoded);
+    };
+
+    const finishWhenDrained = () => {
+      const remainingMs = context ? Math.max(0, nextStartAt - context.currentTime) * 1_000 : 0;
+      window.setTimeout(() => settle(), remainingMs + 120);
+    };
+
+    const schedulePcm = (data: ArrayBuffer) => {
+      if (!context) return;
+      let bytes = new Uint8Array(data);
+      if (carry) {
+        const joined = new Uint8Array(carry.length + bytes.length);
+        joined.set(carry);
+        joined.set(bytes, carry.length);
+        bytes = joined;
+        carry = null;
+      }
+      const usable = bytes.length - (bytes.length % 2);
+      if (bytes.length !== usable) carry = bytes.slice(usable);
+      if (!usable) return;
+
+      const pcm = new Int16Array(bytes.buffer, bytes.byteOffset, usable / 2);
+      const buffer = context.createBuffer(1, pcm.length, streamRate);
+      const channel = buffer.getChannelData(0);
+      for (let i = 0; i < pcm.length; i += 1) channel[i] = pcm[i] / 32_768;
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(context.destination);
+      const startAt = Math.max(context.currentTime + 0.04, nextStartAt);
+      source.start(startAt);
+      nextStartAt = startAt + buffer.duration;
+      scheduledSources.add(source);
+      source.onended = () => scheduledSources.delete(source);
+      setState("speaking");
+      setStatusText("James is speaking — tap the microphone to interrupt.");
+    };
+
+    ws.onopen = () => {
+      opened = true;
+      pendingSends.splice(0).forEach((item) => ws.send(item));
+    };
+    ws.onmessage = (event) => {
+      if (typeof event.data !== "string") {
+        schedulePcm(event.data as ArrayBuffer);
+        return;
+      }
+      let frame: { type?: string; sample_rate?: number; message?: string; error?: string };
+      try { frame = JSON.parse(event.data) as typeof frame; } catch { return; }
+      if (frame.type === "start") {
+        streamRate = frame.sample_rate || 24_000;
+        const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!Ctx) {
+          settle(new Error("This browser cannot play Hermes streaming audio"));
+          return;
+        }
+        context = new Ctx();
+        if (context.state === "suspended") void context.resume().catch(() => undefined);
+        nextStartAt = 0;
+      } else if (frame.type === "end") {
+        finishWhenDrained();
+      } else if (frame.type === "fallback") {
+        settle(new Error("Hermes streaming TTS provider returned fallback"));
+      } else if (frame.type === "error") {
+        settle(new Error(frame.message || frame.error || "Hermes streaming TTS failed"));
+      }
+    };
+    ws.onerror = () => {
+      if (!settled) settle(new Error("Hermes streaming TTS WebSocket failed"));
+    };
+    ws.onclose = () => {
+      if (!settled && opened && finished) finishWhenDrained();
+      else if (!settled) settle(new Error("Hermes streaming TTS disconnected"));
+    };
+
+    return {
+      append(text: string) {
+        if (text && !finished && !settled) send({ text });
+      },
+      finish() {
+        if (!finished && !settled) {
+          finished = true;
+          send({ done: true });
+        }
+      },
+      stop() { settle(); },
+      done,
+    };
   }
 
   function updateAssistant(delta: string) {
@@ -194,15 +300,27 @@ export default function JamesVoice() {
 
   function finishAssistant(payload?: Record<string, unknown>) {
     const finalText = typeof payload?.text === "string" ? payload.text : "";
-    if (!assistantText.current && finalText) updateAssistant(finalText);
+    if (!assistantText.current && finalText) {
+      updateAssistant(finalText);
+      activeSpeechStream.current?.append(finalText);
+    }
     generationActive.current = false;
-    queueSpeechDelta("", true);
     activeAssistantId.current = null;
     assistantText.current = "";
-    if (!speaking.current && speechQueue.current.length === 0) {
-      if (voiceModeRef.current) window.setTimeout(() => void beginListening(), 250);
-      else { setState("ready"); setStatusText("James is ready."); }
+
+    const speech = activeSpeechStream.current;
+    if (speech) {
+      speech.finish();
+      void speech.done.then(() => {
+        if (activeSpeechStream.current === speech) activeSpeechStream.current = null;
+        if (voiceModeRef.current && !creditBlocked.current) window.setTimeout(() => void beginListening(), 220);
+        else { setState("ready"); setStatusText("James is ready."); }
+      }).catch(fail);
+      return;
     }
+
+    if (voiceModeRef.current && !creditBlocked.current) window.setTimeout(() => void beginListening(), 220);
+    else { setState("ready"); setStatusText("James is ready."); }
   }
 
   function handleGatewayFrame(event: MessageEvent<string>) {
@@ -221,7 +339,7 @@ export default function JamesVoice() {
     if (frame.type === "message.delta") {
       const delta = typeof frame.payload?.text === "string" ? frame.payload.text : "";
       updateAssistant(delta);
-      queueSpeechDelta(delta);
+      activeSpeechStream.current?.append(delta);
     } else if (frame.type === "message.complete") {
       finishAssistant(frame.payload);
     } else if (frame.type === "error") {
@@ -231,12 +349,11 @@ export default function JamesVoice() {
 
   async function connectHermes() {
     setState("connecting");
-    setStatusText("Connecting Mission Control to James's Hermes voice runtime…");
-    const statusResponse = await fetch(`${HERMES_PROXY_BASE_PATH}/api/status`);
-    if (!statusResponse.ok) throw new Error(`Hermes native voice backend unavailable (${statusResponse.status})`);
-
+    setStatusText("Connecting Mission Control to James's Hermes runtime…");
+    await voiceBridge("status");
+    const ticket = await mintWsTicket();
     const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${scheme}//${window.location.host}${HERMES_PROXY_BASE_PATH}/api/ws`);
+    const ws = new WebSocket(`${scheme}//${window.location.host}${HERMES_PROXY_BASE_PATH}/api/ws?ticket=${encodeURIComponent(ticket)}`);
     gatewayRef.current = ws;
     ws.onmessage = handleGatewayFrame;
     ws.onclose = () => {
@@ -272,20 +389,22 @@ export default function JamesVoice() {
 
   async function submitPrompt(text: string) {
     const clean = text.trim();
-    if (!clean || !sessionId.current) return;
+    if (!clean || !sessionId.current || creditBlocked.current) return;
     await interruptJames();
     setMessages((items) => [...items, { id: uid("user"), role: "user", content: clean }]);
     setDraft("");
     activeAssistantId.current = null;
     assistantText.current = "";
-    sentenceBuffer.current = "";
     generationActive.current = true;
     setState("thinking");
     setStatusText("James is thinking…");
+
     try {
+      if (voiceModeRef.current) activeSpeechStream.current = await openSpeechStream();
       await rpc("prompt.submit", { session_id: sessionId.current, text: clean }, 1_800_000);
     } catch (error) {
       generationActive.current = false;
+      stopSpeechStream();
       fail(error);
     }
   }
@@ -295,9 +414,8 @@ export default function JamesVoice() {
     vadFrame.current = null;
     microphoneStream.current?.getTracks().forEach((track) => track.stop());
     microphoneStream.current = null;
-    void audioContext.current?.close().catch(() => undefined);
-    audioContext.current = null;
-    analyser.current = null;
+    void vadContext.current?.close().catch(() => undefined);
+    vadContext.current = null;
     recorder.current = null;
   }
 
@@ -305,28 +423,25 @@ export default function JamesVoice() {
     setState("transcribing");
     setStatusText("Hermes is transcribing your voice locally…");
     const dataUrl = await blobToDataUrl(blob);
-    const response = await fetch(`${HERMES_PROXY_BASE_PATH}/api/audio/transcribe`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data_url: dataUrl, mime_type: blob.type || "audio/webm" }),
+    const payload = await voiceBridge<AudioTranscriptionResponse>("transcribe", {
+      data_url: dataUrl,
+      mime_type: blob.type || "audio/webm",
     });
-    const raw = await response.text();
-    if (response.status === 402 || isCreditFailure(raw)) throw new Error(`HTTP ${response.status}: ${raw}`);
-    if (!response.ok) throw new Error(`Hermes transcription failed (${response.status}): ${raw}`);
-    const payload = JSON.parse(raw) as AudioTranscriptionResponse;
     const transcript = String(payload.transcript ?? payload.text ?? "").trim();
     if (!transcript) {
-      if (voiceModeRef.current) window.setTimeout(() => void beginListening(), 200);
+      if (voiceModeRef.current && !creditBlocked.current) window.setTimeout(() => void beginListening(), 200);
       return;
     }
     await submitPrompt(transcript);
   }
 
   async function beginListening() {
-    if (!voiceModeRef.current || recorder.current || state === "credit-limit") return;
+    if (!voiceModeRef.current || recorder.current || creditBlocked.current) return;
     await interruptJames();
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       microphoneStream.current = stream;
       recorderChunks.current = [];
       discardRecording.current = false;
@@ -344,33 +459,40 @@ export default function JamesVoice() {
       const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!Ctx) throw new Error("This browser cannot analyse microphone audio for turn detection");
       const ctx = new Ctx();
-      audioContext.current = ctx;
+      vadContext.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
-      const node = ctx.createAnalyser();
-      node.fftSize = 1024;
-      source.connect(node);
-      analyser.current = node;
-      const samples = new Uint8Array(node.fftSize);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 1024;
+      source.connect(analyser);
+      const samples = new Uint8Array(analyser.fftSize);
       const startedAt = performance.now();
       let speechSeen = false;
       let lastSpeechAt = startedAt;
+
       const watch = () => {
         if (!recorder.current || recorder.current.state !== "recording") return;
-        node.getByteTimeDomainData(samples);
+        analyser.getByteTimeDomainData(samples);
         let sum = 0;
-        for (const sample of samples) { const n = (sample - 128) / 128; sum += n * n; }
+        for (const sample of samples) {
+          const normalized = (sample - 128) / 128;
+          sum += normalized * normalized;
+        }
         const rms = Math.sqrt(sum / samples.length);
         const now = performance.now();
-        if (rms >= SPEECH_RMS_THRESHOLD) { speechSeen = true; lastSpeechAt = now; }
+        if (rms >= SPEECH_RMS_THRESHOLD) {
+          speechSeen = true;
+          lastSpeechAt = now;
+        }
         if ((speechSeen && now - lastSpeechAt >= SILENCE_AFTER_SPEECH_MS) || now - startedAt >= MAX_RECORDING_MS) {
           recorder.current.stop();
           return;
         }
         vadFrame.current = requestAnimationFrame(watch);
       };
+
       mediaRecorder.start(250);
       setState("listening");
-      setStatusText("Listening… speak naturally. James will respond when you finish.");
+      setStatusText("Listening… speak naturally. James will answer when you finish.");
       vadFrame.current = requestAnimationFrame(watch);
     } catch (error) {
       cleanupRecorder();
@@ -379,7 +501,7 @@ export default function JamesVoice() {
   }
 
   async function startVoiceConversation() {
-    if (state === "credit-limit") return;
+    if (creditBlocked.current) return;
     voiceModeRef.current = true;
     setVoiceMode(true);
     await beginListening();
@@ -396,7 +518,10 @@ export default function JamesVoice() {
   }
 
   async function bargeIn() {
-    if (!voiceModeRef.current) { await startVoiceConversation(); return; }
+    if (!voiceModeRef.current) {
+      await startVoiceConversation();
+      return;
+    }
     await interruptJames();
     if (!recorder.current) await beginListening();
   }
@@ -408,9 +533,12 @@ export default function JamesVoice() {
       discardRecording.current = true;
       if (recorder.current?.state === "recording") recorder.current.stop();
       cleanupRecorder();
-      currentAudio.current?.pause();
+      stopSpeechStream();
       gatewayRef.current?.close();
-      pendingRpc.current.forEach((entry) => { window.clearTimeout(entry.timeout); entry.reject(new Error("James voice page closed")); });
+      pendingRpc.current.forEach((entry) => {
+        window.clearTimeout(entry.timeout);
+        entry.reject(new Error("James voice page closed"));
+      });
       pendingRpc.current.clear();
     };
   }, []);
@@ -419,19 +547,28 @@ export default function JamesVoice() {
 
   return <div className="flex h-full flex-col overflow-hidden">
     <header className="flex items-center justify-between border-b border-border px-4 py-3 md:px-6">
-      <div className="flex items-center gap-3"><JamesAvatar className="h-10 w-10" /><div><h1 className="font-semibold">Talk to James</h1><p className="text-xs text-muted-foreground">Hermes native conversation · persistent James session</p></div></div>
+      <div className="flex items-center gap-3">
+        <JamesAvatar className="h-10 w-10" />
+        <div><h1 className="font-semibold">Talk to James</h1><p className="text-xs text-muted-foreground">Hermes native conversation · persistent James session</p></div>
+      </div>
       {voiceMode && <Button variant="outline" size="sm" onClick={() => void stopVoiceConversation()}><Square className="mr-2 h-4 w-4" />Stop voice</Button>}
     </header>
+
     <div className="border-b border-border bg-muted/30 px-4 py-2 text-center text-xs text-muted-foreground">{statusText}</div>
+
     <div className="flex-1 overflow-y-auto p-4 md:p-6"><div className="mx-auto flex max-w-3xl flex-col gap-3">
-      {messages.length === 0 && <div className="rounded-2xl border border-border bg-card p-5"><strong>This is James's Hermes voice runtime.</strong><p className="mt-1 text-sm text-muted-foreground">Mission Control captures your microphone only. Hermes handles transcription, the persistent conversation, James's reasoning, interruption and voice output. Browser speech recognition and browser text-to-speech are not used.</p></div>}
+      {messages.length === 0 && <div className="rounded-2xl border border-border bg-card p-5"><strong>This is James's Hermes conversation runtime.</strong><p className="mt-1 text-sm text-muted-foreground">The tablet only captures microphone audio and detects when your turn ends. Hermes performs transcription, keeps the persistent conversation, streams James's response and streams his voice. Browser speech recognition and browser text-to-speech are not used.</p></div>}
       {messages.map((message) => <div key={message.id} className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap ${message.role === "user" ? "ml-auto bg-primary text-primary-foreground" : message.role === "james" ? "mr-auto border border-border bg-card" : "mx-auto bg-muted text-muted-foreground"}`}>{message.content}</div>)}
       <div ref={bottom} />
     </div></div>
-    <div className="border-t border-border bg-background/90 p-3 backdrop-blur md:p-4"><div className="mx-auto flex max-w-3xl items-end gap-2">
-      <Button type="button" size="icon" variant={voiceMode ? "default" : "secondary"} onClick={() => void bargeIn()} disabled={!canTalk} aria-label={voiceMode ? "Interrupt James and speak" : "Start voice conversation"}>{state === "listening" ? <MicOff /> : <Mic />}</Button>
-      <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitPrompt(draft); } }} placeholder="Talk naturally, or type to James…" className="min-h-[48px] max-h-32 resize-none" />
-      <Button type="button" size="icon" onClick={() => void submitPrompt(draft)} disabled={!draft.trim() || !canTalk} aria-label="Send to James"><Send /></Button>
-    </div><p className="mx-auto mt-2 max-w-3xl text-center text-[11px] text-muted-foreground">Voice mode re-arms after each reply. Tap the microphone while James is speaking to interrupt him. HTTP 402/credit errors stop the loop instead of retrying.</p></div>
+
+    <div className="border-t border-border bg-background/90 p-3 backdrop-blur md:p-4">
+      <div className="mx-auto flex max-w-3xl items-end gap-2">
+        <Button type="button" size="icon" variant={voiceMode ? "default" : "secondary"} onClick={() => void bargeIn()} disabled={!canTalk} aria-label={voiceMode ? "Interrupt James and speak" : "Start voice conversation"}>{state === "listening" ? <MicOff /> : <Mic />}</Button>
+        <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitPrompt(draft); } }} placeholder="Talk naturally, or type to James…" className="min-h-[48px] max-h-32 resize-none" />
+        <Button type="button" size="icon" onClick={() => void submitPrompt(draft)} disabled={!draft.trim() || !canTalk} aria-label="Send to James"><Send /></Button>
+      </div>
+      <p className="mx-auto mt-2 max-w-3xl text-center text-[11px] text-muted-foreground">Voice mode re-arms after each reply. Tap the microphone while James is speaking to barge in. HTTP 402/credit errors stop the loop instead of retrying.</p>
+    </div>
   </div>;
 }
