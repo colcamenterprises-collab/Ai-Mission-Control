@@ -6,17 +6,6 @@ import { JamesAvatar } from "@/components/james-avatar";
 
 type Message = { id: string; role: "user" | "james" | "system"; content: string };
 type VoiceState = "connecting" | "ready" | "listening" | "transcribing" | "thinking" | "speaking" | "credit-limit" | "error";
-type NativeVoiceConfig = {
-  available: boolean;
-  mode: "hermes-native";
-  proxyBasePath: string;
-  sessionToken: string;
-  stt: "hermes";
-  tts: "hermes";
-  conversation: "tui-gateway-json-rpc";
-  browserSpeechRecognition: false;
-  browserSpeechSynthesis: false;
-};
 type RpcFrame = {
   id?: string | number;
   result?: unknown;
@@ -26,20 +15,14 @@ type RpcFrame = {
   payload?: Record<string, unknown>;
 };
 type PendingRpc = { resolve(value: unknown): void; reject(error: Error): void; timeout: number };
-
 type AudioSpeakResponse = { ok: boolean; data_url: string; mime_type: string };
 type AudioTranscriptionResponse = { ok?: boolean; transcript?: string; text?: string; error?: string };
 
-const TOKEN_KEY = "mission_control_admin_token";
-const LEGACY_TOKEN_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
+const HERMES_PROXY_BASE_PATH = "/hermes-james";
 const SESSION_KEY = "mission_control_james_hermes_session_v1";
 const MAX_RECORDING_MS = 30_000;
 const SILENCE_AFTER_SPEECH_MS = 1_050;
 const SPEECH_RMS_THRESHOLD = 0.022;
-
-function adminToken() {
-  return localStorage.getItem(TOKEN_KEY)?.trim() || localStorage.getItem(LEGACY_TOKEN_KEY)?.trim() || import.meta.env.VITE_MISSION_CONTROL_ADMIN_TOKEN?.trim() || "change-this-later";
-}
 
 function uid(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -83,7 +66,6 @@ export default function JamesVoice() {
   const [voiceMode, setVoiceMode] = useState(false);
   const [statusText, setStatusText] = useState("Connecting to James…");
 
-  const configRef = useRef<NativeVoiceConfig | null>(null);
   const gatewayRef = useRef<WebSocket | null>(null);
   const pendingRpc = useRef(new Map<string | number, PendingRpc>());
   const rpcCounter = useRef(0);
@@ -114,7 +96,7 @@ export default function JamesVoice() {
       voiceModeRef.current = false;
       setVoiceMode(false);
       setState("credit-limit");
-      setStatusText("James's model provider returned HTTP 402 / insufficient credits. Voice transport has stopped and will not retry.");
+      setStatusText("James's model provider returned HTTP 402 / insufficient credits. Voice conversation stopped and will not retry.");
       return;
     }
     setState("error");
@@ -142,17 +124,16 @@ export default function JamesVoice() {
     sentenceBuffer.current = "";
     speaking.current = false;
     if (sessionId.current && generationActive.current) {
-      try { await rpc("session.interrupt", { session_id: sessionId.current }, 10_000); } catch { /* interruption is best effort */ }
+      try { await rpc("session.interrupt", { session_id: sessionId.current }, 10_000); } catch { /* best effort */ }
     }
     generationActive.current = false;
   }
 
   async function playNativeSpeech(text: string) {
-    const config = configRef.current;
-    if (!config || !text.trim()) return;
-    const response = await fetch(`${config.proxyBasePath}/api/audio/speak`, {
+    if (!text.trim()) return;
+    const response = await fetch(`${HERMES_PROXY_BASE_PATH}/api/audio/speak`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Hermes-Session-Token": config.sessionToken },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: text.trim() }),
     });
     const raw = await response.text();
@@ -176,8 +157,7 @@ export default function JamesVoice() {
       while (speechQueue.current.length) {
         setState("speaking");
         setStatusText("James is speaking — tap the microphone to interrupt.");
-        const sentence = speechQueue.current.shift()!;
-        await playNativeSpeech(sentence);
+        await playNativeSpeech(speechQueue.current.shift()!);
       }
     } catch (error) {
       fail(error);
@@ -185,12 +165,8 @@ export default function JamesVoice() {
     } finally {
       speaking.current = false;
     }
-    if (!generationActive.current && voiceModeRef.current) {
-      window.setTimeout(() => void beginListening(), 250);
-    } else if (!generationActive.current) {
-      setState("ready");
-      setStatusText("James is ready.");
-    }
+    if (!generationActive.current && voiceModeRef.current) window.setTimeout(() => void beginListening(), 250);
+    else if (!generationActive.current) { setState("ready"); setStatusText("James is ready."); }
   }
 
   function queueSpeechDelta(delta: string, flush = false) {
@@ -256,15 +232,11 @@ export default function JamesVoice() {
   async function connectHermes() {
     setState("connecting");
     setStatusText("Connecting Mission Control to James's Hermes voice runtime…");
-    const configResponse = await fetch("/api/james/native-voice/config", { headers: { Authorization: `Bearer ${adminToken()}` } });
-    const configText = await configResponse.text();
-    if (!configResponse.ok) throw new Error(`Hermes native voice bridge unavailable (${configResponse.status}): ${configText}`);
-    const config = JSON.parse(configText) as NativeVoiceConfig;
-    if (!config.available) throw new Error("Hermes native voice bridge is not available");
-    configRef.current = config;
+    const statusResponse = await fetch(`${HERMES_PROXY_BASE_PATH}/api/status`);
+    if (!statusResponse.ok) throw new Error(`Hermes native voice backend unavailable (${statusResponse.status})`);
 
     const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${scheme}//${window.location.host}${config.proxyBasePath}/api/ws?token=${encodeURIComponent(config.sessionToken)}`);
+    const ws = new WebSocket(`${scheme}//${window.location.host}${HERMES_PROXY_BASE_PATH}/api/ws`);
     gatewayRef.current = ws;
     ws.onmessage = handleGatewayFrame;
     ws.onclose = () => {
@@ -330,14 +302,12 @@ export default function JamesVoice() {
   }
 
   async function transcribeRecording(blob: Blob) {
-    const config = configRef.current;
-    if (!config) return;
     setState("transcribing");
     setStatusText("Hermes is transcribing your voice locally…");
     const dataUrl = await blobToDataUrl(blob);
-    const response = await fetch(`${config.proxyBasePath}/api/audio/transcribe`, {
+    const response = await fetch(`${HERMES_PROXY_BASE_PATH}/api/audio/transcribe`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Hermes-Session-Token": config.sessionToken },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data_url: dataUrl, mime_type: blob.type || "audio/webm" }),
     });
     const raw = await response.text();
@@ -426,10 +396,7 @@ export default function JamesVoice() {
   }
 
   async function bargeIn() {
-    if (!voiceModeRef.current) {
-      await startVoiceConversation();
-      return;
-    }
+    if (!voiceModeRef.current) { await startVoiceConversation(); return; }
     await interruptJames();
     if (!recorder.current) await beginListening();
   }
@@ -455,15 +422,12 @@ export default function JamesVoice() {
       <div className="flex items-center gap-3"><JamesAvatar className="h-10 w-10" /><div><h1 className="font-semibold">Talk to James</h1><p className="text-xs text-muted-foreground">Hermes native conversation · persistent James session</p></div></div>
       {voiceMode && <Button variant="outline" size="sm" onClick={() => void stopVoiceConversation()}><Square className="mr-2 h-4 w-4" />Stop voice</Button>}
     </header>
-
     <div className="border-b border-border bg-muted/30 px-4 py-2 text-center text-xs text-muted-foreground">{statusText}</div>
-
     <div className="flex-1 overflow-y-auto p-4 md:p-6"><div className="mx-auto flex max-w-3xl flex-col gap-3">
       {messages.length === 0 && <div className="rounded-2xl border border-border bg-card p-5"><strong>This is James's Hermes voice runtime.</strong><p className="mt-1 text-sm text-muted-foreground">Mission Control captures your microphone only. Hermes handles transcription, the persistent conversation, James's reasoning, interruption and voice output. Browser speech recognition and browser text-to-speech are not used.</p></div>}
       {messages.map((message) => <div key={message.id} className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap ${message.role === "user" ? "ml-auto bg-primary text-primary-foreground" : message.role === "james" ? "mr-auto border border-border bg-card" : "mx-auto bg-muted text-muted-foreground"}`}>{message.content}</div>)}
       <div ref={bottom} />
     </div></div>
-
     <div className="border-t border-border bg-background/90 p-3 backdrop-blur md:p-4"><div className="mx-auto flex max-w-3xl items-end gap-2">
       <Button type="button" size="icon" variant={voiceMode ? "default" : "secondary"} onClick={() => void bargeIn()} disabled={!canTalk} aria-label={voiceMode ? "Interrupt James and speak" : "Start voice conversation"}>{state === "listening" ? <MicOff /> : <Mic />}</Button>
       <Textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitPrompt(draft); } }} placeholder="Talk naturally, or type to James…" className="min-h-[48px] max-h-32 resize-none" />
