@@ -3,6 +3,7 @@ import { db, tasksTable, agentsTable, agentCommandsTable, activityTable, taskMes
 import { dispatchRuntime, isRuntimeConfigured } from "./agent-runtime.js";
 import { formatSkillsForPrompt, readSkillsForDelegation } from "./skills.js";
 import { classifyTaskIntent, humanReadableWorkerOutput, queueJamesCompletionReview } from "./worker-supervision.js";
+import { ensureTaskWorkRequest, markTaskExecutionBlocked, markTaskExecutionRunning } from "./task-execution-control.js";
 
 const CORE_PLAYBOOK_CATEGORIES = ["Product", "Standard", "Spec"];
 type IntakeBody = { title?: unknown; description?: unknown; project?: unknown; priority?: unknown; requestedAgent?: unknown; dueDate?: unknown; recurrence?: unknown; approvalRequired?: unknown; ownerReviewRequired?: unknown; attachments?: unknown };
@@ -85,6 +86,7 @@ async function runAssignedWork(params: { agent: AgentRecord; task: typeof tasksT
   }
   try {
     const classification = classifyTaskIntent(task.title, task.description ?? "");
+    await markTaskExecutionRunning(task.id);
     await db.update(tasksTable).set({ status: "running" }).where(eq(tasksTable.id, task.id));
     await addTaskMessage(task.id, agent.name, classification.intent === "acknowledgement_test" ? "Task received. Allocation confirmed; no work is requested." : "Task received. I am reviewing the assigned brief and relevant evidence.");
     const runtimeResult = await dispatchRuntime(agent, { mode: "work", instructions, context, taskId: task.id, commandId: command.id });
@@ -96,8 +98,10 @@ async function runAssignedWork(params: { agent: AgentRecord; task: typeof tasksT
       return;
     }
     if (!runtimeResult.ok) {
+      const reason = runtimeResult.error ?? "agent runtime failed";
+      await markTaskExecutionBlocked(task.id, reason);
       await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, task.id));
-      await addTaskMessage(task.id, "Mission Control", `BLOCKED — ${runtimeResult.error ?? "agent runtime failed"}`);
+      await addTaskMessage(task.id, "Mission Control", `BLOCKED — ${reason}`);
       await db.update(agentsTable).set({ currentTask: `Task #${task.id}: ${task.title}`, status: "error", lastActive: "runtime failed" }).where(eq(agentsTable.id, agent.id));
       await db.insert(activityTable).values({ agentName: agent.name, action: "Runtime failed orchestrated work", detail: runtimeResult.error, status: "error" });
       return;
@@ -111,6 +115,7 @@ async function runAssignedWork(params: { agent: AgentRecord; task: typeof tasksT
     await queueJamesCompletionReview(task.id, agent.name, runtimeResult.output);
   } catch (error) {
     const detail = error instanceof Error ? error.message : "Unknown runtime dispatch error";
+    await markTaskExecutionBlocked(task.id, detail);
     await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, task.id));
     await addTaskMessage(task.id, "Mission Control", `BLOCKED — runtime dispatch failed: ${detail}`);
     await db.update(agentsTable).set({ currentTask: `Task #${task.id}: ${task.title}`, status: "error", lastActive: "runtime dispatch failed" }).where(eq(agentsTable.id, agent.id));
@@ -195,6 +200,11 @@ export async function intakeActionableTask(body: IntakeBody, options: { inboxIte
       orchestratorReview: { recommendedAgent: recommendation.name, role: recommendation.role, department: recommendation.department, reason: recommendation.reason, confidence: recommendation.confidence },
       allocation: assignedAgent && command ? { agentId: assignedAgent.id, agentName: assignedAgent.name, commandId: command.id, delivery: "queued_for_worker", nextStep: "Work has been queued. Specialist completion will be independently reviewed by James before Review or Done." } : null,
     };
+  });
+  await ensureTaskWorkRequest({
+    task: result.task,
+    agentId: result.allocation?.agentId ?? null,
+    routingReason: result.orchestratorReview?.reason ?? "Canonical orchestrator intake",
   });
   if (dispatch) void runAssignedWork(dispatch);
   return result;

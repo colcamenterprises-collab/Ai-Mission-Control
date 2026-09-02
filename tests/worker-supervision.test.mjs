@@ -6,6 +6,8 @@ const intake = fs.readFileSync("artifacts/api-server/src/services/orchestrator-i
 const tasks = fs.readFileSync("artifacts/api-server/src/routes/tasks.ts", "utf8");
 const jamesDetached = fs.readFileSync("artifacts/api-server/src/routes/james-detached.ts", "utf8");
 const supervision = fs.readFileSync("artifacts/api-server/src/services/worker-supervision.ts", "utf8");
+const taskSupervisor = fs.readFileSync("artifacts/api-server/src/services/task-supervisor.ts", "utf8");
+const executionControl = fs.readFileSync("artifacts/api-server/src/services/task-execution-control.ts", "utf8");
 const supervisionRoute = fs.readFileSync("artifacts/api-server/src/routes/worker-supervision.ts", "utf8");
 const runner = fs.readFileSync("scripts/run-james-completion-review.sh", "utf8");
 const routeIndex = fs.readFileSync("artifacts/api-server/src/routes/index.ts", "utf8");
@@ -41,11 +43,33 @@ test("raw runtime telemetry is withheld from owner task conversation", () => {
   assert.match(tasks, /humanReadableWorkerOutput\(result\.output\)/);
 });
 
+test("Ground Zero canonical Task intake immediately creates an execution request", () => {
+  assert.match(intake, /ensureTaskWorkRequest\(\{/);
+  assert.match(intake, /agentId: result\.allocation\?\.agentId \?\? null/);
+  assert.match(executionControl, /task:\$\{taskId\}:primary/);
+  assert.match(executionControl, /Standing delegation permits ordinary Task execution/);
+});
+
+test("continuous supervision backfills legacy Tasks before authority decisions", () => {
+  assert.match(taskSupervisor, /if \(!latestRequest\)/);
+  assert.match(taskSupervisor, /ensureTaskWorkRequest\(\{/);
+  assert.match(taskSupervisor, /executionRequestsCreated/);
+  assert.match(taskSupervisor, /delegationDecision\(\{/);
+});
+
+test("Task execution lifecycle reaches running, blocked and James-verified completed states", () => {
+  assert.match(intake, /markTaskExecutionRunning\(task\.id\)/);
+  assert.match(intake, /markTaskExecutionBlocked\(task\.id/);
+  assert.match(supervisionRoute, /markTaskExecutionCompleted\(taskId/);
+  assert.match(supervisionRoute, /verifiedBy: "James Hermes"/);
+  assert.match(executionControl, /advance\(\s*refreshed,\s*"completed",\s*"James independently verified the Task outcome"\s*\)/);
+});
+
 test("James review has evidence gate and automatic bounded rework", () => {
   assert.match(supervisionRoute, /MAX_AUTOMATIC_REWORKS = 3/);
   assert.match(supervisionRoute, /requestedDecision === "VERIFIED_COMPLETE" && evidence\.length === 0 \? "REWORK_REQUIRED"/);
   assert.match(supervisionRoute, /dispatchRework\(task/);
-  assert.match(supervisionRoute, /automatic James QA reached the \$\{MAX_AUTOMATIC_REWORKS\}-cycle safety limit/);
+  assert.match(supervisionRoute, /Automatic James QA reached the \$\{MAX_AUTOMATIC_REWORKS\}-cycle safety limit/);
 });
 
 test("James QA reports are correlated with the active review job", () => {
