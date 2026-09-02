@@ -2,18 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const page = fs.readFileSync(
-  new URL("../artifacts/mission-control/src/pages/james-voice.tsx", import.meta.url),
-  "utf8",
-);
-const bridge = fs.readFileSync(
-  new URL("../artifacts/api-server/src/routes/james-native-voice-bridge.ts", import.meta.url),
-  "utf8",
-);
-const setup = fs.readFileSync(
-  new URL("../scripts/setup-james-native-voice.sh", import.meta.url),
-  "utf8",
-);
+const page = fs.readFileSync(new URL("../artifacts/mission-control/src/pages/james-voice.tsx", import.meta.url), "utf8");
+const bridge = fs.readFileSync(new URL("../artifacts/api-server/src/routes/james-native-voice-bridge.ts", import.meta.url), "utf8");
+const setup = fs.readFileSync(new URL("../scripts/setup-james-native-voice.sh", import.meta.url), "utf8");
 
 test("James voice does not use browser speech recognition or browser TTS", () => {
   assert.doesNotMatch(page, /window\.SpeechRecognition/);
@@ -48,6 +39,14 @@ test("credit exhaustion stops automatic voice instead of retrying", () => {
   assert.match(page, /creditBlocked\.current = true/);
   assert.match(page, /setState\("credit-limit"\)/);
   assert.match(page, /voiceModeRef\.current = false/);
+  assert.match(page, /if \(!response\.ok\)/);
+});
+
+test("typed input discards an active microphone recording before submitting", () => {
+  assert.match(page, /function discardActiveRecording\(\)/);
+  assert.match(page, /discardRecording\.current = true/);
+  assert.match(page, /recorder\.current\.stop\(\)/);
+  assert.match(page, /async function submitPrompt[\s\S]*discardActiveRecording\(\);[\s\S]*await interruptJames\(\)/);
 });
 
 test("Hermes master credential never enters browser source or public nginx websocket config", () => {
@@ -63,12 +62,14 @@ test("Hermes master credential never enters browser source or public nginx webso
   assert.match(bridge, /\/api\/auth\/ws-ticket/);
 });
 
-test("host setup pins Hermes to loopback and fails closed without single-use ticket support", () => {
+test("host setup pins Hermes to loopback, finds a real nginx server block, and fails closed without ticket support", () => {
   assert.match(setup, /serve --host 127\.0\.0\.1 --port/);
   assert.match(setup, /stt\["provider"\] = "local"/);
   assert.match(setup, /tts\["provider"\] = "edge"/);
   assert.match(setup, /faster-whisper/);
   assert.match(setup, /HERMES_DASHBOARD_SESSION_TOKEN/);
+  assert.match(setup, /re\.finditer\(r"\(\?m\)\^\\s\*server\\s\*\\\{"/);
+  assert.match(setup, /mission\.customli\.io was not inside the identified nginx server block/);
   assert.match(setup, /\/api\/auth\/ws-ticket/);
   assert.match(setup, /does not support authenticated WebSocket ticket minting/);
   assert.match(setup, /location = \$VOICE_PATH\/api\/audio\/speak-stream/);
