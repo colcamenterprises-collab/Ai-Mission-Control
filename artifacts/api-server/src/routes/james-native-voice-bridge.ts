@@ -3,7 +3,7 @@ import { createRateLimit } from "../lib/rate-limit.js";
 import { logger } from "../lib/logger.js";
 
 const router: IRouter = Router();
-const DEFAULT_HERMES_VOICE_URL = "http://127.0.0.1:9120";
+const DEFAULT_HERMES_VOICE_URL = "http://127.0.0.2:9120";
 const MAX_AUDIO_DATA_URL_CHARS = 32 * 1024 * 1024;
 const SHORT_TIMEOUT_MS = 15_000;
 const AUDIO_TIMEOUT_MS = 180_000;
@@ -11,16 +11,28 @@ const AUDIO_TIMEOUT_MS = 180_000;
 const VOICE_ACTIONS = new Set(["status", "transcribe", "ws-ticket"]);
 type VoiceAction = "status" | "transcribe" | "ws-ticket";
 
+let cachedHermesCookie = "";
+let loginPromise: Promise<string> | null = null;
+
 function hermesBaseUrl(): string {
   return (process.env.HERMES_JAMES_VOICE_URL?.trim() || DEFAULT_HERMES_VOICE_URL).replace(/\/$/, "");
 }
 
-function hermesToken(): string {
-  return (
-    process.env.HERMES_JAMES_SESSION_TOKEN?.trim() ||
-    process.env.HERMES_DASHBOARD_SESSION_TOKEN?.trim() ||
+function hermesBasicAuth(): { username: string; password: string } {
+  const username = (
+    process.env.HERMES_JAMES_BASIC_AUTH_USERNAME?.trim() ||
+    process.env.HERMES_DASHBOARD_BASIC_AUTH_USERNAME?.trim() ||
     ""
   );
+  const password = (
+    process.env.HERMES_JAMES_BASIC_AUTH_PASSWORD?.trim() ||
+    process.env.HERMES_DASHBOARD_BASIC_AUTH_PASSWORD?.trim() ||
+    ""
+  );
+  if (!username || !password) {
+    throw new Error("Hermes gated native voice credentials are not configured");
+  }
+  return { username, password };
 }
 
 function safeString(value: unknown, max: number): string | null {
@@ -30,13 +42,59 @@ function safeString(value: unknown, max: number): string | null {
   return trimmed;
 }
 
+function extractCookieHeader(headers: Headers): string {
+  const getSetCookie = (headers as Headers & { getSetCookie?: () => string[] }).getSetCookie;
+  const rawCookies = typeof getSetCookie === "function"
+    ? getSetCookie.call(headers)
+    : [headers.get("set-cookie") ?? ""].filter(Boolean);
+
+  const cookies = rawCookies
+    .flatMap((value) => value.split(/,(?=\s*[^;,=]+=[^;,]+)/g))
+    .map((value) => value.split(";", 1)[0]?.trim())
+    .filter((value): value is string => Boolean(value && value.includes("=")));
+
+  if (cookies.length === 0) {
+    throw new Error("Hermes password login did not return a session cookie");
+  }
+  return cookies.join("; ");
+}
+
+async function loginHermes(): Promise<string> {
+  if (cachedHermesCookie) return cachedHermesCookie;
+  if (loginPromise) return loginPromise;
+
+  loginPromise = (async () => {
+    const { username, password } = hermesBasicAuth();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SHORT_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${hermesBaseUrl()}/auth/password-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "basic", username, password }),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Hermes gated login failed with HTTP ${response.status}: ${body.slice(0, 300)}`);
+      }
+      cachedHermesCookie = extractCookieHeader(response.headers);
+      return cachedHermesCookie;
+    } finally {
+      clearTimeout(timeout);
+      loginPromise = null;
+    }
+  })();
+
+  return loginPromise;
+}
+
 async function forwardHermes(
   path: string,
   options: { method?: "GET" | "POST"; body?: unknown; timeoutMs?: number } = {},
+  allowRelogin = true,
 ): Promise<Response> {
-  const token = hermesToken();
-  if (!token) throw new Error("Hermes native voice session token is not configured");
-
+  const cookie = await loginHermes();
   const controller = new AbortController();
   const timeout = setTimeout(
     () => controller.abort(),
@@ -44,15 +102,21 @@ async function forwardHermes(
   );
 
   try {
-    return await fetch(`${hermesBaseUrl()}${path}`, {
+    const response = await fetch(`${hermesBaseUrl()}${path}`, {
       method: options.method ?? "GET",
       headers: {
-        "X-Hermes-Session-Token": token,
+        Cookie: cookie,
         ...(options.body === undefined ? {} : { "Content-Type": "application/json" }),
       },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       signal: controller.signal,
     });
+
+    if (response.status === 401 && allowRelogin) {
+      cachedHermesCookie = "";
+      return forwardHermes(path, options, false);
+    }
+    return response;
   } finally {
     clearTimeout(timeout);
   }

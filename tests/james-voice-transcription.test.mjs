@@ -49,29 +49,36 @@ test("typed input discards an active microphone recording before submitting", ()
   assert.match(page, /async function submitPrompt[\s\S]*discardActiveRecording\(\);[\s\S]*await interruptJames\(\)/);
 });
 
-test("Hermes master credential never enters browser source or public nginx websocket config", () => {
+test("Hermes credentials never enter browser source or public nginx websocket config", () => {
   assert.doesNotMatch(page, /HERMES_DASHBOARD_SESSION_TOKEN/);
   assert.doesNotMatch(page, /HERMES_JAMES_SESSION_TOKEN/);
+  assert.doesNotMatch(page, /HERMES_DASHBOARD_BASIC_AUTH_PASSWORD/);
   assert.doesNotMatch(page, /X-Hermes-Session-Token/);
   assert.doesNotMatch(page, /\?token=/);
   assert.match(page, /voiceBridge<WsTicketResponse>\("ws-ticket"\)/);
   assert.match(page, /\?ticket=\$\{encodeURIComponent\(ticket\)\}/);
   assert.doesNotMatch(setup, /proxy_set_header X-Hermes-Session-Token/);
-  assert.doesNotMatch(setup, /api\/ws\?token=\$TOKEN/);
-  assert.match(bridge, /X-Hermes-Session-Token/);
+  assert.doesNotMatch(setup, /api\/ws\?token=/);
+  assert.match(bridge, /\/auth\/password-login/);
+  assert.match(bridge, /Cookie: cookie/);
   assert.match(bridge, /\/api\/auth\/ws-ticket/);
 });
 
-test("host setup pins Hermes to loopback, finds a real nginx server block, and fails closed without ticket support", () => {
-  assert.match(setup, /serve --host 127\.0\.0\.1 --port/);
+test("host setup uses gated Hermes auth on a private loopback address and fails closed without it", () => {
+  assert.match(setup, /VOICE_HOST="\$\{HERMES_JAMES_VOICE_HOST:-127\.0\.0\.2\}"/);
+  assert.match(setup, /serve --host \$VOICE_HOST --port/);
+  assert.match(setup, /HERMES_DASHBOARD_BASIC_AUTH_USERNAME/);
+  assert.match(setup, /HERMES_DASHBOARD_BASIC_AUTH_PASSWORD/);
+  assert.match(setup, /HERMES_DASHBOARD_BASIC_AUTH_SECRET/);
+  assert.match(setup, /payload\.get\("auth_required"\) is True/);
+  assert.match(setup, /"basic" in providers/);
+  assert.match(setup, /\/auth\/password-login/);
+  assert.match(setup, /\/api\/auth\/ws-ticket/);
   assert.match(setup, /stt\["provider"\] = "local"/);
   assert.match(setup, /tts\["provider"\] = "edge"/);
   assert.match(setup, /faster-whisper/);
-  assert.match(setup, /HERMES_DASHBOARD_SESSION_TOKEN/);
   assert.match(setup, /re\.finditer\(r"\(\?m\)\^\\s\*server\\s\*\\\{"/);
   assert.match(setup, /mission\.customli\.io was not inside the identified nginx server block/);
-  assert.match(setup, /\/api\/auth\/ws-ticket/);
-  assert.match(setup, /does not support authenticated WebSocket ticket minting/);
   assert.match(setup, /location = \$VOICE_PATH\/api\/audio\/speak-stream/);
-  assert.match(setup, /proxy_pass http:\/\/127\.0\.0\.1:/);
+  assert.match(setup, /proxy_pass http:\/\/\$VOICE_HOST:/);
 });
