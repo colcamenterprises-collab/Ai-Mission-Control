@@ -58,9 +58,13 @@ test("continuous supervision backfills legacy Tasks before authority decisions",
 
 test("legacy supervisor escalation cannot become a permanent owner approval gate", () => {
   assert.match(taskSupervisor, /LEGACY_SUPERVISION_REASONS/);
-  assert.match(taskSupervisor, /repairLegacySupervisorApproval/);
+  assert.match(taskSupervisor, /LEGACY_SUPERVISION_MESSAGES/);
+  assert.match(taskSupervisor, /hasLegacySupervisorEvidence/);
+  assert.match(taskSupervisor, /message\.author === "Mission Control"/);
+  assert.match(taskSupervisor, /canonicalTaskRequest/);
+  assert.match(taskSupervisor, /\.source === "canonical-task"/);
+  assert.match(taskSupervisor, /transitionWorkRequest\(latestRequest!, "cancelled"/);
   assert.match(taskSupervisor, /legacyApprovalGatesRepaired/);
-  assert.match(taskSupervisor, /status: "cancelled"/);
   assert.doesNotMatch(taskSupervisor, /approvalRequired:\s*true/);
 });
 
@@ -79,7 +83,8 @@ test("James review has evidence gate and bounded rework inside orchestrator reco
   assert.match(supervisionRoute, /Automatic James QA reached the \$\{MAX_AUTOMATIC_REWORKS\}-cycle safety limit/);
   assert.match(supervisionRoute, /nextActionOwner: "James Hermes"/);
   assert.match(supervisionRoute, /Owner input is not required unless a protected action or owner-only access is identified/);
-  assert.match(supervisionRoute, /lastRecoveryIndex/);
+  assert.match(supervisionRoute, /QA RECOVERY CYCLE STARTED/);
+  assert.match(supervisionRoute, /SUPERVISION — I own the next action for this task/);
   assert.match(taskSupervisor, /QA RECOVERY CYCLE STARTED/);
 });
 
