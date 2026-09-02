@@ -4,6 +4,7 @@ import { db, tasksTable, taskMessagesTable, agentsTable, agentCommandsTable, act
 import { dispatchRuntime, isRuntimeConfigured } from "../services/agent-runtime.js";
 import { routeVerifiedCompletion } from "../services/task-completion-policy.js";
 import { clearActiveJamesReviewJob, humanReadableWorkerOutput, isActiveJamesReviewJob, queueJamesCompletionReview } from "../services/worker-supervision.js";
+import { markTaskExecutionBlocked, markTaskExecutionCompleted, markTaskExecutionRunning, reopenTaskExecution } from "../services/task-execution-control.js";
 
 const router: IRouter = Router();
 const MAX_AUTOMATIC_REWORKS = 3;
@@ -20,19 +21,24 @@ async function automaticReworkCount(taskId: number): Promise<number> {
 
 async function dispatchRework(task: typeof tasksTable.$inferSelect, instructions: string): Promise<void> {
   if (!task.assignee || task.assignee === "Unassigned") {
+    await markTaskExecutionBlocked(task.id, "James requires rework but no specialist worker is assigned.");
     await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, task.id));
     await addMessage(task.id, "Mission Control", "BLOCKED — James requires rework but no specialist worker is assigned.");
     return;
   }
   const [agent] = await db.select().from(agentsTable).where(eq(agentsTable.name, task.assignee));
   if (!agent || !isRuntimeConfigured(agent)) {
+    const reason = `James requires rework but ${task.assignee} is not currently available to execute it.`;
+    await markTaskExecutionBlocked(task.id, reason);
     await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, task.id));
-    await addMessage(task.id, "Mission Control", `BLOCKED — James requires rework but ${task.assignee} is not currently available to execute it.`);
+    await addMessage(task.id, "Mission Control", `BLOCKED — ${reason}`);
     return;
   }
 
   const context = JSON.stringify({ source: "james-supervisory-rework", taskId: task.id, taskTitle: task.title, project: task.project }, null, 2);
   const [command] = await db.insert(agentCommandsTable).values({ agentId: agent.id, taskId: task.id, instructions, context }).returning();
+  await reopenTaskExecution(task.id);
+  await markTaskExecutionRunning(task.id);
   await db.update(tasksTable).set({ status: "running" }).where(eq(tasksTable.id, task.id));
   await addMessage(task.id, "Mission Control", `James returned the work to ${agent.name} for correction.`);
 
@@ -43,8 +49,10 @@ async function dispatchRework(task: typeof tasksTable.$inferSelect, instructions
       await db.insert(activityTable).values({ agentName: agent.name, action: result.ok ? "James QA rework response received" : "James QA rework failed", detail: result.output ?? result.error, status: result.ok ? "pending" : "error" });
       if (result.delivery === "queued" && result.ok) return;
       if (!result.ok) {
+        const reason = result.error ?? "worker runtime failed";
+        await markTaskExecutionBlocked(task.id, reason);
         await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, task.id));
-        await addMessage(task.id, "Mission Control", `BLOCKED — ${agent.name} could not complete James's requested rework: ${result.error ?? "worker runtime failed"}`);
+        await addMessage(task.id, "Mission Control", `BLOCKED — ${agent.name} could not complete James's requested rework: ${reason}`);
         return;
       }
       const visible = humanReadableWorkerOutput(result.output);
@@ -54,6 +62,7 @@ async function dispatchRework(task: typeof tasksTable.$inferSelect, instructions
       await queueJamesCompletionReview(task.id, agent.name, result.output);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "unknown rework dispatch error";
+      await markTaskExecutionBlocked(task.id, detail);
       await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, task.id));
       await addMessage(task.id, "Mission Control", `BLOCKED — automatic James rework cycle failed: ${detail}`);
     }
@@ -87,8 +96,10 @@ router.post("/james/completion-review-report", async (req, res): Promise<void> =
   await clearActiveJamesReviewJob(taskId, jobId);
 
   if (exitCode !== 0) {
+    const detail = `James supervisory review failed to execute for ${workerName}.`;
+    await markTaskExecutionBlocked(taskId, detail);
     await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, taskId));
-    await addMessage(taskId, "Mission Control", `BLOCKED — James supervisory review failed to execute for ${workerName}. The task was not marked complete.`);
+    await addMessage(taskId, "Mission Control", `BLOCKED — ${detail} The task was not marked complete.`);
     res.json({ accepted: true, taskId, status: "blocked", decision: "REVIEW_FAILED" });
     return;
   }
@@ -99,8 +110,10 @@ router.post("/james/completion-review-report", async (req, res): Promise<void> =
     const correction = rework || `Re-check the original owner brief and correct the issues identified by James: ${reason}`;
     await addMessage(taskId, "James Hermes", `QA REWORK REQUIRED — ${reason}\nCorrection required: ${correction}`);
     if (count >= MAX_AUTOMATIC_REWORKS - 1) {
+      const detail = `Automatic James QA reached the ${MAX_AUTOMATIC_REWORKS}-cycle safety limit.`;
+      await markTaskExecutionBlocked(taskId, detail);
       await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, taskId));
-      await addMessage(taskId, "Mission Control", `BLOCKED — automatic James QA reached the ${MAX_AUTOMATIC_REWORKS}-cycle safety limit. Owner attention is required because the specialist result remains unsatisfactory.`);
+      await addMessage(taskId, "Mission Control", `BLOCKED — ${detail} Owner attention is required because the specialist result remains unsatisfactory.`);
       res.json({ accepted: true, taskId, status: "blocked", decision, reworkLimitReached: true });
       return;
     }
@@ -111,8 +124,10 @@ router.post("/james/completion-review-report", async (req, res): Promise<void> =
 
   const reviewReason = ownerReviewReason || (task.ownerReviewRequired ? "The task was explicitly marked Owner Review Required at creation." : "");
   if (escalatedOwnerReview && !reviewReason) {
+    const detail = "James requested owner review without a factual reason.";
+    await markTaskExecutionBlocked(taskId, detail);
     await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, taskId));
-    await addMessage(taskId, "Mission Control", "BLOCKED — James requested owner review without a factual reason. The task was not marked complete; supervisory output must be corrected.");
+    await addMessage(taskId, "Mission Control", `BLOCKED — ${detail} The task was not marked complete; supervisory output must be corrected.`);
     res.json({ accepted: true, taskId, status: "blocked", decision: "INVALID_REVIEW_OUTPUT" });
     return;
   }
@@ -121,12 +136,20 @@ router.post("/james/completion-review-report", async (req, res): Promise<void> =
   try {
     route = routeVerifiedCompletion({ decision: "VERIFIED_COMPLETE", ownerReviewRequired: task.ownerReviewRequired, escalatedOwnerReview, reviewReason });
   } catch (error) {
+    const detail = `James supervisory routing output was invalid: ${error instanceof Error ? error.message : "invalid owner-review escalation"}.`;
+    await markTaskExecutionBlocked(taskId, detail);
     await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, taskId));
-    await addMessage(taskId, "Mission Control", `BLOCKED — James supervisory routing output was invalid: ${error instanceof Error ? error.message : "invalid owner-review escalation"}. The task was not marked complete.`);
+    await addMessage(taskId, "Mission Control", `BLOCKED — ${detail} The task was not marked complete.`);
     res.json({ accepted: true, taskId, status: "blocked", decision: "INVALID_REVIEW_OUTPUT" });
     return;
   }
   await db.update(tasksTable).set({ status: route.status, updatedAt: new Date() }).where(eq(tasksTable.id, taskId));
+  await markTaskExecutionCompleted(taskId, {
+    summary: reason,
+    evidence,
+    verifiedBy: "James Hermes",
+    taskStatus: route.status,
+  });
   await addMessage(taskId, "James Hermes", `QA VERIFIED COMPLETE — ${reason}\nVerification evidence:\n${evidence.map(item => `- ${item}`).join("\n")}`);
   if (route.status === "review") await addMessage(taskId, "Mission Control", `OWNER REVIEW REQUIRED — ${reviewReason}`);
   else await addMessage(taskId, "Mission Control", "DONE — James independently verified the worker result against the owner brief and evidence.");
