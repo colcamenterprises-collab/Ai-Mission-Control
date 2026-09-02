@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db, activityTable, agentsTable, taskMessagesTable, tasksTable, workRequestsTable } from "@workspace/db";
 import { dispatchRuntime, isRuntimeConfigured } from "./agent-runtime.js";
 import { delegationDecision, supervisionAction } from "./autonomy-policy.js";
+import { ensureTaskWorkRequest, reopenTaskExecution } from "./task-execution-control.js";
 
 const SUPERVISED_STATUSES = ["backlog", "ready", "running", "in_progress", "blocked", "changes_required"];
 const DEFAULT_STALE_MINUTES = 20;
@@ -33,11 +34,12 @@ export type SupervisionSummary = {
   delegated: number;
   ownerEscalations: number;
   runtimeFailures: number;
+  executionRequestsCreated: number;
   skipped: number;
 };
 
 export async function superviseActiveTasks(): Promise<SupervisionSummary> {
-  const summary: SupervisionSummary = { inspected: 0, delegated: 0, ownerEscalations: 0, runtimeFailures: 0, skipped: 0 };
+  const summary: SupervisionSummary = { inspected: 0, delegated: 0, ownerEscalations: 0, runtimeFailures: 0, executionRequestsCreated: 0, skipped: 0 };
   const now = new Date();
   const tasks = await db.select().from(tasksTable).where(and(isNull(tasksTable.archivedAt), inArray(tasksTable.status, SUPERVISED_STATUSES)));
   summary.inspected = tasks.length;
@@ -47,12 +49,26 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
   const james = agents.find(agent => /orchestrator/i.test(agent.role)) ?? agents.find(agent => /james/i.test(agent.name));
 
   for (const task of tasks) {
-    if (!needsReview(task, now)) { summary.skipped += 1; continue; }
-
-    const [latestRequest] = await db.select().from(workRequestsTable)
+    let [latestRequest] = await db.select().from(workRequestsTable)
       .where(eq(workRequestsTable.taskId, task.id))
       .orderBy(desc(workRequestsTable.updatedAt))
       .limit(1);
+
+    if (!latestRequest) {
+      const assignedAgent = task.assignee && task.assignee !== "Unassigned"
+        ? agents.find(agent => agent.name === task.assignee) ?? null
+        : null;
+      latestRequest = await ensureTaskWorkRequest({
+        task,
+        agentId: assignedAgent?.id ?? null,
+        routingReason: assignedAgent
+          ? `Backfilled from canonical Task assignment to ${assignedAgent.name}`
+          : "Backfilled canonical Task pending orchestrator worker assignment",
+      });
+      summary.executionRequestsCreated += 1;
+    }
+
+    if (!needsReview(task, now)) { summary.skipped += 1; continue; }
 
     const decision = delegationDecision({
       status: task.status,
@@ -109,6 +125,7 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
       continue;
     }
 
+    await reopenTaskExecution(task.id);
     const attempt = (task.supervisionAttempts ?? 0) + 1;
     await db.update(tasksTable).set({
       status: "running",
