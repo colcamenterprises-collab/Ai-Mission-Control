@@ -3,6 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 const page = fs.readFileSync(new URL("../artifacts/mission-control/src/pages/james-voice.tsx", import.meta.url), "utf8");
+const app = fs.readFileSync(new URL("../artifacts/api-server/src/app.ts", import.meta.url), "utf8");
 const bridge = fs.readFileSync(new URL("../artifacts/api-server/src/routes/james-native-voice-bridge.ts", import.meta.url), "utf8");
 const setup = fs.readFileSync(new URL("../scripts/setup-james-native-voice.sh", import.meta.url), "utf8");
 
@@ -21,8 +22,24 @@ test("James voice uses admin-authenticated Hermes STT and persistent gateway ses
   assert.match(page, /rpc\("session\.resume"/);
   assert.match(page, /rpc\("prompt\.submit"/);
   assert.match(page, /rpc\("session\.interrupt"/);
-  assert.match(page, /frame\.type === "message\.delta"/);
-  assert.match(page, /frame\.type === "message\.complete"/);
+  assert.match(page, /pushed\.type === "message\.delta"/);
+  assert.match(page, /pushed\.type === "message\.complete"/);
+});
+
+test("Hermes JSON-RPC event envelopes are unwrapped before James renders streaming events", () => {
+  assert.match(page, /frame\.method === "event" && frame\.params \? frame\.params : frame/);
+  assert.match(page, /type GatewayEvent/);
+  assert.match(page, /method\?: string; params\?: GatewayEvent/);
+});
+
+test("live voice uploads get a bounded route-specific JSON body allowance", () => {
+  assert.match(app, /app\.use\("\/api\/james\/message", express\.json\(\{ limit: "8mb" \}\)\)/);
+  assert.match(app, /app\.use\(express\.json\(\)\)/);
+});
+
+test("James starts a fresh post-fix Hermes session", () => {
+  assert.match(page, /mission_control_james_hermes_session_v2/);
+  assert.doesNotMatch(page, /mission_control_james_hermes_session_v1/);
 });
 
 test("James speaks through the Hermes native PCM streaming websocket while generation continues", () => {
@@ -81,4 +98,12 @@ test("host setup uses gated Hermes auth on a private loopback address and fails 
   assert.match(setup, /mission\.customli\.io was not inside the identified nginx server block/);
   assert.match(setup, /location = \$VOICE_PATH\/api\/audio\/speak-stream/);
   assert.match(setup, /proxy_pass http:\/\/\$VOICE_HOST:/);
+});
+
+test("James voice setup pins new sessions to OpenRouter auto routing", () => {
+  assert.match(setup, /JAMES_MODEL="\$\{HERMES_JAMES_MODEL:-openrouter\/auto\}"/);
+  assert.match(setup, /model\["provider"\] = "openrouter"/);
+  assert.match(setup, /model\["default"\] = os\.environ\["HERMES_JAMES_MODEL"\]/);
+  assert.match(setup, /model\["base_url"\] = ""/);
+  assert.match(setup, /model\["api_mode"\] = "chat_completions"/);
 });
