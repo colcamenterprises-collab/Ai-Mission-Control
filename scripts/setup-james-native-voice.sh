@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 JAMES_BINARY="${JAMES_BINARY:-/usr/local/bin/james-hermes}"
 JAMES_VENV="${JAMES_VENV:-/opt/hermes/.venv}"
+VOICE_HOST="${HERMES_JAMES_VOICE_HOST:-127.0.0.2}"
 VOICE_PORT="${HERMES_JAMES_VOICE_PORT:-9120}"
 VOICE_PATH="${HERMES_JAMES_PROXY_BASE_PATH:-/hermes-james}"
 VOICE_ENV_DIR="/etc/ai-mission-control"
@@ -35,6 +36,7 @@ CONFIG="$HERMES_HOME_VALUE/config.yaml"
 
 echo "Hermes binary: $JAMES_BINARY"
 echo "Hermes home:   $HERMES_HOME_VALUE"
+echo "Voice host:    $VOICE_HOST"
 echo "Voice port:    $VOICE_PORT"
 echo "Proxy path:    $VOICE_PATH"
 
@@ -74,16 +76,25 @@ path.write_text(yaml.safe_dump(data, sort_keys=False))
 PY
 
 install -d -m 700 "$VOICE_ENV_DIR"
-TOKEN="$("$PYTHON" - <<'PY'
+BASIC_USER="mission-control"
+BASIC_PASSWORD="$("$PYTHON" - <<'PY'
+import secrets
+print(secrets.token_urlsafe(36))
+PY
+)"
+BASIC_SECRET="$("$PYTHON" - <<'PY'
 import secrets
 print(secrets.token_urlsafe(48))
 PY
 )"
 cat >"$VOICE_ENV" <<EOF
 HERMES_HOME=$HERMES_HOME_VALUE
-HERMES_DASHBOARD_SESSION_TOKEN=$TOKEN
-HERMES_JAMES_SESSION_TOKEN=$TOKEN
-HERMES_JAMES_VOICE_URL=http://127.0.0.1:$VOICE_PORT
+HERMES_DASHBOARD_BASIC_AUTH_USERNAME=$BASIC_USER
+HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=$BASIC_PASSWORD
+HERMES_DASHBOARD_BASIC_AUTH_SECRET=$BASIC_SECRET
+HERMES_JAMES_BASIC_AUTH_USERNAME=$BASIC_USER
+HERMES_JAMES_BASIC_AUTH_PASSWORD=$BASIC_PASSWORD
+HERMES_JAMES_VOICE_URL=http://$VOICE_HOST:$VOICE_PORT
 EOF
 chmod 600 "$VOICE_ENV"
 
@@ -98,7 +109,7 @@ Type=simple
 User=root
 WorkingDirectory=/opt/hermes
 EnvironmentFile=$VOICE_ENV
-ExecStart=$JAMES_BINARY serve --host 127.0.0.1 --port $VOICE_PORT
+ExecStart=$JAMES_BINARY serve --host $VOICE_HOST --port $VOICE_PORT
 Restart=on-failure
 RestartSec=3
 NoNewPrivileges=true
@@ -116,24 +127,24 @@ EOF
 
 cat >"$NGINX_SNIPPET" <<EOF
 location = $VOICE_PATH/api/ws {
-    proxy_pass http://127.0.0.1:$VOICE_PORT/api/ws;
+    proxy_pass http://$VOICE_HOST:$VOICE_PORT/api/ws;
     proxy_http_version 1.1;
     proxy_set_header Upgrade \$http_upgrade;
     proxy_set_header Connection "upgrade";
-    proxy_set_header Host 127.0.0.1:$VOICE_PORT;
-    proxy_set_header Origin http://127.0.0.1:$VOICE_PORT;
+    proxy_set_header Host $VOICE_HOST:$VOICE_PORT;
+    proxy_set_header Origin http://$VOICE_HOST:$VOICE_PORT;
     proxy_read_timeout 3600s;
     proxy_send_timeout 3600s;
     proxy_buffering off;
 }
 
 location = $VOICE_PATH/api/audio/speak-stream {
-    proxy_pass http://127.0.0.1:$VOICE_PORT/api/audio/speak-stream;
+    proxy_pass http://$VOICE_HOST:$VOICE_PORT/api/audio/speak-stream;
     proxy_http_version 1.1;
     proxy_set_header Upgrade \$http_upgrade;
     proxy_set_header Connection "upgrade";
-    proxy_set_header Host 127.0.0.1:$VOICE_PORT;
-    proxy_set_header Origin http://127.0.0.1:$VOICE_PORT;
+    proxy_set_header Host $VOICE_HOST:$VOICE_PORT;
+    proxy_set_header Origin http://$VOICE_HOST:$VOICE_PORT;
     proxy_read_timeout 3600s;
     proxy_send_timeout 3600s;
     proxy_buffering off;
@@ -157,7 +168,6 @@ needle = "mission.customli.io"
 pos = text.find(needle)
 if pos < 0:
     raise SystemExit("mission.customli.io server_name not found")
-# Find actual `server {` declarations, never the `server` substring in server_name.
 blocks = list(re.finditer(r"(?m)^\s*server\s*\{", text[:pos]))
 if not blocks:
     raise SystemExit("could not identify nginx server block")
@@ -178,11 +188,30 @@ PY
 
 systemctl daemon-reload
 systemctl enable --now james-hermes-voice.service
+systemctl restart james-hermes-voice.service
 sleep 3
 systemctl is-active --quiet james-hermes-voice.service || { systemctl status james-hermes-voice.service --no-pager -l; fail "James native voice service failed."; }
 
-curl -fsS -H "X-Hermes-Session-Token: $TOKEN" "http://127.0.0.1:$VOICE_PORT/api/status" >/dev/null || fail "Hermes native voice backend did not pass /api/status."
-TICKET_JSON="$(curl -fsS -X POST -H "X-Hermes-Session-Token: $TOKEN" -H 'Content-Type: application/json' -d '{}' "http://127.0.0.1:$VOICE_PORT/api/auth/ws-ticket")" || fail "Installed Hermes does not support authenticated WebSocket ticket minting."
+STATUS_JSON="$(curl -fsS "http://$VOICE_HOST:$VOICE_PORT/api/status")" || fail "Hermes native voice backend did not pass /api/status."
+HERMES_STATUS_JSON="$STATUS_JSON" "$PYTHON" - <<'PY' >/dev/null || fail "Hermes voice backend is not in gated basic-auth mode."
+import json, os
+payload = json.loads(os.environ["HERMES_STATUS_JSON"])
+assert payload.get("auth_required") is True
+providers = payload.get("auth_providers") or []
+assert "basic" in providers
+PY
+
+echo "PASS: Hermes gated auth is active on the private loopback address."
+
+COOKIE_JAR="$(mktemp)"
+trap 'rm -f "$COOKIE_JAR"' EXIT
+LOGIN_PAYLOAD="$(BASIC_USER="$BASIC_USER" BASIC_PASSWORD="$BASIC_PASSWORD" "$PYTHON" - <<'PY'
+import json, os
+print(json.dumps({"provider":"basic","username":os.environ["BASIC_USER"],"password":os.environ["BASIC_PASSWORD"]}))
+PY
+)"
+curl -fsS -c "$COOKIE_JAR" -X POST -H 'Content-Type: application/json' -d "$LOGIN_PAYLOAD" "http://$VOICE_HOST:$VOICE_PORT/auth/password-login" >/dev/null || fail "Hermes basic-auth login failed."
+TICKET_JSON="$(curl -fsS -b "$COOKIE_JAR" -X POST -H 'Content-Type: application/json' -d '{}' "http://$VOICE_HOST:$VOICE_PORT/api/auth/ws-ticket")" || fail "Hermes gated WebSocket ticket minting failed."
 HERMES_TICKET_JSON="$TICKET_JSON" "$PYTHON" - <<'PY' >/dev/null || fail "Hermes ws-ticket response did not contain a valid single-use ticket."
 import json, os
 payload = json.loads(os.environ["HERMES_TICKET_JSON"])
@@ -198,8 +227,8 @@ sleep 3
 systemctl is-active --quiet "$MC_SERVICE" || { systemctl status "$MC_SERVICE" --no-pager -l; fail "Mission Control API failed after attaching the Hermes voice bridge environment."; }
 curl -fsS http://127.0.0.1:4100/api/healthz >/dev/null || fail "Mission Control health check failed after native voice setup."
 
-echo "PASS: James native Hermes backend is running on 127.0.0.1:$VOICE_PORT"
-echo "PASS: Mission Control API holds the Hermes master credential server-side"
+echo "PASS: James native Hermes backend is running on $VOICE_HOST:$VOICE_PORT"
+echo "PASS: Hermes basic-auth credentials remain server-side"
 echo "PASS: Public WebSockets accept only short-lived single-use Hermes tickets"
 echo "PASS: STT provider configured: local (faster-whisper)"
 echo "PASS: TTS provider configured: edge (free streaming TTS)"
