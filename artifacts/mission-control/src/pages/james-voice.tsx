@@ -10,8 +10,9 @@ type GatewayEvent = { type?: string; session_id?: string; payload?: Record<strin
 type RpcFrame = { id?: string | number; result?: unknown; error?: { code?: number; message?: string; data?: unknown }; method?: string; params?: GatewayEvent; type?: string; session_id?: string; payload?: Record<string, unknown> };
 type PendingRpc = { resolve(value: unknown): void; reject(error: Error): void; timeout: number };
 type AudioTranscriptionResponse = { ok?: boolean; transcript?: string; text?: string; error?: string };
+type AudioSpeakResponse = { data_url?: string; audio_data_url?: string; error?: string };
 type WsTicketResponse = { ticket?: string; ttl_seconds?: number };
-type SpeechStream = { append(text: string): void; finish(): void; stop(): void; done: Promise<void> };
+type SpeechQueue = { append(text: string): void; finish(): void; stop(): void; done: Promise<void> };
 
 const ADMIN_TOKEN_STORAGE_KEY = "mission_control_admin_token";
 const LEGACY_ADMIN_TOKEN_STORAGE_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
@@ -37,7 +38,7 @@ function blobToDataUrl(blob: Blob): Promise<string> {
     reader.readAsDataURL(blob);
   });
 }
-async function voiceBridge<T>(voiceAction: "status" | "transcribe" | "ws-ticket", payload: Record<string, unknown> = {}): Promise<T> {
+async function voiceBridge<T>(voiceAction: "status" | "transcribe" | "ws-ticket" | "speak", payload: Record<string, unknown> = {}): Promise<T> {
   const response = await fetch("/api/james/message", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken()}` }, body: JSON.stringify({ voiceAction, ...payload }) });
   const raw = await response.text();
   if (!response.ok) {
@@ -62,7 +63,7 @@ export default function JamesVoice() {
   const generationActive = useRef(false);
   const voiceModeRef = useRef(false);
   const creditBlocked = useRef(false);
-  const activeSpeechStream = useRef<SpeechStream | null>(null);
+  const activeSpeechQueue = useRef<SpeechQueue | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const recorderChunks = useRef<Blob[]>([]);
   const microphoneStream = useRef<MediaStream | null>(null);
@@ -92,9 +93,9 @@ export default function JamesVoice() {
       ws.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }));
     });
   }
-  function stopSpeechStream() { activeSpeechStream.current?.stop(); activeSpeechStream.current = null; }
+  function stopSpeechQueue() { activeSpeechQueue.current?.stop(); activeSpeechQueue.current = null; }
   async function interruptJames() {
-    stopSpeechStream();
+    stopSpeechQueue();
     if (sessionId.current && generationActive.current) { try { await rpc("session.interrupt", { session_id: sessionId.current }, 10_000); } catch { /* best effort */ } }
     generationActive.current = false;
   }
@@ -102,43 +103,80 @@ export default function JamesVoice() {
     const result = await voiceBridge<WsTicketResponse>("ws-ticket");
     const ticket = result.ticket?.trim(); if (!ticket) throw new Error("Hermes did not return a WebSocket ticket"); return ticket;
   }
-  async function openSpeechStream(): Promise<SpeechStream> {
-    const ticket = await mintWsTicket();
-    const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${scheme}//${window.location.host}${HERMES_PROXY_BASE_PATH}/api/audio/speak-stream?ticket=${encodeURIComponent(ticket)}`);
-    ws.binaryType = "arraybuffer";
-    let context: AudioContext | null = null; let streamRate = 24_000; let nextStartAt = 0; let carry: Uint8Array | null = null; let opened = false; let finished = false; let settled = false;
-    const pendingSends: string[] = []; const scheduledSources = new Set<AudioBufferSourceNode>();
-    let resolveDone: () => void = () => undefined; let rejectDone: (error: Error) => void = () => undefined;
+  function openSpeechQueue(): SpeechQueue {
+    let stopped = false;
+    let finished = false;
+    let buffer = "";
+    let currentAudio: HTMLAudioElement | null = null;
+    let queue: Promise<void> = Promise.resolve();
+    let resolveDone: () => void = () => undefined;
+    let rejectDone: (error: Error) => void = () => undefined;
     const done = new Promise<void>((resolve, reject) => { resolveDone = resolve; rejectDone = reject; });
-    const settle = (error?: Error) => {
-      if (settled) return; settled = true; try { ws.close(); } catch { /* closed */ }
-      for (const source of scheduledSources) { try { source.stop(); } catch { /* stopped */ } }
-      scheduledSources.clear(); void context?.close().catch(() => undefined); context = null; if (error) rejectDone(error); else resolveDone();
+
+    const playChunk = (text: string) => {
+      const clean = text.trim();
+      if (!clean || stopped) return;
+      queue = queue.then(async () => {
+        if (stopped) return;
+        const payload = await voiceBridge<AudioSpeakResponse>("speak", { text: clean });
+        if (stopped) return;
+        const dataUrl = String(payload.data_url ?? payload.audio_data_url ?? "").trim();
+        if (!dataUrl.startsWith("data:audio/")) throw new Error(payload.error || "Hermes REST TTS did not return playable audio");
+        const audio = new Audio(dataUrl);
+        currentAudio = audio;
+        setState("speaking");
+        setStatusText("James is speaking — tap the microphone to interrupt.");
+        await new Promise<void>((resolve, reject) => {
+          audio.onended = () => resolve();
+          audio.onerror = () => reject(new Error("Hermes TTS audio playback failed"));
+          void audio.play().catch((error) => reject(error instanceof Error ? error : new Error(String(error))));
+        });
+        if (currentAudio === audio) currentAudio = null;
+      });
     };
-    const send = (frame: object) => { const encoded = JSON.stringify(frame); if (ws.readyState === WebSocket.OPEN) ws.send(encoded); else if (ws.readyState === WebSocket.CONNECTING) pendingSends.push(encoded); };
-    const finishWhenDrained = () => { const remainingMs = context ? Math.max(0, nextStartAt - context.currentTime) * 1_000 : 0; window.setTimeout(() => settle(), remainingMs + 120); };
-    const schedulePcm = (data: ArrayBuffer) => {
-      if (!context) return; let bytes = new Uint8Array(data);
-      if (carry) { const joined = new Uint8Array(carry.length + bytes.length); joined.set(carry); joined.set(bytes, carry.length); bytes = joined; carry = null; }
-      const usable = bytes.length - (bytes.length % 2); if (bytes.length !== usable) carry = bytes.slice(usable); if (!usable) return;
-      const pcm = new Int16Array(bytes.buffer, bytes.byteOffset, usable / 2); const buffer = context.createBuffer(1, pcm.length, streamRate); const channel = buffer.getChannelData(0);
-      for (let i = 0; i < pcm.length; i += 1) channel[i] = pcm[i] / 32_768;
-      const source = context.createBufferSource(); source.buffer = buffer; source.connect(context.destination); const startAt = Math.max(context.currentTime + 0.04, nextStartAt); source.start(startAt); nextStartAt = startAt + buffer.duration; scheduledSources.add(source); source.onended = () => scheduledSources.delete(source); setState("speaking"); setStatusText("James is speaking — tap the microphone to interrupt.");
+
+    const flushSentences = () => {
+      while (!stopped) {
+        const match = buffer.match(/^([\s\S]{20,}?[.!?](?:["')\]]*)\s+)([\s\S]*)$/);
+        if (!match) break;
+        playChunk(match[1]);
+        buffer = match[2];
+      }
+      while (!stopped && buffer.length > 280) {
+        const preferredSplit = Math.max(buffer.lastIndexOf(" ", 220), buffer.lastIndexOf(",", 220));
+        const splitAt = preferredSplit > 80 ? preferredSplit + 1 : 220;
+        playChunk(buffer.slice(0, splitAt));
+        buffer = buffer.slice(splitAt);
+      }
     };
-    ws.onopen = () => { opened = true; pendingSends.splice(0).forEach((item) => ws.send(item)); };
-    ws.onmessage = (event) => {
-      if (typeof event.data !== "string") { schedulePcm(event.data as ArrayBuffer); return; }
-      let frame: { type?: string; sample_rate?: number; message?: string; error?: string }; try { frame = JSON.parse(event.data) as typeof frame; } catch { return; }
-      if (frame.type === "start") {
-        streamRate = frame.sample_rate || 24_000; const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-        if (!Ctx) { settle(new Error("This browser cannot play Hermes streaming audio")); return; }
-        context = new Ctx(); if (context.state === "suspended") void context.resume().catch(() => undefined); nextStartAt = 0;
-      } else if (frame.type === "end") finishWhenDrained(); else if (frame.type === "fallback") settle(new Error("Hermes streaming TTS provider returned fallback")); else if (frame.type === "error") settle(new Error(frame.message || frame.error || "Hermes streaming TTS failed"));
+
+    return {
+      append(text: string) {
+        if (!text || stopped || finished) return;
+        buffer += text;
+        flushSentences();
+      },
+      finish() {
+        if (finished || stopped) return;
+        finished = true;
+        if (buffer.trim()) playChunk(buffer);
+        buffer = "";
+        void queue.then(resolveDone).catch(rejectDone);
+      },
+      stop() {
+        if (stopped) return;
+        stopped = true;
+        buffer = "";
+        if (currentAudio) {
+          currentAudio.pause();
+          currentAudio.removeAttribute("src");
+          currentAudio.load();
+          currentAudio = null;
+        }
+        resolveDone();
+      },
+      done,
     };
-    ws.onerror = () => { if (!settled) settle(new Error("Hermes streaming TTS WebSocket failed")); };
-    ws.onclose = () => { if (!settled && opened && finished) finishWhenDrained(); else if (!settled) settle(new Error("Hermes streaming TTS disconnected")); };
-    return { append(text: string) { if (text && !finished && !settled) send({ text }); }, finish() { if (!finished && !settled) { finished = true; send({ done: true }); } }, stop() { settle(); }, done };
   }
   function updateAssistant(delta: string) {
     if (!delta) return; assistantText.current += delta; let id = activeAssistantId.current;
@@ -147,10 +185,10 @@ export default function JamesVoice() {
   }
   function finishAssistant(payload?: Record<string, unknown>) {
     const finalText = typeof payload?.text === "string" ? payload.text : "";
-    if (!assistantText.current && finalText) { updateAssistant(finalText); activeSpeechStream.current?.append(finalText); }
+    if (!assistantText.current && finalText) { updateAssistant(finalText); activeSpeechQueue.current?.append(finalText); }
     generationActive.current = false; activeAssistantId.current = null; assistantText.current = "";
-    const speech = activeSpeechStream.current;
-    if (speech) { speech.finish(); void speech.done.then(() => { if (activeSpeechStream.current === speech) activeSpeechStream.current = null; if (voiceModeRef.current && !creditBlocked.current) window.setTimeout(() => void beginListening(), 220); else { setState("ready"); setStatusText("James is ready."); } }).catch(fail); return; }
+    const speech = activeSpeechQueue.current;
+    if (speech) { speech.finish(); void speech.done.then(() => { if (activeSpeechQueue.current === speech) activeSpeechQueue.current = null; if (voiceModeRef.current && !creditBlocked.current) window.setTimeout(() => void beginListening(), 220); else { setState("ready"); setStatusText("James is ready."); } }).catch(fail); return; }
     if (voiceModeRef.current && !creditBlocked.current) window.setTimeout(() => void beginListening(), 220); else { setState("ready"); setStatusText("James is ready."); }
   }
   function handleGatewayFrame(event: MessageEvent<string>) {
@@ -158,7 +196,7 @@ export default function JamesVoice() {
     if (frame.id !== undefined) { const pending = pendingRpc.current.get(frame.id); if (!pending) return; window.clearTimeout(pending.timeout); pendingRpc.current.delete(frame.id); if (frame.error) pending.reject(new Error(`${frame.error.code ?? "RPC"}: ${frame.error.message ?? "Hermes RPC failed"} ${JSON.stringify(frame.error.data ?? "")}`)); else pending.resolve(frame.result); return; }
     const pushed: GatewayEvent = frame.method === "event" && frame.params ? frame.params : frame;
     if (pushed.session_id && sessionId.current && pushed.session_id !== sessionId.current) return;
-    if (pushed.type === "message.delta") { const delta = typeof pushed.payload?.text === "string" ? pushed.payload.text : ""; updateAssistant(delta); activeSpeechStream.current?.append(delta); }
+    if (pushed.type === "message.delta") { const delta = typeof pushed.payload?.text === "string" ? pushed.payload.text : ""; updateAssistant(delta); activeSpeechQueue.current?.append(delta); }
     else if (pushed.type === "message.complete") finishAssistant(pushed.payload); else if (pushed.type === "error") fail(pushed.payload?.message ?? pushed.payload?.error ?? "Hermes conversation error");
   }
   async function connectHermes() {
@@ -178,8 +216,8 @@ export default function JamesVoice() {
     const clean = text.trim(); if (!clean || !sessionId.current || creditBlocked.current) return;
     discardActiveRecording();
     await interruptJames(); setMessages((items) => [...items, { id: uid("user"), role: "user", content: clean }]); setDraft(""); activeAssistantId.current = null; assistantText.current = ""; generationActive.current = true; setState("thinking"); setStatusText("James is thinking…");
-    try { if (voiceModeRef.current) activeSpeechStream.current = await openSpeechStream(); await rpc("prompt.submit", { session_id: sessionId.current, text: clean }, 1_800_000); }
-    catch (error) { generationActive.current = false; stopSpeechStream(); fail(error); }
+    try { if (voiceModeRef.current) activeSpeechQueue.current = openSpeechQueue(); await rpc("prompt.submit", { session_id: sessionId.current, text: clean }, 1_800_000); }
+    catch (error) { generationActive.current = false; stopSpeechQueue(); fail(error); }
   }
   function cleanupRecorder() {
     if (vadFrame.current !== null) cancelAnimationFrame(vadFrame.current); vadFrame.current = null; microphoneStream.current?.getTracks().forEach((track) => track.stop()); microphoneStream.current = null; void vadContext.current?.close().catch(() => undefined); vadContext.current = null; recorder.current = null;
@@ -206,14 +244,14 @@ export default function JamesVoice() {
 
   useEffect(() => {
     void connectHermes().catch(fail);
-    return () => { voiceModeRef.current = false; discardRecording.current = true; if (recorder.current?.state === "recording") recorder.current.stop(); cleanupRecorder(); stopSpeechStream(); gatewayRef.current?.close(); pendingRpc.current.forEach((entry) => { window.clearTimeout(entry.timeout); entry.reject(new Error("James voice page closed")); }); pendingRpc.current.clear(); };
+    return () => { voiceModeRef.current = false; discardRecording.current = true; if (recorder.current?.state === "recording") recorder.current.stop(); cleanupRecorder(); stopSpeechQueue(); gatewayRef.current?.close(); pendingRpc.current.forEach((entry) => { window.clearTimeout(entry.timeout); entry.reject(new Error("James voice page closed")); }); pendingRpc.current.clear(); };
   }, []);
 
   const canTalk = !["connecting", "error", "credit-limit"].includes(state);
   return <div className="flex h-full flex-col overflow-hidden">
     <header className="flex items-center justify-between border-b border-border px-4 py-3 md:px-6"><div className="flex items-center gap-3"><JamesAvatar className="h-10 w-10" /><div><h1 className="font-semibold">Talk to James</h1><p className="text-xs text-muted-foreground">Hermes native conversation · persistent James session</p></div></div>{voiceMode && <Button variant="outline" size="sm" onClick={() => void stopVoiceConversation()}><Square className="mr-2 h-4 w-4" />Stop voice</Button>}</header>
     <div className="border-b border-border bg-muted/30 px-4 py-2 text-center text-xs text-muted-foreground">{statusText}</div>
-    <div className="flex-1 overflow-y-auto p-4 md:p-6"><div className="mx-auto flex max-w-3xl flex-col gap-3">{messages.length === 0 && <div className="rounded-2xl border border-border bg-card p-5"><strong>This is James's Hermes conversation runtime.</strong><p className="mt-1 text-sm text-muted-foreground">The tablet only captures microphone audio and detects when your turn ends. Hermes performs transcription, keeps the persistent conversation, streams James's response and streams his voice. Browser speech recognition and browser text-to-speech are not used.</p></div>}{messages.map((message) => <div key={message.id} className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap ${message.role === "user" ? "ml-auto bg-primary text-primary-foreground" : message.role === "james" ? "mr-auto border border-border bg-card" : "mx-auto bg-muted text-muted-foreground"}`}>{message.content}</div>)}<div ref={bottom} /></div></div>
+    <div className="flex-1 overflow-y-auto p-4 md:p-6"><div className="mx-auto flex max-w-3xl flex-col gap-3">{messages.length === 0 && <div className="rounded-2xl border border-border bg-card p-5"><strong>This is James's Hermes conversation runtime.</strong><p className="mt-1 text-sm text-muted-foreground">The tablet captures microphone audio and detects when your turn ends. Hermes performs transcription and keeps the persistent conversation. On Hermes v0.18, Mission Control sends completed response phrases through Hermes's authenticated TTS endpoint because that release rejects the newer streaming-TTS WebSocket. Browser speech recognition and browser text-to-speech are not used.</p></div>}{messages.map((message) => <div key={message.id} className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap ${message.role === "user" ? "ml-auto bg-primary text-primary-foreground" : message.role === "james" ? "mr-auto border border-border bg-card" : "mx-auto bg-muted text-muted-foreground"}`}>{message.content}</div>)}<div ref={bottom} /></div></div>
     <div className="border-t border-border bg-background/90 p-3 backdrop-blur md:p-4"><div className="mx-auto flex max-w-3xl items-end gap-2"><Button type="button" size="icon" variant={voiceMode ? "default" : "secondary"} onClick={() => void bargeIn()} disabled={!canTalk} aria-label={voiceMode ? "Interrupt James and speak" : "Start voice conversation"}>{state === "listening" ? <MicOff /> : <Mic />}</Button><Textarea value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitPrompt(draft); } }} placeholder="Talk naturally, or type to James…" className="min-h-[48px] max-h-32 resize-none" /><Button type="button" size="icon" onClick={() => void submitPrompt(draft)} disabled={!draft.trim() || !canTalk} aria-label="Send to James"><Send /></Button></div><p className="mx-auto mt-2 max-w-3xl text-center text-[11px] text-muted-foreground">Voice mode re-arms after each reply. Tap the microphone while James is speaking to barge in. HTTP 402/credit errors stop the loop instead of retrying.</p></div>
   </div>;
 }

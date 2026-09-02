@@ -42,13 +42,15 @@ test("James starts a fresh post-fix Hermes session", () => {
   assert.doesNotMatch(page, /mission_control_james_hermes_session_v1/);
 });
 
-test("James speaks through the Hermes native PCM streaming websocket while generation continues", () => {
-  assert.match(page, /\/api\/audio\/speak-stream\?ticket=/);
-  assert.match(page, /activeSpeechStream\.current\?\.append\(delta\)/);
-  assert.match(page, /send\(\{ done: true \}\)/);
-  assert.match(page, /new Int16Array/);
-  assert.match(page, /context\.createBuffer/);
+test("James speaks incrementally through the authenticated Hermes REST TTS bridge", () => {
+  assert.match(page, /voiceBridge<AudioSpeakResponse>\("speak", \{ text: clean \}\)/);
+  assert.match(bridge, /VOICE_ACTIONS = new Set\(\["status", "transcribe", "ws-ticket", "speak"\]\)/);
+  assert.match(bridge, /\/api\/audio\/speak/);
+  assert.match(page, /flushSentences/);
+  assert.match(page, /activeSpeechQueue\.current\?\.append\(delta\)/);
+  assert.match(page, /new Audio\(dataUrl\)/);
   assert.match(page, /Tap the microphone while James is speaking to barge in/);
+  assert.doesNotMatch(page, /\/api\/audio\/speak-stream\?ticket=/);
 });
 
 test("credit exhaustion stops automatic voice instead of retrying", () => {
@@ -76,6 +78,7 @@ test("Hermes credentials never enter browser source or public nginx websocket co
   assert.match(page, /\?ticket=\$\{encodeURIComponent\(ticket\)\}/);
   assert.doesNotMatch(setup, /proxy_set_header X-Hermes-Session-Token/);
   assert.doesNotMatch(setup, /api\/ws\?token=/);
+  assert.doesNotMatch(setup, /location = \$VOICE_PATH\/api\/audio\/speak-stream/);
   assert.match(bridge, /\/auth\/password-login/);
   assert.match(bridge, /Cookie: cookie/);
   assert.match(bridge, /\/api\/auth\/ws-ticket/);
@@ -96,7 +99,7 @@ test("host setup uses gated Hermes auth on a private loopback address and fails 
   assert.match(setup, /faster-whisper/);
   assert.match(setup, /re\.finditer\(r"\(\?m\)\^\\s\*server\\s\*\\\{"/);
   assert.match(setup, /mission\.customli\.io was not inside the identified nginx server block/);
-  assert.match(setup, /location = \$VOICE_PATH\/api\/audio\/speak-stream/);
+  assert.match(setup, /location = \$VOICE_PATH\/api\/ws/);
   assert.match(setup, /proxy_pass http:\/\/\$VOICE_HOST:/);
 });
 
@@ -120,5 +123,5 @@ test("Mission Control owns spoken output on the James web surface", () => {
   assert.match(setup, /never call standalone text-to-speech or emit MEDIA paths/);
   assert.match(setup, /Never invoke the standalone text_to_speech\/voice tool/);
   assert.match(setup, /voice\["auto_tts"\] = True/);
-  assert.match(setup, /Mission Control streams response deltas through Hermes TTS/);
+  assert.match(setup, /authenticated Hermes TTS/);
 });

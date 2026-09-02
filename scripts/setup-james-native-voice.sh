@@ -73,7 +73,7 @@ Your job is to own outcomes: understand the owner's request, use Mission Control
 
 Communicate naturally and concisely. In conversation, answer the actual question first. Do not dump runtime implementation details unless they are relevant or requested. Do not ask the owner to perform work that you can safely inspect, delegate, retry or resolve within existing authority.
 
-On the Mission Control /james conversational surface, speech output is owned by Mission Control's Hermes streaming TTS WebSocket. Never invoke the standalone text_to_speech/voice tool merely because the owner asks you to speak, never emit MEDIA: paths as a substitute for a spoken reply, and never instruct the owner to enable /voice, STT or TTS. Simply answer normally; Mission Control streams your response through the configured voice transport when voice mode is active.
+On the Mission Control /james conversational surface, speech output is owned by Mission Control's authenticated Hermes TTS bridge. Never invoke the standalone text_to_speech/voice tool merely because the owner asks you to speak, never emit MEDIA: paths as a substitute for a spoken reply, and never instruct the owner to enable /voice, STT or TTS. Simply answer normally; Mission Control sends completed response phrases through Hermes TTS automatically when voice mode is active.
 
 Never claim a system, capability, configuration, task state or result that you have not verified. Owner-only approvals and prohibited actions remain owner-only.
 EOF
@@ -103,7 +103,7 @@ agent["system_prompt"] = (
     "You are James, the Mission Control Orchestrator. Hermes Agent is your runtime, not your identity. "
     "Mission Control owns tasks, delegations, approvals, employee definitions, knowledge, skills and audit state. "
     "Own outcomes, resolve ordinary blockers within delegated authority, delegate appropriately, independently verify completion, and communicate concisely. "
-    "On the /james web conversation surface, never call standalone text-to-speech or emit MEDIA paths; answer with normal text because Mission Control streams response deltas through Hermes TTS when voice mode is active. "
+    "On the /james web conversation surface, never call standalone text-to-speech or emit MEDIA paths; answer with normal text because Mission Control sends completed response phrases through authenticated Hermes TTS when voice mode is active. "
     "Never tell the owner to enable Hermes /voice, STT or TTS from this surface. Never claim unverified state or bypass owner-only approvals."
 )
 path.write_text(yaml.safe_dump(data, sort_keys=False))
@@ -181,18 +181,6 @@ EOF
 cat >"$NGINX_SNIPPET" <<EOF
 location = $VOICE_PATH/api/ws {
     proxy_pass http://$VOICE_HOST:$VOICE_PORT/api/ws;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade \$http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $VOICE_HOST:$VOICE_PORT;
-    proxy_set_header Origin http://$VOICE_HOST:$VOICE_PORT;
-    proxy_read_timeout 3600s;
-    proxy_send_timeout 3600s;
-    proxy_buffering off;
-}
-
-location = $VOICE_PATH/api/audio/speak-stream {
-    proxy_pass http://$VOICE_HOST:$VOICE_PORT/api/audio/speak-stream;
     proxy_http_version 1.1;
     proxy_set_header Upgrade \$http_upgrade;
     proxy_set_header Connection "upgrade";
@@ -284,8 +272,8 @@ echo "PASS: James native Hermes backend is running on $VOICE_HOST:$VOICE_PORT"
 echo "PASS: James conversational identity is Mission Control Orchestrator"
 echo "PASS: James conversational model is OpenRouter $JAMES_MODEL"
 echo "PASS: Hermes basic-auth credentials remain server-side"
-echo "PASS: Public WebSockets accept only short-lived single-use Hermes tickets"
+echo "PASS: Public WebSocket exposure is limited to the authenticated conversation gateway"
 echo "PASS: STT provider configured: local (faster-whisper)"
-echo "PASS: TTS provider configured: edge (free streaming TTS)"
+echo "PASS: TTS provider configured: edge (free Hermes REST TTS)"
 echo "PASS: Standalone MEDIA-file voice output is prohibited on the /james surface"
 echo "PASS: Browser SpeechRecognition/SpeechSynthesis are not part of this path."
