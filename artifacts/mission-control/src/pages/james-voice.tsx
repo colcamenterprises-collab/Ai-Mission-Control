@@ -142,12 +142,11 @@ export default function JamesVoice() {
         playChunk(match[1]);
         buffer = match[2];
       }
-      if (buffer.length > 280) {
-        const splitAt = Math.max(buffer.lastIndexOf(" ", 220), buffer.lastIndexOf(",", 220));
-        if (splitAt > 80) {
-          playChunk(buffer.slice(0, splitAt + 1));
-          buffer = buffer.slice(splitAt + 1);
-        }
+      while (!stopped && buffer.length > 280) {
+        const preferredSplit = Math.max(buffer.lastIndexOf(" ", 220), buffer.lastIndexOf(",", 220));
+        const splitAt = preferredSplit > 80 ? preferredSplit + 1 : 220;
+        playChunk(buffer.slice(0, splitAt));
+        buffer = buffer.slice(splitAt);
       }
     };
 
