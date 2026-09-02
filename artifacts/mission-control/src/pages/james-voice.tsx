@@ -6,7 +6,8 @@ import { JamesAvatar } from "@/components/james-avatar";
 
 type Message = { id: string; role: "user" | "james" | "system"; content: string };
 type VoiceState = "connecting" | "ready" | "listening" | "transcribing" | "thinking" | "speaking" | "credit-limit" | "error";
-type RpcFrame = { id?: string | number; result?: unknown; error?: { code?: number; message?: string; data?: unknown }; type?: string; session_id?: string; payload?: Record<string, unknown> };
+type GatewayEvent = { type?: string; session_id?: string; payload?: Record<string, unknown> };
+type RpcFrame = { id?: string | number; result?: unknown; error?: { code?: number; message?: string; data?: unknown }; method?: string; params?: GatewayEvent; type?: string; session_id?: string; payload?: Record<string, unknown> };
 type PendingRpc = { resolve(value: unknown): void; reject(error: Error): void; timeout: number };
 type AudioTranscriptionResponse = { ok?: boolean; transcript?: string; text?: string; error?: string };
 type WsTicketResponse = { ticket?: string; ttl_seconds?: number };
@@ -14,7 +15,7 @@ type SpeechStream = { append(text: string): void; finish(): void; stop(): void; 
 
 const ADMIN_TOKEN_STORAGE_KEY = "mission_control_admin_token";
 const LEGACY_ADMIN_TOKEN_STORAGE_KEY = "MISSION_CONTROL_ADMIN_TOKEN";
-const SESSION_KEY = "mission_control_james_hermes_session_v1";
+const SESSION_KEY = "mission_control_james_hermes_session_v2";
 const HERMES_PROXY_BASE_PATH = "/hermes-james";
 const MAX_RECORDING_MS = 30_000;
 const SILENCE_AFTER_SPEECH_MS = 1_050;
@@ -155,9 +156,10 @@ export default function JamesVoice() {
   function handleGatewayFrame(event: MessageEvent<string>) {
     let frame: RpcFrame; try { frame = JSON.parse(event.data) as RpcFrame; } catch { return; }
     if (frame.id !== undefined) { const pending = pendingRpc.current.get(frame.id); if (!pending) return; window.clearTimeout(pending.timeout); pendingRpc.current.delete(frame.id); if (frame.error) pending.reject(new Error(`${frame.error.code ?? "RPC"}: ${frame.error.message ?? "Hermes RPC failed"} ${JSON.stringify(frame.error.data ?? "")}`)); else pending.resolve(frame.result); return; }
-    if (frame.session_id && sessionId.current && frame.session_id !== sessionId.current) return;
-    if (frame.type === "message.delta") { const delta = typeof frame.payload?.text === "string" ? frame.payload.text : ""; updateAssistant(delta); activeSpeechStream.current?.append(delta); }
-    else if (frame.type === "message.complete") finishAssistant(frame.payload); else if (frame.type === "error") fail(frame.payload?.message ?? frame.payload?.error ?? "Hermes conversation error");
+    const pushed: GatewayEvent = frame.method === "event" && frame.params ? frame.params : frame;
+    if (pushed.session_id && sessionId.current && pushed.session_id !== sessionId.current) return;
+    if (pushed.type === "message.delta") { const delta = typeof pushed.payload?.text === "string" ? pushed.payload.text : ""; updateAssistant(delta); activeSpeechStream.current?.append(delta); }
+    else if (pushed.type === "message.complete") finishAssistant(pushed.payload); else if (pushed.type === "error") fail(pushed.payload?.message ?? pushed.payload?.error ?? "Hermes conversation error");
   }
   async function connectHermes() {
     setState("connecting"); setStatusText("Connecting Mission Control to James's Hermes runtime…"); await voiceBridge("status"); const ticket = await mintWsTicket(); const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";

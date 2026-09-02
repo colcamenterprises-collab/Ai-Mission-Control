@@ -6,6 +6,7 @@ JAMES_VENV="${JAMES_VENV:-/opt/hermes/.venv}"
 VOICE_HOST="${HERMES_JAMES_VOICE_HOST:-127.0.0.2}"
 VOICE_PORT="${HERMES_JAMES_VOICE_PORT:-9120}"
 VOICE_PATH="${HERMES_JAMES_PROXY_BASE_PATH:-/hermes-james}"
+JAMES_MODEL="${HERMES_JAMES_MODEL:-openrouter/auto}"
 VOICE_ENV_DIR="/etc/ai-mission-control"
 VOICE_ENV="$VOICE_ENV_DIR/james-voice.env"
 VOICE_SERVICE="/etc/systemd/system/james-hermes-voice.service"
@@ -39,6 +40,7 @@ echo "Hermes home:   $HERMES_HOME_VALUE"
 echo "Voice host:    $VOICE_HOST"
 echo "Voice port:    $VOICE_PORT"
 echo "Proxy path:    $VOICE_PATH"
+echo "James model:   $JAMES_MODEL via OpenRouter"
 
 if ! "$PYTHON" - <<'PY' >/dev/null 2>&1
 import faster_whisper
@@ -60,7 +62,7 @@ BACKUP="${CONFIG}.before-native-voice.$(date +%Y%m%d%H%M%S)"
 cp -a "$CONFIG" "$BACKUP"
 echo "Config backup: $BACKUP"
 
-HERMES_CONFIG="$CONFIG" "$PYTHON" - <<'PY'
+HERMES_CONFIG="$CONFIG" HERMES_JAMES_MODEL="$JAMES_MODEL" "$PYTHON" - <<'PY'
 import os
 from pathlib import Path
 import yaml
@@ -72,8 +74,24 @@ stt["provider"] = "local"
 stt.setdefault("local", {})["model"] = stt.get("local", {}).get("model") or "base"
 tts = data.setdefault("tts", {})
 tts["provider"] = "edge"
+model = data.setdefault("model", {})
+model["provider"] = "openrouter"
+model["default"] = os.environ["HERMES_JAMES_MODEL"]
+model["base_url"] = ""
+model["api_mode"] = "chat_completions"
 path.write_text(yaml.safe_dump(data, sort_keys=False))
 PY
+
+HERMES_CONFIG="$CONFIG" HERMES_JAMES_MODEL="$JAMES_MODEL" "$PYTHON" - <<'PY' >/dev/null || fail "Hermes James model config was not written correctly."
+import os, yaml
+with open(os.environ["HERMES_CONFIG"]) as fh:
+    data = yaml.safe_load(fh) or {}
+model = data.get("model") or {}
+assert model.get("provider") == "openrouter"
+assert model.get("default") == os.environ["HERMES_JAMES_MODEL"]
+PY
+
+echo "PASS: James Hermes main model configured for OpenRouter ($JAMES_MODEL)."
 
 install -d -m 700 "$VOICE_ENV_DIR"
 BASIC_USER="mission-control"
@@ -95,6 +113,7 @@ HERMES_DASHBOARD_BASIC_AUTH_SECRET=$BASIC_SECRET
 HERMES_JAMES_BASIC_AUTH_USERNAME=$BASIC_USER
 HERMES_JAMES_BASIC_AUTH_PASSWORD=$BASIC_PASSWORD
 HERMES_JAMES_VOICE_URL=http://$VOICE_HOST:$VOICE_PORT
+HERMES_JAMES_MODEL=$JAMES_MODEL
 EOF
 chmod 600 "$VOICE_ENV"
 
@@ -228,6 +247,7 @@ systemctl is-active --quiet "$MC_SERVICE" || { systemctl status "$MC_SERVICE" --
 curl -fsS http://127.0.0.1:4100/api/healthz >/dev/null || fail "Mission Control health check failed after native voice setup."
 
 echo "PASS: James native Hermes backend is running on $VOICE_HOST:$VOICE_PORT"
+echo "PASS: James conversational model is OpenRouter $JAMES_MODEL"
 echo "PASS: Hermes basic-auth credentials remain server-side"
 echo "PASS: Public WebSockets accept only short-lived single-use Hermes tickets"
 echo "PASS: STT provider configured: local (faster-whisper)"
