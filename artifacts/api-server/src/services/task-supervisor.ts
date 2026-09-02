@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
-import { db, activityTable, agentsTable, taskMessagesTable, tasksTable, workRequestsTable } from "@workspace/db";
+import { db, activityTable, agentsTable, taskMessagesTable, tasksTable, workRequestsTable, approvalsTable } from "@workspace/db";
 import { dispatchRuntime, isRuntimeConfigured } from "./agent-runtime.js";
 import { delegationDecision, supervisionAction } from "./autonomy-policy.js";
 import { ensureTaskWorkRequest, reopenTaskExecution } from "./task-execution-control.js";
@@ -7,6 +7,11 @@ import { ensureTaskWorkRequest, reopenTaskExecution } from "./task-execution-con
 const SUPERVISED_STATUSES = ["backlog", "ready", "running", "in_progress", "blocked", "changes_required"];
 const DEFAULT_STALE_MINUTES = 20;
 const DEFAULT_MAX_ATTEMPTS = 3;
+const LEGACY_SUPERVISION_REASONS = [
+  /^Automatic supervision reached the \d+-attempt safety limit/i,
+  /^James Hermes orchestrator runtime is not currently configured/i,
+  /^Automatic supervision could not dispatch James/i,
+];
 
 function staleMinutes(): number {
   const value = Number(process.env.MISSION_CONTROL_SUPERVISION_STALE_MINUTES ?? DEFAULT_STALE_MINUTES);
@@ -24,6 +29,38 @@ function needsReview(task: typeof tasksTable.$inferSelect, now: Date): boolean {
   return now.getTime() - anchor.getTime() >= staleMinutes() * 60_000;
 }
 
+function isLegacySupervisorApproval(task: typeof tasksTable.$inferSelect): boolean {
+  const reason = task.ownerDecisionReason?.trim();
+  return Boolean(task.approvalRequired && reason && LEGACY_SUPERVISION_REASONS.some(pattern => pattern.test(reason)));
+}
+
+async function repairLegacySupervisorApproval(task: typeof tasksTable.$inferSelect): Promise<typeof tasksTable.$inferSelect> {
+  if (!isLegacySupervisorApproval(task)) return task;
+
+  const [latestRequest] = await db.select().from(workRequestsTable)
+    .where(eq(workRequestsTable.taskId, task.id))
+    .orderBy(desc(workRequestsTable.updatedAt))
+    .limit(1);
+
+  if (latestRequest?.state === "awaiting_approval" && latestRequest.approvalDecision === "OWNER_APPROVAL") {
+    await db.update(approvalsTable)
+      .set({ status: "cancelled", decidedBy: "Mission Control", decisionNote: "Removed legacy supervisor-created owner gate during Ground Zero 1.6 reconciliation.", decidedAt: new Date() })
+      .where(eq(approvalsTable.requestId, latestRequest.id));
+    await db.update(workRequestsTable)
+      .set({ state: "cancelled", finishedAt: new Date(), updatedAt: new Date(), error: "Legacy supervisor-created owner gate reconciled" })
+      .where(eq(workRequestsTable.id, latestRequest.id));
+  }
+
+  await db.update(tasksTable).set({
+    approvalRequired: false,
+    ownerDecisionReason: null,
+    nextActionOwner: null,
+    updatedAt: new Date(),
+  }).where(eq(tasksTable.id, task.id));
+
+  return { ...task, approvalRequired: false, ownerDecisionReason: null, nextActionOwner: null };
+}
+
 async function addMessage(taskId: number, author: string, body: string): Promise<void> {
   await db.insert(taskMessagesTable).values({ taskId, author, body });
   await db.update(tasksTable).set({ unreadMessages: 1 }).where(eq(tasksTable.id, taskId));
@@ -35,11 +72,12 @@ export type SupervisionSummary = {
   ownerEscalations: number;
   runtimeFailures: number;
   executionRequestsCreated: number;
+  legacyApprovalGatesRepaired: number;
   skipped: number;
 };
 
 export async function superviseActiveTasks(): Promise<SupervisionSummary> {
-  const summary: SupervisionSummary = { inspected: 0, delegated: 0, ownerEscalations: 0, runtimeFailures: 0, executionRequestsCreated: 0, skipped: 0 };
+  const summary: SupervisionSummary = { inspected: 0, delegated: 0, ownerEscalations: 0, runtimeFailures: 0, executionRequestsCreated: 0, legacyApprovalGatesRepaired: 0, skipped: 0 };
   const now = new Date();
   const tasks = await db.select().from(tasksTable).where(and(isNull(tasksTable.archivedAt), inArray(tasksTable.status, SUPERVISED_STATUSES)));
   summary.inspected = tasks.length;
@@ -48,13 +86,16 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
   const agents = await db.select().from(agentsTable);
   const james = agents.find(agent => /orchestrator/i.test(agent.role)) ?? agents.find(agent => /james/i.test(agent.name));
 
-  for (const task of tasks) {
+  for (const storedTask of tasks) {
+    const task = await repairLegacySupervisorApproval(storedTask);
+    if (storedTask.approvalRequired && !task.approvalRequired) summary.legacyApprovalGatesRepaired += 1;
+
     let [latestRequest] = await db.select().from(workRequestsTable)
       .where(eq(workRequestsTable.taskId, task.id))
       .orderBy(desc(workRequestsTable.updatedAt))
       .limit(1);
 
-    if (!latestRequest) {
+    if (!latestRequest || ["completed", "failed", "rejected", "cancelled"].includes(latestRequest.state)) {
       const assignedAgent = task.assignee && task.assignee !== "Unassigned"
         ? agents.find(agent => agent.name === task.assignee) ?? null
         : null;
@@ -86,7 +127,6 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
         ownerDecisionReason: reason,
         blocker: task.status === "blocked" ? (task.blocker ?? reason) : task.blocker,
         lastOrchestratorReviewAt: now,
-        approvalRequired: true,
       }).where(eq(tasksTable.id, task.id));
       await addMessage(task.id, "Mission Control", `OWNER DECISION REQUIRED — ${reason}\nNext action: ${action}`);
       summary.ownerEscalations += 1;
@@ -102,7 +142,6 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
         ownerDecisionReason: reason,
         blocker: reason,
         lastOrchestratorReviewAt: now,
-        approvalRequired: true,
       }).where(eq(tasksTable.id, task.id));
       await addMessage(task.id, "Mission Control", `OWNER ATTENTION REQUIRED — ${reason}`);
       summary.ownerEscalations += 1;
@@ -118,7 +157,6 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
         ownerDecisionReason: reason,
         blocker: reason,
         lastOrchestratorReviewAt: now,
-        approvalRequired: true,
       }).where(eq(tasksTable.id, task.id));
       await addMessage(task.id, "Mission Control", `OWNER ATTENTION REQUIRED — ${reason}`);
       summary.runtimeFailures += 1;
@@ -135,8 +173,11 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
       blocker: task.status === "blocked" ? task.blocker : null,
       lastOrchestratorReviewAt: now,
       supervisionAttempts: attempt,
-      approvalRequired: false,
     }).where(eq(tasksTable.id, task.id));
+
+    if (task.status === "blocked") {
+      await addMessage(task.id, "Mission Control", `QA RECOVERY CYCLE STARTED — James owns delegated recovery attempt ${attempt}.`);
+    }
 
     const instructions = [
       `MISSION CONTROL ACTIVE TASK SUPERVISION — Task #${task.id}: ${task.title}`,
@@ -163,7 +204,6 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
         nextAction: "Restore orchestrator execution and resume this task.",
         nextActionOwner: "Cameron",
         ownerDecisionReason: reason,
-        approvalRequired: true,
       }).where(eq(tasksTable.id, task.id));
       await addMessage(task.id, "Mission Control", `OWNER ATTENTION REQUIRED — ${reason}`);
       summary.runtimeFailures += 1;
