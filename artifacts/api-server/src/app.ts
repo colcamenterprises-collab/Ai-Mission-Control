@@ -75,6 +75,10 @@ app.use("/api/employee-avatars", avatarStatic);
 // Retain the original direct mount for local/dev compatibility.
 app.use("/employee-avatars", avatarStatic);
 
+// Voice recordings are base64-encoded before they reach the authenticated James
+// bridge. Give only that endpoint enough room for a normal 30-second recording;
+// all other JSON routes retain Express's conservative default body limit.
+app.use("/api/james/message", express.json({ limit: "8mb" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
