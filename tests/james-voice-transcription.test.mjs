@@ -107,3 +107,18 @@ test("James voice setup pins new sessions to OpenRouter auto routing", () => {
   assert.match(setup, /model\["base_url"\] = ""/);
   assert.match(setup, /model\["api_mode"\] = "chat_completions"/);
 });
+
+test("dedicated Hermes conversation runtime is James, not generic Hermes", () => {
+  assert.match(setup, /# James — Mission Control Orchestrator/);
+  assert.match(setup, /You are James, the Mission Control Orchestrator/);
+  assert.match(setup, /Hermes Agent is your runtime, not your identity/);
+  assert.match(setup, /agent\["system_prompt"\]/);
+  assert.match(setup, /Mission Control owns tasks, delegations, approvals/);
+});
+
+test("Mission Control owns spoken output on the James web surface", () => {
+  assert.match(setup, /never call standalone text-to-speech or emit MEDIA paths/);
+  assert.match(setup, /never invoke the standalone text_to_speech\/voice tool/);
+  assert.match(setup, /voice\["auto_tts"\] = True/);
+  assert.match(setup, /Mission Control streams response deltas through Hermes TTS/);
+});
