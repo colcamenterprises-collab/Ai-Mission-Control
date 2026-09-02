@@ -16,7 +16,15 @@ async function addMessage(taskId: number, author: string, body: string) {
 
 async function automaticReworkCount(taskId: number): Promise<number> {
   const messages = await db.select().from(taskMessagesTable).where(eq(taskMessagesTable.taskId, taskId)).orderBy(asc(taskMessagesTable.createdAt));
-  return messages.filter(message => message.author === "James Hermes" && message.body.startsWith("QA REWORK REQUIRED —")).length;
+  let lastRecoveryIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.author === "Mission Control" && message.body.startsWith("QA RECOVERY CYCLE STARTED —")) {
+      lastRecoveryIndex = index;
+      break;
+    }
+  }
+  return messages.slice(lastRecoveryIndex + 1).filter(message => message.author === "James Hermes" && message.body.startsWith("QA REWORK REQUIRED —")).length;
 }
 
 async function dispatchRework(task: typeof tasksTable.$inferSelect, instructions: string): Promise<void> {
@@ -112,9 +120,14 @@ router.post("/james/completion-review-report", async (req, res): Promise<void> =
     if (count >= MAX_AUTOMATIC_REWORKS - 1) {
       const detail = `Automatic James QA reached the ${MAX_AUTOMATIC_REWORKS}-cycle safety limit.`;
       await markTaskExecutionBlocked(taskId, detail);
-      await db.update(tasksTable).set({ status: "blocked" }).where(eq(tasksTable.id, taskId));
-      await addMessage(taskId, "Mission Control", `BLOCKED — ${detail} Owner attention is required because the specialist result remains unsatisfactory.`);
-      res.json({ accepted: true, taskId, status: "blocked", decision, reworkLimitReached: true });
+      await db.update(tasksTable).set({
+        status: "blocked",
+        nextAction: "James must change the delegated recovery plan before another specialist QA cycle.",
+        nextActionOwner: "James Hermes",
+        ownerDecisionReason: null,
+      }).where(eq(tasksTable.id, taskId));
+      await addMessage(taskId, "Mission Control", `BLOCKED — ${detail} This remains inside orchestrator authority; James must change the worker, evidence source, access path, or verification plan before retrying. Owner input is not required unless a protected action or owner-only access is identified.`);
+      res.json({ accepted: true, taskId, status: "blocked", decision, reworkLimitReached: true, nextActionOwner: "James Hermes" });
       return;
     }
     await dispatchRework(task, `James supervisory review found the previous result unsatisfactory.\n\nReason:\n${reason}\n\nRequired correction:\n${correction}\n\nOriginal owner brief remains authoritative:\n${task.description ?? ""}\n\nDo not repeat unsupported claims. Return only the corrected task result and supporting evidence.`);
