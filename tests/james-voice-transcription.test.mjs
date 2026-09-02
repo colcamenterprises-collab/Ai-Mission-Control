@@ -72,7 +72,7 @@ test("Hermes credentials never enter browser source or public nginx websocket co
   assert.doesNotMatch(page, /HERMES_DASHBOARD_BASIC_AUTH_PASSWORD/);
   assert.doesNotMatch(page, /X-Hermes-Session-Token/);
   assert.doesNotMatch(page, /\?token=/);
-  assert.match(page, /voiceBridge<WsTicketResponse>\("ws-ticket"\)/);
+  assert.match(page, /voiceBridge<WsTicketResponse>\("ws-ticket"/);
   assert.match(page, /\?ticket=\$\{encodeURIComponent\(ticket\)\}/);
   assert.doesNotMatch(setup, /proxy_set_header X-Hermes-Session-Token/);
   assert.doesNotMatch(setup, /api\/ws\?token=/);
@@ -106,4 +106,19 @@ test("James voice setup pins new sessions to OpenRouter auto routing", () => {
   assert.match(setup, /model\["default"\] = os\.environ\["HERMES_JAMES_MODEL"\]/);
   assert.match(setup, /model\["base_url"\] = ""/);
   assert.match(setup, /model\["api_mode"\] = "chat_completions"/);
+});
+
+test("dedicated Hermes conversation runtime is James, not generic Hermes", () => {
+  assert.match(setup, /# James — Mission Control Orchestrator/);
+  assert.match(setup, /You are James, the Mission Control Orchestrator/);
+  assert.match(setup, /Hermes Agent is your runtime, not your identity/);
+  assert.match(setup, /agent\["system_prompt"\]/);
+  assert.match(setup, /Mission Control owns tasks, delegations, approvals/);
+});
+
+test("Mission Control owns spoken output on the James web surface", () => {
+  assert.match(setup, /never call standalone text-to-speech or emit MEDIA paths/);
+  assert.match(setup, /Never invoke the standalone text_to_speech\/voice tool/);
+  assert.match(setup, /voice\["auto_tts"\] = True/);
+  assert.match(setup, /Mission Control streams response deltas through Hermes TTS/);
 });

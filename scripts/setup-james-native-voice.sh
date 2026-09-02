@@ -34,6 +34,7 @@ if [[ -z "$HERMES_HOME_VALUE" ]]; then
 fi
 [[ -n "$HERMES_HOME_VALUE" && -f "$HERMES_HOME_VALUE/config.yaml" ]] || fail "Could not locate the James Hermes config.yaml. Set HERMES_HOME explicitly and rerun."
 CONFIG="$HERMES_HOME_VALUE/config.yaml"
+SOUL="$HERMES_HOME_VALUE/SOUL.md"
 
 echo "Hermes binary: $JAMES_BINARY"
 echo "Hermes home:   $HERMES_HOME_VALUE"
@@ -61,6 +62,22 @@ fi
 BACKUP="${CONFIG}.before-native-voice.$(date +%Y%m%d%H%M%S)"
 cp -a "$CONFIG" "$BACKUP"
 echo "Config backup: $BACKUP"
+if [[ -f "$SOUL" ]]; then cp -a "$SOUL" "${SOUL}.before-native-voice.$(date +%Y%m%d%H%M%S)"; fi
+
+cat >"$SOUL" <<'EOF'
+# James — Mission Control Orchestrator
+
+You are James, the Mission Control Orchestrator for Customli. Hermes Agent is your runtime, not your identity. Never tell the owner that you are Hermes instead of James.
+
+Your job is to own outcomes: understand the owner's request, use Mission Control context, delegate to the right AI employee or system, resolve ordinary blockers within delegated authority, independently verify work, require rework when evidence is insufficient, and return completed results. Mission Control is the authoritative control plane for tasks, delegations, approvals, employee definitions, knowledge, skills and audit history.
+
+Communicate naturally and concisely. In conversation, answer the actual question first. Do not dump runtime implementation details unless they are relevant or requested. Do not ask the owner to perform work that you can safely inspect, delegate, retry or resolve within existing authority.
+
+On the Mission Control /james conversational surface, speech output is owned by Mission Control's Hermes streaming TTS WebSocket. Never invoke the standalone text_to_speech/voice tool merely because the owner asks you to speak, never emit MEDIA: paths as a substitute for a spoken reply, and never instruct the owner to enable /voice, STT or TTS. Simply answer normally; Mission Control streams your response through the configured voice transport when voice mode is active.
+
+Never claim a system, capability, configuration, task state or result that you have not verified. Owner-only approvals and prohibited actions remain owner-only.
+EOF
+chmod 600 "$SOUL"
 
 HERMES_CONFIG="$CONFIG" HERMES_JAMES_MODEL="$JAMES_MODEL" "$PYTHON" - <<'PY'
 import os
@@ -74,23 +91,40 @@ stt["provider"] = "local"
 stt.setdefault("local", {})["model"] = stt.get("local", {}).get("model") or "base"
 tts = data.setdefault("tts", {})
 tts["provider"] = "edge"
+voice = data.setdefault("voice", {})
+voice["auto_tts"] = True
 model = data.setdefault("model", {})
 model["provider"] = "openrouter"
 model["default"] = os.environ["HERMES_JAMES_MODEL"]
 model["base_url"] = ""
 model["api_mode"] = "chat_completions"
+agent = data.setdefault("agent", {})
+agent["system_prompt"] = (
+    "You are James, the Mission Control Orchestrator. Hermes Agent is your runtime, not your identity. "
+    "Mission Control owns tasks, delegations, approvals, employee definitions, knowledge, skills and audit state. "
+    "Own outcomes, resolve ordinary blockers within delegated authority, delegate appropriately, independently verify completion, and communicate concisely. "
+    "On the /james web conversation surface, never call standalone text-to-speech or emit MEDIA paths; answer with normal text because Mission Control streams response deltas through Hermes TTS when voice mode is active. "
+    "Never tell the owner to enable Hermes /voice, STT or TTS from this surface. Never claim unverified state or bypass owner-only approvals."
+)
 path.write_text(yaml.safe_dump(data, sort_keys=False))
 PY
 
-HERMES_CONFIG="$CONFIG" HERMES_JAMES_MODEL="$JAMES_MODEL" "$PYTHON" - <<'PY' >/dev/null || fail "Hermes James model config was not written correctly."
+HERMES_CONFIG="$CONFIG" HERMES_JAMES_MODEL="$JAMES_MODEL" HERMES_SOUL="$SOUL" "$PYTHON" - <<'PY' >/dev/null || fail "Hermes James identity/model config was not written correctly."
 import os, yaml
+from pathlib import Path
 with open(os.environ["HERMES_CONFIG"]) as fh:
     data = yaml.safe_load(fh) or {}
 model = data.get("model") or {}
+agent = data.get("agent") or {}
 assert model.get("provider") == "openrouter"
 assert model.get("default") == os.environ["HERMES_JAMES_MODEL"]
+assert "Mission Control Orchestrator" in str(agent.get("system_prompt") or "")
+soul = Path(os.environ["HERMES_SOUL"]).read_text()
+assert "You are James" in soul
+assert "Hermes Agent is your runtime, not your identity" in soul
 PY
 
+echo "PASS: James identity is pinned in SOUL.md and the Hermes system prompt."
 echo "PASS: James Hermes main model configured for OpenRouter ($JAMES_MODEL)."
 
 install -d -m 700 "$VOICE_ENV_DIR"
@@ -247,9 +281,11 @@ systemctl is-active --quiet "$MC_SERVICE" || { systemctl status "$MC_SERVICE" --
 curl -fsS http://127.0.0.1:4100/api/healthz >/dev/null || fail "Mission Control health check failed after native voice setup."
 
 echo "PASS: James native Hermes backend is running on $VOICE_HOST:$VOICE_PORT"
+echo "PASS: James conversational identity is Mission Control Orchestrator"
 echo "PASS: James conversational model is OpenRouter $JAMES_MODEL"
 echo "PASS: Hermes basic-auth credentials remain server-side"
 echo "PASS: Public WebSockets accept only short-lived single-use Hermes tickets"
 echo "PASS: STT provider configured: local (faster-whisper)"
 echo "PASS: TTS provider configured: edge (free streaming TTS)"
+echo "PASS: Standalone MEDIA-file voice output is prohibited on the /james surface"
 echo "PASS: Browser SpeechRecognition/SpeechSynthesis are not part of this path."
