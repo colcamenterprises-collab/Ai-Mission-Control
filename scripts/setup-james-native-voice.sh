@@ -8,9 +8,6 @@ VOICE_PATH="${HERMES_JAMES_PROXY_BASE_PATH:-/hermes-james}"
 VOICE_ENV_DIR="/etc/ai-mission-control"
 VOICE_ENV="$VOICE_ENV_DIR/james-voice.env"
 VOICE_SERVICE="/etc/systemd/system/james-hermes-voice.service"
-MC_SERVICE="ai-mission-control-api.service"
-MC_DROPIN_DIR="/etc/systemd/system/${MC_SERVICE}.d"
-MC_DROPIN="$MC_DROPIN_DIR/james-native-voice.conf"
 NGINX_SNIPPET="/etc/nginx/snippets/mission-control-james-native-voice.conf"
 
 fail() { echo "STOP: $*" >&2; exit 1; }
@@ -91,8 +88,6 @@ PY
 cat >"$VOICE_ENV" <<EOF
 HERMES_HOME=$HERMES_HOME_VALUE
 HERMES_DASHBOARD_SESSION_TOKEN=$TOKEN
-HERMES_JAMES_SESSION_TOKEN=$TOKEN
-HERMES_JAMES_PROXY_BASE_PATH=$VOICE_PATH
 EOF
 chmod 600 "$VOICE_ENV"
 
@@ -117,18 +112,25 @@ PrivateTmp=true
 WantedBy=multi-user.target
 EOF
 
-install -d -m 755 "$MC_DROPIN_DIR"
-cat >"$MC_DROPIN" <<EOF
-[Service]
-EnvironmentFile=$VOICE_ENV
-EOF
-
 cat >"$NGINX_SNIPPET" <<EOF
-location ^~ $VOICE_PATH/ {
-    proxy_pass http://127.0.0.1:$VOICE_PORT/;
+# WebSocket auth stays server-side. The browser never receives the Hermes token.
+location = $VOICE_PATH/api/ws {
+    proxy_pass http://127.0.0.1:$VOICE_PORT/api/ws?token=$TOKEN;
     proxy_http_version 1.1;
     proxy_set_header Upgrade \$http_upgrade;
     proxy_set_header Connection "upgrade";
+    proxy_set_header Host \$host;
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+    proxy_buffering off;
+}
+
+# REST audio/status calls receive the same credential only after nginx accepts
+# the already-authenticated Mission Control origin request.
+location ^~ $VOICE_PATH/ {
+    proxy_pass http://127.0.0.1:$VOICE_PORT/;
+    proxy_http_version 1.1;
+    proxy_set_header X-Hermes-Session-Token "$TOKEN";
     proxy_set_header Host \$host;
     proxy_set_header X-Real-IP \$remote_addr;
     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -138,6 +140,7 @@ location ^~ $VOICE_PATH/ {
     proxy_buffering off;
 }
 EOF
+chmod 600 "$NGINX_SNIPPET"
 
 NGINX_SITE="$(grep -RIlE 'server_name[^;]*mission\.customli\.io' /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null | head -n 1 || true)"
 [[ -n "$NGINX_SITE" ]] || fail "Could not locate the nginx server block for mission.customli.io. No nginx config was modified."
@@ -171,8 +174,7 @@ for i in range(brace, len(text)):
             break
 if end is None:
     raise SystemExit("could not find end of nginx server block")
-text = text[:end] + include + "\n" + text[end:]
-site.write_text(text)
+site.write_text(text[:end] + include + "\n" + text[end:])
 PY
 
 systemctl daemon-reload
@@ -184,12 +186,14 @@ curl -fsS -H "X-Hermes-Session-Token: $TOKEN" "http://127.0.0.1:$VOICE_PORT/api/
 
 nginx -t
 systemctl reload nginx
-systemctl restart "$MC_SERVICE"
-sleep 3
-systemctl is-active --quiet "$MC_SERVICE" || { systemctl status "$MC_SERVICE" --no-pager -l; fail "Mission Control API failed after native voice environment was attached."; }
+
+PUBLIC_STATUS="$(curl -sS -o /tmp/james-hermes-status.json -w '%{http_code}' "https://mission.customli.io$VOICE_PATH/api/status")"
+[[ "$PUBLIC_STATUS" == "200" ]] || fail "Public same-origin Hermes proxy returned HTTP $PUBLIC_STATUS."
+rm -f /tmp/james-hermes-status.json
 
 echo "PASS: James native Hermes backend is running on 127.0.0.1:$VOICE_PORT"
-echo "PASS: Mission Control proxy path is $VOICE_PATH/"
+echo "PASS: Same-origin Mission Control proxy is $VOICE_PATH/"
+echo "PASS: Hermes credential stays at the nginx/server boundary"
 echo "PASS: STT provider configured: local (faster-whisper)"
 echo "PASS: TTS provider configured: edge (free)"
 echo "PASS: Browser SpeechRecognition/SpeechSynthesis are not part of this path."
