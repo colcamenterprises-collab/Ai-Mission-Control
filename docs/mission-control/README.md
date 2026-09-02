@@ -14,36 +14,31 @@ Mission Control is the **agent-agnostic operating and orchestration system**. In
 
 | Document | Purpose |
 |---|---|
-| [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) | Full platform architecture, component map, control/data flows, storage, security, execution, knowledge and deployment boundaries. |
-| [ROUTES.md](ROUTES.md) | Complete user-facing route map and API route/module inventory, including aliases and compatibility paths. |
-| [LEGACY_AND_DEPRECATION.md](LEGACY_AND_DEPRECATION.md) | Current, transitional, legacy, shadowed/dead and investigation register with removal conditions. |
-| [AGENT_SYSTEM_OVERVIEW.md](AGENT_SYSTEM_OVERVIEW.md) | Generic orientation document every current or future Mission Control agent should read. Reviewed manually at major releases. |
-| [AGENT_EMPLOYMENT_PACK.md](AGENT_EMPLOYMENT_PACK.md) | Ground Zero employee operating standard: role, responsibilities, delegations, systems, skills, communication, escalation, success and boundaries. |
-| [AMANDA_FINANCIAL_CONTROLLER.md](AMANDA_FINANCIAL_CONTROLLER.md) | Ground Zero Patch 1.2 role, SBB controls, access truth rules and operational certification for Amanda. |
-| [MODEL_POLICY_AND_OPENROUTER.md](MODEL_POLICY_AND_OPENROUTER.md) | Ground Zero Patch 1.3 model classes, OpenRouter routing, runtime synchronization, usage/cost visibility and model/identity separation. |
-| [GROUND_ZERO_OPERATING_MODEL.md](GROUND_ZERO_OPERATING_MODEL.md) | Ground Zero autonomy rule, James standing management responsibility, anti-stall supervision and owner-escalation contract. |
-| [SWOT_AND_RISK.md](SWOT_AND_RISK.md) | SWOT analysis, architectural risks and remediation priorities. |
-| [CHANGE_CONTROL.md](CHANGE_CONTROL.md) | Rules that keep these documents current and CI enforcement requirements. |
+| [SYSTEM_ARCHITECTURE.md](SYSTEM_ARCHITECTURE.md) | Full platform architecture and control/data flows. |
+| [ROUTES.md](ROUTES.md) | User-facing route map and API inventory. |
+| [LEGACY_AND_DEPRECATION.md](LEGACY_AND_DEPRECATION.md) | Compatibility and removal register. |
+| [AGENT_SYSTEM_OVERVIEW.md](AGENT_SYSTEM_OVERVIEW.md) | Generic Mission Control agent orientation. |
+| [AGENT_EMPLOYMENT_PACK.md](AGENT_EMPLOYMENT_PACK.md) | Ground Zero employee operating standard. |
+| [AMANDA_FINANCIAL_CONTROLLER.md](AMANDA_FINANCIAL_CONTROLLER.md) | Ground Zero Patch 1.2 Amanda role and certification. |
+| [MODEL_POLICY_AND_OPENROUTER.md](MODEL_POLICY_AND_OPENROUTER.md) | Ground Zero Patch 1.3 model routing policy. |
+| [JAMES_CONVERSATIONAL_VOICE.md](JAMES_CONVERSATIONAL_VOICE.md) | Ground Zero Patch 1.5 live conversation surface for James. |
+| [GROUND_ZERO_OPERATING_MODEL.md](GROUND_ZERO_OPERATING_MODEL.md) | Ground Zero autonomy and anti-stall contract. |
+| [SWOT_AND_RISK.md](SWOT_AND_RISK.md) | Architectural risk priorities. |
+| [CHANGE_CONTROL.md](CHANGE_CONTROL.md) | Documentation and CI change-control rules. |
 
 ## Knowledge integration
 
-These files do **not** require a second manually maintained copy in Mission Control Knowledge.
-
-`artifacts/api-server/src/services/memory-sync.ts` imports every Markdown file below `docs/` into the Memory/Knowledge store with the `repo-docs:` source prefix and `knowledge` category. Synced source documents are versioned in the database and protected from editing/deletion in the Knowledge UI; changes must be made in Git and then re-synced.
-
-Therefore:
+Files below `docs/` are imported by the Memory sync service as protected repository-backed Knowledge records. Git remains canonical and Knowledge is the indexed runtime view.
 
 `Git repository docs → Memory Sync → Knowledge records → agents`
-
-The repository remains canonical. Knowledge is the indexed runtime view.
 
 ## Classification legend
 
 - **CURRENT** — canonical production path or component.
-- **TRANSITIONAL** — required compatibility path that has an explicit removal condition.
-- **LEGACY** — retained for old links/data/clients but not the canonical path.
-- **DEAD/SHADOWED** — unreachable or superseded implementation that should be removed when verified safe.
-- **UNKNOWN / VERIFY HOST** — repository evidence is insufficient; production host state must be inspected before changing it.
+- **TRANSITIONAL** — compatibility path with a removal condition.
+- **LEGACY** — retained for old links/data/clients.
+- **DEAD/SHADOWED** — superseded implementation pending safe removal.
+- **UNKNOWN / VERIFY HOST** — repository evidence is insufficient; host state must be inspected.
 
 ## Operating rule
 
