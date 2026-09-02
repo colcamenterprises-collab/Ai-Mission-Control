@@ -6,7 +6,16 @@ import "./sidebar-accordion.css"; import "./ui-cleanup.css"; import "./page-cons
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 export function Layout({ children }: { children: React.ReactNode }) {
  const [location] = useLocation(); const [isCollapsed,setIsCollapsed]=useState(()=>typeof window!=="undefined"&&window.matchMedia("(max-width: 1180px)").matches); const [query,setQuery]=useState(""); const [paletteOpen,setPaletteOpen]=useState(false); const searchRef=useRef<HTMLInputElement>(null);
- const navItems:NavItem[]=[{href:"/",label:"Dashboard",icon:Gauge},{href:"/james",label:"Talk to James",icon:MessageCircle},{href:"/notes",label:"Notes",icon:StickyNote},{href:"/tasks",label:"Tasks",icon:ClipboardList},{href:"/team",label:"AI Team",icon:UsersRound},{href:"/brain",label:"Mission Brain",icon:Brain},{href:"/skills",label:"Skills",icon:BookOpen},{href:"/settings",label:"Settings",icon:Settings2}];
+ const navItems: NavItem[] = [
+   { href: "/", label: "Dashboard", icon: Gauge },
+   { href: "/james", label: "Talk to James", icon: MessageCircle },
+   { href: "/notes", label: "Notes", icon: StickyNote },
+   { href: "/tasks", label: "Tasks", icon: ClipboardList },
+   { href: "/team", label: "AI Team", icon: UsersRound },
+   { href: "/brain", label: "Mission Brain", icon: Brain },
+   { href: "/skills", label: "Skills", icon: BookOpen },
+   { href: "/settings", label: "Settings", icon: Settings2 },
+ ];
  const normalizedQuery=query.trim().toLowerCase(); const visibleNavItems=useMemo(()=>navItems.filter(i=>i.label.toLowerCase().includes(normalizedQuery)),[normalizedQuery]);
  useEffect(()=>{const q=window.matchMedia("(max-width: 1180px)"); const sync=(e:MediaQueryListEvent)=>setIsCollapsed(e.matches); q.addEventListener("change",sync); return()=>q.removeEventListener("change",sync)},[]);
  useEffect(()=>{const h=(e:KeyboardEvent)=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="f"){e.preventDefault();if(isCollapsed)setIsCollapsed(false);window.setTimeout(()=>searchRef.current?.focus(),0)}};window.addEventListener("keydown",h);return()=>window.removeEventListener("keydown",h)},[isCollapsed]);
