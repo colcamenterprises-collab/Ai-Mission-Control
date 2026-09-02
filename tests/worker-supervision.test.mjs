@@ -62,7 +62,7 @@ test("Task execution lifecycle reaches running, blocked and James-verified compl
   assert.match(intake, /markTaskExecutionBlocked\(task\.id/);
   assert.match(supervisionRoute, /markTaskExecutionCompleted\(taskId/);
   assert.match(supervisionRoute, /verifiedBy: "James Hermes"/);
-  assert.match(executionControl, /advance\(request, "completed", "James independently verified the Task outcome"\)/);
+  assert.match(executionControl, /advance\(\s*refreshed,\s*"completed",\s*"James independently verified the Task outcome"\s*\)/);
 });
 
 test("James review has evidence gate and automatic bounded rework", () => {
