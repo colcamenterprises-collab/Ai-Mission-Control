@@ -279,7 +279,11 @@ Agent-token skill routes are listed in section 7.
 `GET /api/signals`  
 `POST /api/signals`  
 `POST /api/signals/:id/convert-to-task`  
-`GET /api/client-pulse`
+`GET /api/client-pulse`  
+`GET /api/intelligence-analyst/status` — live employee/task status and Employment Pack readiness.  
+`POST /api/intelligence-analyst/bootstrap` — provision/apply the canonical AI Intelligence Analyst role, research model policy and daily task; requires real runtime/secret inputs when no live analyst exists.  
+`POST /api/intelligence-analyst/score` — evaluate a finding without persistence.  
+`POST /api/intelligence-analyst/findings` — persist a scored Signal and create a James-owned task for REVIEW/IMPLEMENT findings.
 
 ## 16. Agent operations / owner brief / task-based automations
 
