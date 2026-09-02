@@ -157,7 +157,7 @@ needle = "mission.customli.io"
 pos = text.find(needle)
 if pos < 0:
     raise SystemExit("mission.customli.io server_name not found")
-# Find actual `server {` declarations, never the `server` substring in server_name.
+# Match only a real nginx server-block declaration. This cannot match server_name.
 blocks = list(re.finditer(r"(?m)^\s*server\s*\{", text[:pos]))
 if not blocks:
     raise SystemExit("could not identify nginx server block")
