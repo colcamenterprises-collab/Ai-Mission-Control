@@ -5,11 +5,12 @@ import { logger } from "../lib/logger.js";
 const router: IRouter = Router();
 const DEFAULT_HERMES_VOICE_URL = "http://127.0.0.2:9120";
 const MAX_AUDIO_DATA_URL_CHARS = 32 * 1024 * 1024;
+const MAX_SPEAK_TEXT_CHARS = 4_000;
 const SHORT_TIMEOUT_MS = 15_000;
 const AUDIO_TIMEOUT_MS = 180_000;
 
-const VOICE_ACTIONS = new Set(["status", "transcribe", "ws-ticket"]);
-type VoiceAction = "status" | "transcribe" | "ws-ticket";
+const VOICE_ACTIONS = new Set(["status", "transcribe", "ws-ticket", "speak"]);
+type VoiceAction = "status" | "transcribe" | "ws-ticket" | "speak";
 
 let cachedHermesCookie = "";
 let loginPromise: Promise<string> | null = null;
@@ -124,7 +125,7 @@ async function forwardHermes(
 
 router.post(
   "/james/message",
-  createRateLimit("james-native-voice-bridge", 90, 60_000),
+  createRateLimit("james-native-voice-bridge", 120, 60_000),
   async (req, res, next): Promise<void> => {
     const action = req.body?.voiceAction;
     if (typeof action !== "string" || !VOICE_ACTIONS.has(action)) {
@@ -142,6 +143,17 @@ router.post(
         upstream = await forwardHermes("/api/auth/ws-ticket", {
           method: "POST",
           body: {},
+        });
+      } else if (voiceAction === "speak") {
+        const text = safeString(req.body?.text, MAX_SPEAK_TEXT_CHARS);
+        if (!text) {
+          res.status(400).json({ error: "Invalid native voice speech payload", details: "text is required and must be within limits" });
+          return;
+        }
+        upstream = await forwardHermes("/api/audio/speak", {
+          method: "POST",
+          body: { text },
+          timeoutMs: AUDIO_TIMEOUT_MS,
         });
       } else {
         const dataUrl = safeString(req.body?.data_url, MAX_AUDIO_DATA_URL_CHARS);
