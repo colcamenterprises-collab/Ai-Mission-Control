@@ -62,7 +62,7 @@ test("legacy supervisor escalation cannot become a permanent owner approval gate
   assert.match(taskSupervisor, /hasLegacySupervisorEvidence/);
   assert.match(taskSupervisor, /message\.author === "Mission Control"/);
   assert.match(taskSupervisor, /canonicalTaskRequest/);
-  assert.match(taskSupervisor, /source\) === "canonical-task"/);
+  assert.match(taskSupervisor, /\.source === "canonical-task"/);
   assert.match(taskSupervisor, /transitionWorkRequest\(latestRequest!, "cancelled"/);
   assert.match(taskSupervisor, /legacyApprovalGatesRepaired/);
   assert.doesNotMatch(taskSupervisor, /approvalRequired:\s*true/);
