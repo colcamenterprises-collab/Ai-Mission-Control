@@ -6,6 +6,10 @@ const page = fs.readFileSync(
   new URL("../artifacts/mission-control/src/pages/james-voice.tsx", import.meta.url),
   "utf8",
 );
+const bridge = fs.readFileSync(
+  new URL("../artifacts/api-server/src/routes/james-native-voice-bridge.ts", import.meta.url),
+  "utf8",
+);
 const setup = fs.readFileSync(
   new URL("../scripts/setup-james-native-voice.sh", import.meta.url),
   "utf8",
@@ -18,10 +22,10 @@ test("James voice does not use browser speech recognition or browser TTS", () =>
   assert.doesNotMatch(page, /SpeechSynthesisUtterance/);
 });
 
-test("James voice uses Hermes native STT, persistent gateway session and interruption", () => {
-  assert.match(page, /\/api\/audio\/transcribe/);
-  assert.match(page, /HERMES_PROXY_BASE_PATH.*\/hermes-james/);
-  assert.match(page, /\/api\/ws/);
+test("James voice uses admin-authenticated Hermes STT and persistent gateway sessions", () => {
+  assert.match(page, /voiceBridge<AudioTranscriptionResponse>\("transcribe"/);
+  assert.match(page, /Authorization: `Bearer \$\{adminToken\(\)\}`/);
+  assert.match(bridge, /\/api\/audio\/transcribe/);
   assert.match(page, /rpc\("session\.create"/);
   assert.match(page, /rpc\("session\.resume"/);
   assert.match(page, /rpc\("prompt\.submit"/);
@@ -30,28 +34,43 @@ test("James voice uses Hermes native STT, persistent gateway session and interru
   assert.match(page, /frame\.type === "message\.complete"/);
 });
 
-test("James voice uses Hermes TTS during streamed generation and stops on credit exhaustion", () => {
-  assert.match(page, /\/api\/audio\/speak/);
-  assert.match(page, /queueSpeechDelta\(delta\)/);
+test("James speaks through the Hermes native PCM streaming websocket while generation continues", () => {
+  assert.match(page, /\/api\/audio\/speak-stream\?ticket=/);
+  assert.match(page, /activeSpeechStream\.current\?\.append\(delta\)/);
+  assert.match(page, /send\(\{ done: true \}\)/);
+  assert.match(page, /new Int16Array/);
+  assert.match(page, /context\.createBuffer/);
+  assert.match(page, /Tap the microphone while James is speaking to barge in/);
+});
+
+test("credit exhaustion stops automatic voice instead of retrying", () => {
   assert.match(page, /HTTP 402\/credit errors stop the loop instead of retrying/);
+  assert.match(page, /creditBlocked\.current = true/);
   assert.match(page, /setState\("credit-limit"\)/);
   assert.match(page, /voiceModeRef\.current = false/);
 });
 
-test("Hermes session credential never enters the browser source", () => {
+test("Hermes master credential never enters browser source or public nginx websocket config", () => {
   assert.doesNotMatch(page, /HERMES_DASHBOARD_SESSION_TOKEN/);
   assert.doesNotMatch(page, /HERMES_JAMES_SESSION_TOKEN/);
   assert.doesNotMatch(page, /X-Hermes-Session-Token/);
   assert.doesNotMatch(page, /\?token=/);
-  assert.match(setup, /proxy_set_header X-Hermes-Session-Token/);
-  assert.match(setup, /api\/ws\?token=\$TOKEN/);
+  assert.match(page, /voiceBridge<WsTicketResponse>\("ws-ticket"\)/);
+  assert.match(page, /\?ticket=\$\{encodeURIComponent\(ticket\)\}/);
+  assert.doesNotMatch(setup, /proxy_set_header X-Hermes-Session-Token/);
+  assert.doesNotMatch(setup, /api\/ws\?token=\$TOKEN/);
+  assert.match(bridge, /X-Hermes-Session-Token/);
+  assert.match(bridge, /\/api\/auth\/ws-ticket/);
 });
 
-test("host setup pins Hermes to loopback with free local STT and free TTS", () => {
+test("host setup pins Hermes to loopback and fails closed without single-use ticket support", () => {
   assert.match(setup, /serve --host 127\.0\.0\.1 --port/);
   assert.match(setup, /stt\["provider"\] = "local"/);
   assert.match(setup, /tts\["provider"\] = "edge"/);
   assert.match(setup, /faster-whisper/);
   assert.match(setup, /HERMES_DASHBOARD_SESSION_TOKEN/);
+  assert.match(setup, /\/api\/auth\/ws-ticket/);
+  assert.match(setup, /does not support authenticated WebSocket ticket minting/);
+  assert.match(setup, /location = \$VOICE_PATH\/api\/audio\/speak-stream/);
   assert.match(setup, /proxy_pass http:\/\/127\.0\.0\.1:/);
 });
