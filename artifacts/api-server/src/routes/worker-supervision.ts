@@ -19,7 +19,9 @@ async function automaticReworkCount(taskId: number): Promise<number> {
   let lastRecoveryIndex = -1;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (message.author === "Mission Control" && message.body.startsWith("QA RECOVERY CYCLE STARTED —")) {
+    const explicitRecovery = message.author === "Mission Control" && message.body.startsWith("QA RECOVERY CYCLE STARTED —");
+    const legacyRecovery = message.author === "James Hermes" && message.body.startsWith("SUPERVISION — I own the next action for this task.");
+    if (explicitRecovery || legacyRecovery) {
       lastRecoveryIndex = index;
       break;
     }
