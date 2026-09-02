@@ -5,13 +5,11 @@ import { logger } from "../lib/logger.js";
 const router: IRouter = Router();
 const DEFAULT_HERMES_VOICE_URL = "http://127.0.0.1:9120";
 const MAX_AUDIO_DATA_URL_CHARS = 32 * 1024 * 1024;
-const MAX_SPEAK_TEXT_CHARS = 12_000;
 const SHORT_TIMEOUT_MS = 15_000;
 const AUDIO_TIMEOUT_MS = 180_000;
 
-const VOICE_ACTIONS = new Set(["status", "transcribe", "speak", "ws-ticket"]);
-
-type VoiceAction = "status" | "transcribe" | "speak" | "ws-ticket";
+const VOICE_ACTIONS = new Set(["status", "transcribe", "ws-ticket"]);
+type VoiceAction = "status" | "transcribe" | "ws-ticket";
 
 function hermesBaseUrl(): string {
   return (process.env.HERMES_JAMES_VOICE_URL?.trim() || DEFAULT_HERMES_VOICE_URL).replace(/\/$/, "");
@@ -81,7 +79,7 @@ router.post(
           method: "POST",
           body: {},
         });
-      } else if (voiceAction === "transcribe") {
+      } else {
         const dataUrl = safeString(req.body?.data_url, MAX_AUDIO_DATA_URL_CHARS);
         const mimeType = safeString(req.body?.mime_type, 200);
         if (!dataUrl || !mimeType || !dataUrl.startsWith("data:")) {
@@ -96,20 +94,6 @@ router.post(
           body: { data_url: dataUrl, mime_type: mimeType },
           timeoutMs: AUDIO_TIMEOUT_MS,
         });
-      } else {
-        const text = safeString(req.body?.text, MAX_SPEAK_TEXT_CHARS);
-        if (!text) {
-          res.status(400).json({
-            error: "Invalid native voice speech payload",
-            details: "text is required and must be within limits",
-          });
-          return;
-        }
-        upstream = await forwardHermes("/api/audio/speak", {
-          method: "POST",
-          body: { text },
-          timeoutMs: AUDIO_TIMEOUT_MS,
-        });
       }
 
       const raw = await upstream.text();
@@ -120,12 +104,12 @@ router.post(
           res.json(raw ? JSON.parse(raw) : {});
           return;
         } catch {
-          // Fall through and return the upstream text without pretending it is JSON.
+          // Return malformed/non-JSON upstream bodies as plain text.
         }
       }
       res.type(contentType || "text/plain").send(raw);
     } catch (error) {
-      const isAbort = error instanceof DOMException && error.name === "AbortError";
+      const isAbort = error instanceof Error && error.name === "AbortError";
       logger.error(
         { err: error, voiceAction },
         "James Hermes native voice bridge failed",
