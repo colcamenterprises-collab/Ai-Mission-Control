@@ -39,27 +39,19 @@ echo "Voice port:    $VOICE_PORT"
 echo "Proxy path:    $VOICE_PATH"
 
 if ! "$PYTHON" - <<'PY' >/dev/null 2>&1
-import faster_whisper  # noqa: F401
+import faster_whisper
 PY
 then
   echo "Installing faster-whisper into James's existing virtual environment..."
-  if command -v uv >/dev/null 2>&1; then
-    uv pip install --python "$PYTHON" faster-whisper
-  else
-    "$PYTHON" -m pip install faster-whisper
-  fi
+  if command -v uv >/dev/null 2>&1; then uv pip install --python "$PYTHON" faster-whisper; else "$PYTHON" -m pip install faster-whisper; fi
 fi
 
 if ! "$PYTHON" - <<'PY' >/dev/null 2>&1
-import edge_tts  # noqa: F401
+import edge_tts
 PY
 then
   echo "Installing free Edge TTS support into James's existing virtual environment..."
-  if command -v uv >/dev/null 2>&1; then
-    uv pip install --python "$PYTHON" edge-tts
-  else
-    "$PYTHON" -m pip install edge-tts
-  fi
+  if command -v uv >/dev/null 2>&1; then uv pip install --python "$PYTHON" edge-tts; else "$PYTHON" -m pip install edge-tts; fi
 fi
 
 BACKUP="${CONFIG}.before-native-voice.$(date +%Y%m%d%H%M%S)"
@@ -70,7 +62,6 @@ HERMES_CONFIG="$CONFIG" "$PYTHON" - <<'PY'
 import os
 from pathlib import Path
 import yaml
-
 path = Path(os.environ["HERMES_CONFIG"])
 data = yaml.safe_load(path.read_text()) or {}
 stt = data.setdefault("stt", {})
@@ -123,10 +114,6 @@ cat >"$MC_DROPIN" <<EOF
 EnvironmentFile=$VOICE_ENV
 EOF
 
-# Only the two WebSocket endpoints are exposed through nginx. REST status/STT
-# stays behind Mission Control admin auth and is relayed server-to-server by
-# /api/james/message. A browser can reach these sockets only with a short-lived,
-# single-use ticket minted after Mission Control admin authentication.
 cat >"$NGINX_SNIPPET" <<EOF
 location = $VOICE_PATH/api/ws {
     proxy_pass http://127.0.0.1:$VOICE_PORT/api/ws;
@@ -158,9 +145,8 @@ NGINX_SITE="$(grep -RIlE 'server_name[^;]*mission\.customli\.io' /etc/nginx/site
 [[ -n "$NGINX_SITE" ]] || fail "Could not locate the nginx server block for mission.customli.io. No nginx config was modified."
 
 NGINX_SITE="$NGINX_SITE" NGINX_SNIPPET="$NGINX_SNIPPET" "$PYTHON" - <<'PY'
-import os
+import os, re
 from pathlib import Path
-
 site = Path(os.environ["NGINX_SITE"])
 snippet = os.environ["NGINX_SNIPPET"]
 include = f"    include {snippet};"
@@ -171,10 +157,11 @@ needle = "mission.customli.io"
 pos = text.find(needle)
 if pos < 0:
     raise SystemExit("mission.customli.io server_name not found")
-start = text.rfind("server", 0, pos)
-brace = text.find("{", start, pos)
-if start < 0 or brace < 0:
+# Find actual `server {` declarations, never the `server` substring in server_name.
+blocks = list(re.finditer(r"(?m)^\s*server\s*\{", text[:pos]))
+if not blocks:
     raise SystemExit("could not identify nginx server block")
+brace = text.find("{", blocks[-1].start(), blocks[-1].end())
 depth = 0
 end = None
 for i in range(brace, len(text)):
@@ -184,8 +171,8 @@ for i in range(brace, len(text)):
         if depth == 0:
             end = i
             break
-if end is None:
-    raise SystemExit("could not find end of nginx server block")
+if end is None or not (brace < pos < end):
+    raise SystemExit("mission.customli.io was not inside the identified nginx server block")
 site.write_text(text[:end] + include + "\n" + text[end:])
 PY
 
@@ -195,7 +182,6 @@ sleep 3
 systemctl is-active --quiet james-hermes-voice.service || { systemctl status james-hermes-voice.service --no-pager -l; fail "James native voice service failed."; }
 
 curl -fsS -H "X-Hermes-Session-Token: $TOKEN" "http://127.0.0.1:$VOICE_PORT/api/status" >/dev/null || fail "Hermes native voice backend did not pass /api/status."
-
 TICKET_JSON="$(curl -fsS -X POST -H "X-Hermes-Session-Token: $TOKEN" -H 'Content-Type: application/json' -d '{}' "http://127.0.0.1:$VOICE_PORT/api/auth/ws-ticket")" || fail "Installed Hermes does not support authenticated WebSocket ticket minting."
 HERMES_TICKET_JSON="$TICKET_JSON" "$PYTHON" - <<'PY' >/dev/null || fail "Hermes ws-ticket response did not contain a valid single-use ticket."
 import json, os
@@ -205,13 +191,11 @@ assert isinstance(ticket, str) and len(ticket) >= 16
 PY
 
 echo "PASS: Hermes authenticated single-use WebSocket ticket minting is available."
-
 nginx -t
 systemctl reload nginx
 systemctl restart "$MC_SERVICE"
 sleep 3
 systemctl is-active --quiet "$MC_SERVICE" || { systemctl status "$MC_SERVICE" --no-pager -l; fail "Mission Control API failed after attaching the Hermes voice bridge environment."; }
-
 curl -fsS http://127.0.0.1:4100/api/healthz >/dev/null || fail "Mission Control health check failed after native voice setup."
 
 echo "PASS: James native Hermes backend is running on 127.0.0.1:$VOICE_PORT"
