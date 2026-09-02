@@ -16,7 +16,14 @@ async function addMessage(taskId: number, author: string, body: string) {
 
 async function automaticReworkCount(taskId: number): Promise<number> {
   const messages = await db.select().from(taskMessagesTable).where(eq(taskMessagesTable.taskId, taskId)).orderBy(asc(taskMessagesTable.createdAt));
-  const lastRecoveryIndex = messages.findLastIndex(message => message.author === "Mission Control" && message.body.startsWith("QA RECOVERY CYCLE STARTED —"));
+  let lastRecoveryIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.author === "Mission Control" && message.body.startsWith("QA RECOVERY CYCLE STARTED —")) {
+      lastRecoveryIndex = index;
+      break;
+    }
+  }
   return messages.slice(lastRecoveryIndex + 1).filter(message => message.author === "James Hermes" && message.body.startsWith("QA REWORK REQUIRED —")).length;
 }
 
