@@ -3,6 +3,7 @@ import { db, activityTable, agentsTable, taskMessagesTable, tasksTable, workRequ
 import { dispatchRuntime, isRuntimeConfigured } from "./agent-runtime.js";
 import { delegationDecision, supervisionAction } from "./autonomy-policy.js";
 import { ensureTaskWorkRequest, reopenTaskExecution } from "./task-execution-control.js";
+import { transitionWorkRequest } from "./execution-runtime.js";
 
 const SUPERVISED_STATUSES = ["backlog", "ready", "running", "in_progress", "blocked", "changes_required"];
 const DEFAULT_STALE_MINUTES = 20;
@@ -11,6 +12,11 @@ const LEGACY_SUPERVISION_REASONS = [
   /^Automatic supervision reached the \d+-attempt safety limit/i,
   /^James Hermes orchestrator runtime is not currently configured/i,
   /^Automatic supervision could not dispatch James/i,
+];
+const LEGACY_SUPERVISION_MESSAGES = [
+  /^OWNER ATTENTION REQUIRED — Automatic supervision reached the \d+-attempt safety limit/i,
+  /^OWNER ATTENTION REQUIRED — James Hermes orchestrator runtime is not currently configured/i,
+  /^OWNER ATTENTION REQUIRED — Automatic supervision could not dispatch James/i,
 ];
 
 function staleMinutes(): number {
@@ -29,27 +35,45 @@ function needsReview(task: typeof tasksTable.$inferSelect, now: Date): boolean {
   return now.getTime() - anchor.getTime() >= staleMinutes() * 60_000;
 }
 
-function isLegacySupervisorApproval(task: typeof tasksTable.$inferSelect): boolean {
+function canonicalTaskRequest(request: typeof workRequestsTable.$inferSelect | null): boolean {
+  const requirements = request?.requirements;
+  return Boolean(requirements && typeof requirements === "object" && !Array.isArray(requirements) && (requirements as Record<string, unknown>).source === "canonical-task");
+}
+
+async function hasLegacySupervisorEvidence(task: typeof tasksTable.$inferSelect): Promise<boolean> {
+  if (!task.approvalRequired) return false;
   const reason = task.ownerDecisionReason?.trim();
-  return Boolean(task.approvalRequired && reason && LEGACY_SUPERVISION_REASONS.some(pattern => pattern.test(reason)));
+  if (reason && LEGACY_SUPERVISION_REASONS.some(pattern => pattern.test(reason))) return true;
+  const messages = await db.select({ author: taskMessagesTable.author, body: taskMessagesTable.body })
+    .from(taskMessagesTable)
+    .where(eq(taskMessagesTable.taskId, task.id));
+  return messages.some(message => message.author === "Mission Control" && LEGACY_SUPERVISION_MESSAGES.some(pattern => pattern.test(message.body)));
 }
 
 async function repairLegacySupervisorApproval(task: typeof tasksTable.$inferSelect): Promise<typeof tasksTable.$inferSelect> {
-  if (!isLegacySupervisorApproval(task)) return task;
+  if (!task.approvalRequired) return task;
 
   const [latestRequest] = await db.select().from(workRequestsTable)
     .where(eq(workRequestsTable.taskId, task.id))
     .orderBy(desc(workRequestsTable.updatedAt))
     .limit(1);
 
-  if (latestRequest?.state === "awaiting_approval" && latestRequest.approvalDecision === "OWNER_APPROVAL") {
-    await db.update(approvalsTable)
-      .set({ status: "cancelled", decidedBy: "Mission Control", decisionNote: "Removed legacy supervisor-created owner gate during Ground Zero 1.6 reconciliation.", decidedAt: new Date() })
-      .where(eq(approvalsTable.requestId, latestRequest.id));
-    await db.update(workRequestsTable)
-      .set({ state: "cancelled", finishedAt: new Date(), updatedAt: new Date(), error: "Legacy supervisor-created owner gate reconciled" })
-      .where(eq(workRequestsTable.id, latestRequest.id));
-  }
+  const repairableRequest = Boolean(
+    latestRequest
+    && latestRequest.state === "awaiting_approval"
+    && latestRequest.approvalDecision === "OWNER_APPROVAL"
+    && canonicalTaskRequest(latestRequest),
+  );
+  if (!repairableRequest || !(await hasLegacySupervisorEvidence(task))) return task;
+
+  await db.update(approvalsTable)
+    .set({ status: "cancelled", decidedBy: "Mission Control", decisionNote: "Removed legacy supervisor-created owner gate during Ground Zero 1.6 reconciliation.", decidedAt: new Date() })
+    .where(eq(approvalsTable.requestId, latestRequest!.id));
+  await transitionWorkRequest(latestRequest!, "cancelled", {
+    type: "system",
+    id: "Ground Zero 1.6",
+    reason: "Legacy supervisor-created owner gate reconciled from canonical Task history",
+  });
 
   await db.update(tasksTable).set({
     approvalRequired: false,
@@ -57,6 +81,7 @@ async function repairLegacySupervisorApproval(task: typeof tasksTable.$inferSele
     nextActionOwner: null,
     updatedAt: new Date(),
   }).where(eq(tasksTable.id, task.id));
+  await addMessage(task.id, "Mission Control", "GROUND ZERO RECONCILIATION — Removed a legacy automatic-supervision owner gate. Explicit owner approvals and protected-action gates are unchanged.");
 
   return { ...task, approvalRequired: false, ownerDecisionReason: null, nextActionOwner: null };
 }
