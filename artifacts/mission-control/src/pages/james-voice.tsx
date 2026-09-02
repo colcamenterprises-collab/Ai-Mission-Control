@@ -5,7 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { JamesAvatar } from "@/components/james-avatar";
 
 type Message = { role: "user" | "james"; content: string; at: string };
-type SpeechRecognitionEventLike = { results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }> };
+type SpeechRecognitionResultLike = { 0: { transcript: string }; isFinal: boolean };
+type SpeechRecognitionEventLike = { resultIndex: number; results: ArrayLike<SpeechRecognitionResultLike> };
 type SpeechRecognitionLike = { continuous: boolean; interimResults: boolean; lang: string; start(): void; stop(): void; onresult: ((e: SpeechRecognitionEventLike) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
 type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 
@@ -27,6 +28,8 @@ export default function JamesVoice() {
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [voiceSupported] = useState(() => Boolean(window.SpeechRecognition || window.webkitSpeechRecognition));
   const recognition = useRef<SpeechRecognitionLike | null>(null);
+  const speechBaseDraft = useRef("");
+  const speechFinalTranscript = useRef("");
   const bottom = useRef<HTMLDivElement>(null);
 
   useEffect(() => { localStorage.setItem(HISTORY_KEY, JSON.stringify(messages.slice(-30))); bottom.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -36,13 +39,36 @@ export default function JamesVoice() {
     if (listening) { recognition.current?.stop(); setListening(false); return; }
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Ctor) return;
-    const r = new Ctor(); recognition.current = r; r.continuous = true; r.interimResults = true; r.lang = navigator.language || "en-AU";
-    r.onresult = (event) => { let finalText = ""; let interim = ""; for (let i = 0; i < event.results.length; i++) { const result = event.results[i]; if (result.isFinal) finalText += result[0].transcript; else interim += result[0].transcript; } setDraft((previous) => finalText ? `${previous} ${finalText}`.trim() : interim); };
-    r.onend = () => setListening(false); r.onerror = () => setListening(false); r.start(); setListening(true);
+    const r = new Ctor();
+    recognition.current = r;
+    speechBaseDraft.current = draft.trim();
+    speechFinalTranscript.current = "";
+    r.continuous = true;
+    r.interimResults = true;
+    r.lang = navigator.language || "en-AU";
+    r.onresult = (event) => {
+      let interimTranscript = "";
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const result = event.results[i];
+        const transcript = result?.[0]?.transcript?.trim() ?? "";
+        if (!transcript) continue;
+        if (result.isFinal) {
+          speechFinalTranscript.current = `${speechFinalTranscript.current} ${transcript}`.trim();
+        } else {
+          interimTranscript = `${interimTranscript} ${transcript}`.trim();
+        }
+      }
+      setDraft([speechBaseDraft.current, speechFinalTranscript.current, interimTranscript].filter(Boolean).join(" "));
+    };
+    r.onend = () => { recognition.current = null; setListening(false); };
+    r.onerror = () => { recognition.current = null; setListening(false); };
+    r.start();
+    setListening(true);
   }
 
   async function send() {
     const message = draft.trim(); if (!message || busy) return;
+    if (listening) { recognition.current?.stop(); setListening(false); }
     const userMessage: Message = { role: "user", content: message, at: new Date().toISOString() };
     const next = [...messages, userMessage].slice(-12); setMessages((m) => [...m, userMessage]); setDraft(""); setBusy(true);
     const transcript = next.map((m) => `${m.role === "user" ? "Cameron" : "James"}: ${m.content}`).join("\n");
