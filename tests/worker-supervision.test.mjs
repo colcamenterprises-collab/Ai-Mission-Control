@@ -63,9 +63,32 @@ test("legacy supervisor escalation cannot become a permanent owner approval gate
   assert.match(taskSupervisor, /message\.author === "Mission Control"/);
   assert.match(taskSupervisor, /canonicalTaskRequest/);
   assert.match(taskSupervisor, /\.source === "canonical-task"/);
-  assert.match(taskSupervisor, /transitionWorkRequest\(latestRequest!, "cancelled"/);
+  assert.match(taskSupervisor, /originalAutomaticRequest/);
+  assert.match(taskSupervisor, /request\.riskLevel <= 1/);
+  assert.match(taskSupervisor, /request\.approvalDecision === "AUTO_EXECUTE"/);
+  assert.match(taskSupervisor, /transitionWorkRequest\(request, "cancelled"/);
+  assert.match(taskSupervisor, /supervisionAttempts: 0/);
   assert.match(taskSupervisor, /legacyApprovalGatesRepaired/);
   assert.doesNotMatch(taskSupervisor, /approvalRequired:\s*true/);
+});
+
+test("owner escalation is idempotent instead of writing the same task note every cycle", () => {
+  assert.match(taskSupervisor, /alreadyEscalated = task\.nextActionOwner === "Cameron" && task\.ownerDecisionReason === reason/);
+  assert.match(taskSupervisor, /if \(!alreadyEscalated\) await addMessage/);
+});
+
+test("provider key exhaustion is a capacity blocker rather than task approval", () => {
+  assert.match(taskSupervisor, /PROVIDER_CAPACITY_PATTERNS/);
+  assert.match(taskSupervisor, /HTTP\\s\+403:\\s\*Key limit exceeded/);
+  assert.match(taskSupervisor, /hasProviderCapacityBlocker/);
+  assert.match(taskSupervisor, /provider credential\/capacity issue, not approval for the underlying task/);
+  assert.match(taskSupervisor, /The task itself remains low-risk and does not require owner approval/);
+});
+
+test("supervision safety limit stays inside James authority", () => {
+  assert.match(taskSupervisor, /James must change the delegated recovery plan, worker, evidence source or access path/);
+  assert.match(taskSupervisor, /nextActionOwner: "James Hermes"/);
+  assert.match(taskSupervisor, /This remains inside orchestrator authority/);
 });
 
 test("Task execution lifecycle reaches running, blocked and James-verified completed states", () => {
