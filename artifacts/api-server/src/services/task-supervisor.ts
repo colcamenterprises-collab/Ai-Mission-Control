@@ -18,6 +18,10 @@ const LEGACY_SUPERVISION_MESSAGES = [
   /^OWNER ATTENTION REQUIRED — James Hermes orchestrator runtime is not currently configured/i,
   /^OWNER ATTENTION REQUIRED — Automatic supervision could not dispatch James/i,
 ];
+const PROVIDER_CAPACITY_PATTERNS = [
+  /HTTP\s+403:\s*Key limit exceeded/i,
+  /key limit exceeded \(total limit\)/i,
+];
 
 function staleMinutes(): number {
   const value = Number(process.env.MISSION_CONTROL_SUPERVISION_STALE_MINUTES ?? DEFAULT_STALE_MINUTES);
@@ -50,40 +54,52 @@ async function hasLegacySupervisorEvidence(task: typeof tasksTable.$inferSelect)
   return messages.some(message => message.author === "Mission Control" && LEGACY_SUPERVISION_MESSAGES.some(pattern => pattern.test(message.body)));
 }
 
+async function hasProviderCapacityBlocker(taskId: number): Promise<boolean> {
+  const messages = await db.select({ body: taskMessagesTable.body })
+    .from(taskMessagesTable)
+    .where(eq(taskMessagesTable.taskId, taskId))
+    .orderBy(desc(taskMessagesTable.createdAt))
+    .limit(12);
+  return messages.some(message => PROVIDER_CAPACITY_PATTERNS.some(pattern => pattern.test(message.body)));
+}
+
 async function repairLegacySupervisorApproval(task: typeof tasksTable.$inferSelect): Promise<typeof tasksTable.$inferSelect> {
   if (!task.approvalRequired) return task;
 
-  const [latestRequest] = await db.select().from(workRequestsTable)
+  const requests = await db.select().from(workRequestsTable)
     .where(eq(workRequestsTable.taskId, task.id))
-    .orderBy(desc(workRequestsTable.updatedAt))
-    .limit(1);
+    .orderBy(desc(workRequestsTable.updatedAt));
 
-  const repairableRequest = Boolean(
-    latestRequest
-    && latestRequest.state === "awaiting_approval"
-    && latestRequest.approvalDecision === "OWNER_APPROVAL"
-    && canonicalTaskRequest(latestRequest),
+  const originalAutomaticRequest = requests.find(request =>
+    canonicalTaskRequest(request)
+    && request.riskLevel <= 1
+    && request.approvalDecision === "AUTO_EXECUTE",
   );
-  if (!repairableRequest || !(await hasLegacySupervisorEvidence(task))) return task;
 
-  await db.update(approvalsTable)
-    .set({ status: "cancelled", decidedBy: "Mission Control", decisionNote: "Removed legacy supervisor-created owner gate during Ground Zero 1.6 reconciliation.", decidedAt: new Date() })
-    .where(eq(approvalsTable.requestId, latestRequest!.id));
-  await transitionWorkRequest(latestRequest!, "cancelled", {
-    type: "system",
-    id: "Ground Zero 1.6",
-    reason: "Legacy supervisor-created owner gate reconciled from canonical Task history",
-  });
+  if (!originalAutomaticRequest || !(await hasLegacySupervisorEvidence(task))) return task;
+
+  for (const request of requests) {
+    if (!canonicalTaskRequest(request) || request.state !== "awaiting_approval" || request.approvalDecision !== "OWNER_APPROVAL") continue;
+    await db.update(approvalsTable)
+      .set({ status: "cancelled", decidedBy: "Mission Control", decisionNote: "Removed legacy supervisor-created owner gate during Ground Zero 1.6 reconciliation.", decidedAt: new Date() })
+      .where(eq(approvalsTable.requestId, request.id));
+    await transitionWorkRequest(request, "cancelled", {
+      type: "system",
+      id: "Ground Zero 1.6",
+      reason: "Legacy supervisor-created owner gate reconciled from canonical Task history",
+    });
+  }
 
   await db.update(tasksTable).set({
     approvalRequired: false,
     ownerDecisionReason: null,
     nextActionOwner: null,
+    supervisionAttempts: 0,
     updatedAt: new Date(),
   }).where(eq(tasksTable.id, task.id));
-  await addMessage(task.id, "Mission Control", "GROUND ZERO RECONCILIATION — Removed a legacy automatic-supervision owner gate. Explicit owner approvals and protected-action gates are unchanged.");
+  await addMessage(task.id, "Mission Control", "GROUND ZERO RECONCILIATION — Removed a legacy automatic-supervision owner gate. The original canonical execution was low-risk AUTO_EXECUTE; explicit owner approvals and protected-action gates are unchanged.");
 
-  return { ...task, approvalRequired: false, ownerDecisionReason: null, nextActionOwner: null };
+  return { ...task, approvalRequired: false, ownerDecisionReason: null, nextActionOwner: null, supervisionAttempts: 0 };
 }
 
 async function addMessage(taskId: number, author: string, body: string): Promise<void> {
@@ -146,6 +162,7 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
 
     if (decision.authority === "OWNER") {
       const reason = decision.reason;
+      const alreadyEscalated = task.nextActionOwner === "Cameron" && task.ownerDecisionReason === reason;
       await db.update(tasksTable).set({
         nextAction: action,
         nextActionOwner: "Cameron",
@@ -153,8 +170,24 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
         blocker: task.status === "blocked" ? (task.blocker ?? reason) : task.blocker,
         lastOrchestratorReviewAt: now,
       }).where(eq(tasksTable.id, task.id));
-      await addMessage(task.id, "Mission Control", `OWNER DECISION REQUIRED — ${reason}\nNext action: ${action}`);
+      if (!alreadyEscalated) await addMessage(task.id, "Mission Control", `OWNER DECISION REQUIRED — ${reason}\nNext action: ${action}`);
       summary.ownerEscalations += 1;
+      continue;
+    }
+
+    if (await hasProviderCapacityBlocker(task.id)) {
+      const reason = "OpenRouter execution is blocked because the configured key has exceeded its total limit. This is a provider credential/capacity issue, not approval for the underlying task.";
+      const alreadyEscalated = task.nextActionOwner === "Cameron" && task.ownerDecisionReason === reason;
+      await db.update(tasksTable).set({
+        status: "blocked",
+        nextAction: "Increase or replace the OpenRouter key limit, or configure another usable model provider. The task itself remains low-risk and does not require owner approval.",
+        nextActionOwner: "Cameron",
+        ownerDecisionReason: reason,
+        blocker: reason,
+        lastOrchestratorReviewAt: now,
+      }).where(eq(tasksTable.id, task.id));
+      if (!alreadyEscalated) await addMessage(task.id, "Mission Control", `OWNER ACTION REQUIRED — ${reason}`);
+      summary.runtimeFailures += 1;
       continue;
     }
 
@@ -162,19 +195,21 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
       const reason = `Automatic supervision reached the ${maxAttempts()}-attempt safety limit without restoring forward progress.`;
       await db.update(tasksTable).set({
         status: "blocked",
-        nextAction: "Review the repeated execution failure and decide whether to change the plan, worker or system access.",
-        nextActionOwner: "Cameron",
-        ownerDecisionReason: reason,
+        nextAction: "James must change the delegated recovery plan, worker, evidence source or access path before another execution cycle.",
+        nextActionOwner: "James Hermes",
+        ownerDecisionReason: null,
         blocker: reason,
         lastOrchestratorReviewAt: now,
+        supervisionAttempts: 0,
       }).where(eq(tasksTable.id, task.id));
-      await addMessage(task.id, "Mission Control", `OWNER ATTENTION REQUIRED — ${reason}`);
-      summary.ownerEscalations += 1;
+      await addMessage(task.id, "Mission Control", `QA RECOVERY CYCLE STARTED — ${reason} This remains inside orchestrator authority; James must change the recovery plan before retrying.`);
+      summary.skipped += 1;
       continue;
     }
 
     if (!james || !isRuntimeConfigured(james)) {
       const reason = "James Hermes orchestrator runtime is not currently configured or reachable for automatic supervision.";
+      const alreadyEscalated = task.nextActionOwner === "Cameron" && task.ownerDecisionReason === reason;
       await db.update(tasksTable).set({
         status: "blocked",
         nextAction: "Restore James Hermes runtime availability, then resume automatic orchestration.",
@@ -183,7 +218,7 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
         blocker: reason,
         lastOrchestratorReviewAt: now,
       }).where(eq(tasksTable.id, task.id));
-      await addMessage(task.id, "Mission Control", `OWNER ATTENTION REQUIRED — ${reason}`);
+      if (!alreadyEscalated) await addMessage(task.id, "Mission Control", `OWNER ACTION REQUIRED — ${reason}`);
       summary.runtimeFailures += 1;
       continue;
     }
@@ -223,6 +258,7 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
     const dispatch = await dispatchRuntime(james, { mode: "work", instructions, taskId: task.id, context: JSON.stringify({ source: "continuous-task-supervisor", attempt, previousStatus: task.status }) });
     if (!dispatch.ok) {
       const reason = `Automatic supervision could not dispatch James: ${dispatch.error ?? "runtime dispatch failed"}`;
+      const alreadyEscalated = task.nextActionOwner === "Cameron" && task.ownerDecisionReason === reason;
       await db.update(tasksTable).set({
         status: "blocked",
         blocker: reason,
@@ -230,7 +266,7 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
         nextActionOwner: "Cameron",
         ownerDecisionReason: reason,
       }).where(eq(tasksTable.id, task.id));
-      await addMessage(task.id, "Mission Control", `OWNER ATTENTION REQUIRED — ${reason}`);
+      if (!alreadyEscalated) await addMessage(task.id, "Mission Control", `OWNER ACTION REQUIRED — ${reason}`);
       summary.runtimeFailures += 1;
       continue;
     }
