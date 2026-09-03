@@ -85,6 +85,16 @@ test("provider key exhaustion is a capacity blocker rather than task approval", 
   assert.match(taskSupervisor, /The task itself remains low-risk and does not require owner approval/);
 });
 
+test("James detached callback classifies provider capacity immediately", () => {
+  assert.match(jamesDetached, /PROVIDER_CAPACITY_PATTERNS/);
+  assert.match(jamesDetached, /isProviderCapacityFailure\(output, error\)/);
+  assert.match(jamesDetached, /providerCapacityFailure \? "BLOCKED" : normalizedResult/);
+  assert.match(jamesDetached, /nextActionOwner: "Cameron"/);
+  assert.match(jamesDetached, /ownerApprovalRequired: false/);
+  assert.match(jamesDetached, /blockerType: providerCapacityFailure \? "provider_capacity" : null/);
+  assert.match(jamesDetached, /No Approve\/Reject decision is required/);
+});
+
 test("supervision safety limit stays inside James authority", () => {
   assert.match(taskSupervisor, /James must change the delegated recovery plan, worker, evidence source or access path/);
   assert.match(taskSupervisor, /nextActionOwner: "James Hermes"/);
