@@ -12,6 +12,12 @@ const router: IRouter = Router();
 const STATE_DIR = "/var/lib/ai-mission-control/james-jobs";
 const RUNNER = "/opt/apps/ai-mission-control/scripts/run-james-task-job.sh";
 const INBOX_RUNNER = "/opt/apps/ai-mission-control/scripts/run-james-inbox-review.sh";
+const PROVIDER_CAPACITY_PATTERNS = [
+  /HTTP\s+403:\s*Key limit exceeded/i,
+  /key limit exceeded \(total limit\)/i,
+];
+const PROVIDER_CAPACITY_REASON = "OpenRouter execution is blocked because the configured key has exceeded its total limit. This is a provider credential/capacity issue, not approval for the underlying task.";
+const PROVIDER_CAPACITY_ACTION = "Increase or replace the OpenRouter key limit, or configure another usable model provider. The task itself remains low-risk and does not require owner approval.";
 
 type WorkerResult = "COMPLETED" | "IN_PROGRESS" | "CHANGES_REQUIRED" | "BLOCKED" | "FAILED" | "NEEDS_CLARIFICATION";
 
@@ -50,6 +56,10 @@ function missionControlNote(result: WorkerResult): string {
     default:
       return "IN PROGRESS — James reported incomplete work. The task remains active and must not be presented for final owner acceptance.";
   }
+}
+
+function isProviderCapacityFailure(...values: string[]): boolean {
+  return values.some(value => PROVIDER_CAPACITY_PATTERNS.some(pattern => pattern.test(value)));
 }
 
 router.post("/james/task-job", async (req, res): Promise<void> => {
@@ -143,7 +153,7 @@ router.post("/james/report", async (req, res): Promise<void> => {
   const taskId = Number(req.body?.taskId);
   const commandId = req.body?.commandId == null ? null : Number(req.body.commandId);
   const exitCode = Number.isFinite(Number(req.body?.exitCode)) ? Number(req.body.exitCode) : 1;
-  const result = normalizeResult(req.body?.resultState, exitCode);
+  const normalizedResult = normalizeResult(req.body?.resultState, exitCode);
   const output = typeof req.body?.output === "string" ? req.body.output.trim() : "";
   const error = typeof req.body?.error === "string" ? req.body.error.trim() : "";
   const jobId = typeof req.body?.jobId === "string" ? req.body.jobId : "unknown";
@@ -154,14 +164,28 @@ router.post("/james/report", async (req, res): Promise<void> => {
     return;
   }
 
-  const body = output || (result === "FAILED"
-    ? `FAILED — James detached job ${jobId} exited with code ${exitCode}.${error ? ` ${error}` : ""}`
-    : `${result} — James detached job ${jobId} returned without narrative output.`);
+  const providerCapacityFailure = isProviderCapacityFailure(output, error);
+  const result: WorkerResult = providerCapacityFailure ? "BLOCKED" : normalizedResult;
+  const body = providerCapacityFailure
+    ? `PROVIDER CAPACITY BLOCKER — ${PROVIDER_CAPACITY_REASON}`
+    : output || (result === "FAILED"
+      ? `FAILED — James detached job ${jobId} exited with code ${exitCode}.${error ? ` ${error}` : ""}`
+      : `${result} — James detached job ${jobId} returned without narrative output.`);
 
   await db.insert(taskMessagesTable).values({ taskId, author: "James Hermes", body });
 
   await db.update(tasksTable)
-    .set({
+    .set(providerCapacityFailure ? {
+      status: "blocked",
+      approvalRequired: false,
+      ownerReviewRequired: false,
+      nextAction: PROVIDER_CAPACITY_ACTION,
+      nextActionOwner: "Cameron",
+      ownerDecisionReason: PROVIDER_CAPACITY_REASON,
+      blocker: PROVIDER_CAPACITY_REASON,
+      lastOrchestratorReviewAt: new Date(),
+      unreadMessages: 1,
+    } : {
       status: dbStateFor(result),
       approvalRequired: false,
       unreadMessages: 1,
@@ -170,13 +194,13 @@ router.post("/james/report", async (req, res): Promise<void> => {
 
   if (commandId && Number.isInteger(commandId)) {
     await db.update(agentCommandsTable)
-      .set({ acknowledgedAt: new Date(), deliveredViaHttp: exitCode === 0 })
+      .set({ acknowledgedAt: new Date(), deliveredViaHttp: exitCode === 0 && !providerCapacityFailure })
       .where(eq(agentCommandsTable.id, commandId));
   }
 
   await db.insert(activityTable).values({
     agentName: "James Hermes",
-    action: `Detached worker result: ${result}`,
+    action: providerCapacityFailure ? "Provider capacity blocker" : `Detached worker result: ${result}`,
     detail: `Task #${taskId}; job ${jobId}; exit ${exitCode}${worktree ? `; workspace ${worktree}` : ""}`,
     status: result === "FAILED" || result === "BLOCKED" ? "error" : result === "COMPLETED" ? "pending" : "active",
   });
@@ -184,7 +208,9 @@ router.post("/james/report", async (req, res): Promise<void> => {
   await db.insert(taskMessagesTable).values({
     taskId,
     author: "Mission Control",
-    body: missionControlNote(result),
+    body: providerCapacityFailure
+      ? `OWNER ACTION REQUIRED — ${PROVIDER_CAPACITY_REASON}\nNext action: ${PROVIDER_CAPACITY_ACTION}\nNo Approve/Reject decision is required for Task #${taskId}.`
+      : missionControlNote(result),
   });
 
   if (result === "COMPLETED") {
@@ -197,6 +223,7 @@ router.post("/james/report", async (req, res): Promise<void> => {
     result,
     status: dbStateFor(result),
     ownerApprovalRequired: false,
+    blockerType: providerCapacityFailure ? "provider_capacity" : null,
   });
 });
 
