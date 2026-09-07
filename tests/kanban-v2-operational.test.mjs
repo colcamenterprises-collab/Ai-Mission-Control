@@ -53,3 +53,11 @@ test("task lifecycle controls stay inside the task detail workflow", () => {
   assert.match(page, /Approval Required/);
   assert.match(page, /Owner Review Required/);
 });
+
+test("task detail supports permanent delete without archiving", () => {
+  assert.match(page, /function deleteTask\(\)/);
+  assert.match(page, /method: "DELETE"/);
+  assert.match(page, /Permanently delete/);
+  assert.match(page, /will not archive the task and cannot be undone/);
+  assert.match(page, /Delete Task/);
+});
