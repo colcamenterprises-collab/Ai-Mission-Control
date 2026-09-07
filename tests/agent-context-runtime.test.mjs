@@ -32,11 +32,14 @@ test("all four employee directions are mapped into canonical runtime context", (
   assert.match(directions.analyst, /Everything else is noise/i);
 });
 
-test("runtime dispatch injects canonical context and OpenClaw workspaces receive CONTEXT.md", () => {
-  assert.match(runtimeSource, /buildCanonicalAgentContext/);
-  assert.match(runtimeSource, /syncCanonicalContextToWorkspace/);
+test("runtime dispatch injects canonical context once and OpenClaw receives prompt plus workspace context", () => {
+  assert.match(runtimeSource, /const canonicalContext = await buildCanonicalAgentContext\(agent\.id\)/);
   assert.match(runtimeSource, /const runtimeInput = canonicalContext/);
-  assert.match(runtimeSource, /message: buildPrompt\(\{ \.\.\.input, context: mergedContext \}\)/);
+  assert.match(runtimeSource, /return await dispatchOpenClaw\(agent, runtimeInput, policy\)/);
+  assert.match(runtimeSource, /message: buildPrompt\(input\)/);
+  assert.doesNotMatch(runtimeSource, /const canonicalContext = await buildCanonicalAgentContext\(agent\.id\).*const mergedContext/s);
+  assert.match(runtimeSource, /syncCanonicalContextToWorkspace\(agent\.id\)/);
   assert.match(contextSource, /fs\.writeFile\(path\.join\(resolved, "CONTEXT\.md"\)/);
   assert.match(contextSource, /Live Employment Pack/);
+  assert.match(runtimeSource, /export function isRuntimeConfigured/);
 });
