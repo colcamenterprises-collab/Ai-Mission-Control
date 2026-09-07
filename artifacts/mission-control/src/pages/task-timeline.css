@@ -1,10 +1,14 @@
 .mc-task-timeline-modal {
   width: min(68rem, 100%);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
 }
 
 .mc-task-timeline-layout {
   grid-template-columns: minmax(13rem, 0.62fr) minmax(25rem, 1.7fr);
   align-items: stretch;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .mc-task-summary-pane {
@@ -12,7 +16,8 @@
 }
 
 .mc-task-timeline {
-  min-height: 28rem;
+  min-height: 0;
+  height: 100%;
   background: #201f25;
   border: 1px solid #312f37;
 }
@@ -201,6 +206,16 @@
   margin-top: 0.55rem;
 }
 
+.mc-task-timeline-modal > .mc-task-modal-footer {
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid #302e36;
+}
+
+.mc-task-timeline-modal > .mc-task-modal-footer .mc-task-secondary-button {
+  color: #e3a3a3;
+}
+
 @media (max-width: 900px) {
   .mc-task-timeline-modal {
     width: calc(100vw - 1rem);
@@ -214,6 +229,7 @@
 @media (max-width: 680px) {
   .mc-task-timeline-layout {
     grid-template-columns: 1fr;
+    overflow-y: auto;
   }
 
   .mc-task-timeline {

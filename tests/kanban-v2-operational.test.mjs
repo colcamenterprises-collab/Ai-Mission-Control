@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const page = await readFile(new URL("../artifacts/mission-control/src/pages/tasks-v2.tsx", import.meta.url), "utf8");
 const css = await readFile(new URL("../artifacts/mission-control/src/pages/tasks-v2.css", import.meta.url), "utf8");
+const timelineCss = await readFile(new URL("../artifacts/mission-control/src/pages/task-timeline.css", import.meta.url), "utf8");
 const app = await readFile(new URL("../artifacts/mission-control/src/App.tsx", import.meta.url), "utf8");
 
 test("production tasks route uses Kanban V2", () => {
@@ -60,4 +61,9 @@ test("task detail supports permanent delete without archiving", () => {
   assert.match(page, /Permanently delete/);
   assert.match(page, /will not archive the task and cannot be undone/);
   assert.match(page, /Delete Task/);
+});
+
+test("permanent delete remains visible outside the independently scrolling task panes", () => {
+  assert.match(timelineCss, /\.mc-task-timeline-modal\s*\{[\s\S]*grid-template-rows: auto minmax\(0, 1fr\) auto;[\s\S]*overflow: hidden;/);
+  assert.match(timelineCss, /\.mc-task-timeline-modal > \.mc-task-modal-footer/);
 });
