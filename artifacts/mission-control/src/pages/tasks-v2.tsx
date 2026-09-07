@@ -15,7 +15,7 @@ import {
 } from "@dnd-kit/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { getListTasksQueryKey, type Task } from "@workspace/api-client-react";
-import { AlertTriangle, Check, Clock3, MessageCircle, Paperclip, Plus, Send, X } from "lucide-react";
+import { AlertTriangle, Check, Clock3, MessageCircle, Paperclip, Plus, Send, Trash2, X } from "lucide-react";
 import { AgentAvatar, agentTone } from "@/components/agent-avatar";
 import { JamesAvatar } from "@/components/james-avatar";
 import "./tasks.css";
@@ -301,6 +301,21 @@ function TaskDetailModal({ task, onClose, onChanged }: { task: TaskMeta; onClose
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to accept work"); }
     finally { setBusy(false); }
   }
+  async function deleteTask() {
+    const confirmed = window.confirm(`Permanently delete "${value.title}"? This will not archive the task and cannot be undone.`);
+    if (!confirmed) return;
+    setBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, { method: "DELETE", headers: authHeaders() });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(result.error || "Unable to delete task");
+      }
+      await onChanged();
+      onClose();
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to delete task"); }
+    finally { setBusy(false); }
+  }
   async function send() {
     if (!message.trim()) return;
     setBusy(true); setError("");
@@ -325,5 +340,6 @@ function TaskDetailModal({ task, onClose, onChanged }: { task: TaskMeta; onClose
       </div><div className="mc-task-conversation-compose"><textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={2} placeholder="Add a note inside this task" /><button onClick={() => void send()} disabled={busy || !message.trim()}><Send /></button></div></aside>
     </div>
     {error && <p className="mc-task-form-error mc-task-action-error">{error}</p>}
+    <footer className="mc-task-modal-footer"><button className="mc-task-secondary-button" onClick={() => void deleteTask()} disabled={busy} title="Permanently delete this task without archiving"><Trash2 />Delete Task</button></footer>
   </Modal>;
 }
