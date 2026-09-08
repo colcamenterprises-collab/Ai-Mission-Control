@@ -4,7 +4,7 @@ import { agentsTable, db, tasksTable } from "@workspace/db";
 import { createRateLimit } from "../lib/rate-limit.js";
 import { auditLog } from "../lib/audit.js";
 import { buildCanonicalAgentContext, syncCanonicalContextToWorkspace } from "../services/agent-context.js";
-import { isRuntimeConfigured } from "../services/agent-runtime.js";
+import { dispatchRuntime, isRuntimeConfigured } from "../services/agent-runtime.js";
 import { certifyEmploymentPack, employmentPackMarkdown, type EmploymentPack } from "../services/agent-employment-pack.js";
 import { buildAmandaEmploymentPack, certifyAmandaFinancialController } from "../services/amanda-financial-controller.js";
 import { buildJustinEmploymentPack, certifyJustinOperationsManager } from "../services/justin-operations-manager.js";
@@ -76,12 +76,18 @@ async function contextProbe(agent: AgentRow | null) {
   };
 }
 
-async function statusSnapshot() {
+async function targetAgents() {
   const agents = await db.select().from(agentsTable).orderBy(agentsTable.id);
-  const james = agents.find(agent => matches(agent, ["james", "orchestrator"])) ?? null;
-  const amanda = agents.find(agent => matches(agent, ["amanda", "financial controller"])) ?? null;
-  const justin = agents.find(agent => matches(agent, ["justin", "operations manager"])) ?? null;
-  const analyst = agents.find(agent => matches(agent, ["ai intelligence analyst", "intelligence analyst"])) ?? null;
+  return {
+    james: agents.find(agent => matches(agent, ["james", "orchestrator"])) ?? null,
+    amanda: agents.find(agent => matches(agent, ["amanda", "financial controller"])) ?? null,
+    justin: agents.find(agent => matches(agent, ["justin", "operations manager"])) ?? null,
+    analyst: agents.find(agent => matches(agent, ["ai intelligence analyst", "intelligence analyst"])) ?? null,
+  };
+}
+
+async function statusSnapshot() {
+  const { james, amanda, justin, analyst } = await targetAgents();
   const [dailyTask] = await db.select().from(tasksTable).where(and(eq(tasksTable.title, DAILY_INTELLIGENCE_TASK.title), eq(tasksTable.assignee, DAILY_INTELLIGENCE_TASK.assignee)));
 
   const amandaSystems = amanda ? await liveSystemNames(amanda.id) : [];
@@ -135,11 +141,7 @@ router.get("/ground-zero/certification", async (_req, res): Promise<void> => {
 });
 
 router.post("/ground-zero/prepare", createRateLimit("admin-write", 5, 60_000), async (_req, res): Promise<void> => {
-  const agents = await db.select().from(agentsTable).orderBy(agentsTable.id);
-  const james = agents.find(agent => matches(agent, ["james", "orchestrator"])) ?? null;
-  const amanda = agents.find(agent => matches(agent, ["amanda", "financial controller"])) ?? null;
-  const justin = agents.find(agent => matches(agent, ["justin", "operations manager"])) ?? null;
-  const analyst = agents.find(agent => matches(agent, ["ai intelligence analyst", "intelligence analyst"])) ?? null;
+  const { james, amanda, justin, analyst } = await targetAgents();
   const actions: Array<Record<string, unknown>> = [];
 
   if (amanda) actions.push({ employee: "Amanda", employment: await applyEmploymentPack(amanda.id, buildAmandaEmploymentPack()) });
@@ -158,14 +160,31 @@ router.post("/ground-zero/prepare", createRateLimit("admin-write", 5, 60_000), a
   res.json({ actions, status: await statusSnapshot() });
 });
 
+router.post("/ground-zero/live-probe", createRateLimit("admin-write", 5, 60_000), async (_req, res): Promise<void> => {
+  const targets = await targetAgents();
+  const probes: Array<{ key: keyof typeof targets; agent: AgentRow | null; prompt: string; expected: RegExp }> = [
+    { key: "james", agent: targets.james, prompt: "State the company guiding rule and whether you may make ordinary reversible business/process decisions without asking Cameron. Keep the answer to two short sentences.", expected: /scale fast|reversible/i },
+    { key: "amanda", agent: targets.amanda, prompt: "State your SBB role boundary with Justin and when you should ask Cameron a factual question. Keep the answer to two short sentences.", expected: /sales|expenses|finance/i },
+    { key: "justin", agent: targets.justin, prompt: "State your SBB operational ownership and your boundary with Amanda. Keep the answer to two short sentences.", expected: /stock|supplier|cost/i },
+    { key: "analyst", agent: targets.analyst, prompt: "State what qualifies for the AI Intelligence Brief and what happens to irrelevant AI news. Keep the answer to two short sentences.", expected: /noise|scale|streamline|secure|simpl/i },
+  ];
+
+  const results = [];
+  for (const probe of probes) {
+    if (!probe.agent) { results.push({ employee: probe.key, passed: false, blocker: "Employee record missing." }); continue; }
+    if (!isRuntimeConfigured(probe.agent)) { results.push({ employee: probe.agent.name, passed: false, blocker: "Runtime/provider not configured." }); continue; }
+    const result = await dispatchRuntime(probe.agent, { instructions: probe.prompt, mode: "test" });
+    const text = result.output ?? "";
+    results.push({ employee: probe.agent.name, passed: result.ok && probe.expected.test(text), runtimeOk: result.ok, provider: result.provider, model: result.model ?? null, output: text.slice(0, 1200), error: result.error });
+  }
+  await auditLog({ action: "ground_zero_live_context_probe", entityType: "system", entityId: "ground-zero", actorType: "admin", actorName: "Mission Control", metadata: results.map(item => `${item.employee}:${item.passed}`).join(",") });
+  res.json({ passed: results.every(result => result.passed === true), results, status: await statusSnapshot() });
+});
+
 router.post("/ground-zero/certification-evidence/:employee", createRateLimit("admin-write", 10, 60_000), async (req, res): Promise<void> => {
   const employee = String(req.params.employee || "").toLowerCase();
-  const agents = await db.select().from(agentsTable).orderBy(agentsTable.id);
-  const target = employee === "amanda"
-    ? agents.find(agent => matches(agent, ["amanda", "financial controller"]))
-    : employee === "justin"
-      ? agents.find(agent => matches(agent, ["justin", "operations manager"]))
-      : null;
+  const { amanda, justin } = await targetAgents();
+  const target = employee === "amanda" ? amanda : employee === "justin" ? justin : null;
   if (!target) { res.status(404).json({ error: "Employee not found or certification evidence is not supported for this employee." }); return; }
   const evidenceKey = employee === "amanda" ? "amandaCertification" : "justinCertification";
   const allowed = employee === "amanda"
