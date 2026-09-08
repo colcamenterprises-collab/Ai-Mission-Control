@@ -1,7 +1,7 @@
 # Mission Control V1.0 — Route Inventory
 
 **Status:** CURRENT  
-**Reviewed:** 2026-09-02  
+**Reviewed:** 2026-09-08  
 **Router sources:** `artifacts/mission-control/src/App.tsx`, `artifacts/api-server/src/app.ts`, `artifacts/api-server/src/routes/*`
 
 This inventory records route ownership and compatibility status. Unless stated otherwise, API routes below are mounted under `/api`.
@@ -212,6 +212,13 @@ Uploaded/stored legacy avatar references beginning `/employee-avatars/` or the p
 
 `GET /api/employee-factory/amanda/certification` — reports Employment Pack readiness, live granted SBB systems and demonstrated operational certification; profile text alone cannot produce READY access.  
 `POST /api/employee-factory/amanda/apply-role-pack` — applies the canonical Patch 1.2 SBB Financial Controller Employment Pack to the existing Amanda employee without fabricating system grants.
+
+### Ground Zero mega operational certification
+
+`GET /api/ground-zero/certification` — consolidated live readiness for James, Amanda, Justin and AI Intelligence Analyst: employee/runtime presence, canonical context assembly, model policy, Amanda/Justin certification state and Analyst daily-task state.  
+`POST /api/ground-zero/prepare` — idempotently applies already-approved Employment Packs to existing employees, seeds role-aware model policy, syncs canonical context to managed workspaces and ensures the Analyst daily task; it does not invent missing employees, credentials or access.  
+`POST /api/ground-zero/live-probe` — runs short read-only role/context prompts through each configured employee runtime to prove canonical context reaches the live worker.  
+`POST /api/ground-zero/certification-evidence/:employee` — records Amanda/Justin demonstrated workflow checks only after real evidence has been observed; it does not grant systems or fabricate readiness.
 
 ### Model policy and OpenRouter routing
 

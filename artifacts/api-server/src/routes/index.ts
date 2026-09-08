@@ -33,6 +33,7 @@ import employeeFactoryRouter from "./employee-factory";
 import agentProfileRouter from "./agent-profile";
 import amandaCertificationRouter from "./amanda-certification";
 import modelPolicyRouter from "./model-policy";
+import groundZeroCertificationRouter from "./ground-zero-certification";
 import { requireAdminAuth } from "../lib/auth.js";
 
 const router: IRouter = Router();
@@ -60,6 +61,7 @@ router.use(intelligenceAnalystRouter);
 router.use(operationsRouter);
 router.use(inboxRouter);
 router.use(modelPolicyRouter);
+router.use(groundZeroCertificationRouter);
 router.use(amandaCertificationRouter);
 router.use(agentProfileRouter);
 router.use(employeeFactoryRouter);
