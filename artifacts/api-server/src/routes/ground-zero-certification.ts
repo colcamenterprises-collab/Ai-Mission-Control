@@ -1,0 +1,187 @@
+import { Router, type IRouter } from "express";
+import { and, eq, sql } from "drizzle-orm";
+import { agentsTable, db, tasksTable } from "@workspace/db";
+import { createRateLimit } from "../lib/rate-limit.js";
+import { auditLog } from "../lib/audit.js";
+import { buildCanonicalAgentContext, syncCanonicalContextToWorkspace } from "../services/agent-context.js";
+import { isRuntimeConfigured } from "../services/agent-runtime.js";
+import { certifyEmploymentPack, employmentPackMarkdown, type EmploymentPack } from "../services/agent-employment-pack.js";
+import { buildAmandaEmploymentPack, certifyAmandaFinancialController } from "../services/amanda-financial-controller.js";
+import { buildJustinEmploymentPack, certifyJustinOperationsManager } from "../services/justin-operations-manager.js";
+import { AI_INTELLIGENCE_ANALYST_NAME, DAILY_INTELLIGENCE_TASK, buildAIIntelligenceAnalystEmploymentPack, certifyAIIntelligenceAnalystPack } from "../services/ai-intelligence-analyst.js";
+import { getAgentModelPolicy, seedRolePolicy } from "../services/model-policy.js";
+
+const router: IRouter = Router();
+
+type AgentRow = typeof agentsTable.$inferSelect;
+
+function key(agent: AgentRow) { return `${agent.name} ${agent.role}`.toLowerCase(); }
+function matches(agent: AgentRow, terms: string[]) { const value = key(agent); return terms.some(term => value.includes(term)); }
+
+async function liveSystemNames(agentId: number): Promise<string[]> {
+  const result = await db.execute(sql`
+    SELECT i.name
+    FROM integrations i JOIN agent_integrations ai ON ai.integration_id = i.id
+    WHERE ai.agent_id = ${agentId} AND lower(coalesce(i.status, '')) = 'connected'
+    UNION
+    SELECT t.name
+    FROM agent_tools t JOIN agent_tool_access ata ON ata.tool_id = t.id
+    WHERE ata.agent_id = ${agentId} AND t.is_active = true
+  `);
+  return (result.rows ?? []).map(row => String((row as Record<string, unknown>).name ?? "")).filter(Boolean);
+}
+
+async function profileJson(agentId: number): Promise<Record<string, unknown>> {
+  const result = await db.execute(sql`SELECT profile_json FROM agent_profile_definitions WHERE agent_id = ${agentId} LIMIT 1`);
+  const value = (result.rows?.[0] as Record<string, unknown> | undefined)?.profile_json;
+  return value && typeof value === "object" ? value as Record<string, unknown> : {};
+}
+
+async function applyEmploymentPack(agentId: number, employment: EmploymentPack) {
+  const generatedFiles = employmentPackMarkdown(employment);
+  const existing = await profileJson(agentId);
+  const profile = { ...existing, employment };
+  await db.execute(sql`
+    INSERT INTO agent_profile_definitions (agent_id, profile_json, generated_files, version, updated_at)
+    VALUES (${agentId}, ${JSON.stringify(profile)}::jsonb, ${JSON.stringify(generatedFiles)}::jsonb, 1, now())
+    ON CONFLICT (agent_id) DO UPDATE SET
+      profile_json = agent_profile_definitions.profile_json || ${JSON.stringify({ employment })}::jsonb,
+      generated_files = agent_profile_definitions.generated_files || ${JSON.stringify(generatedFiles)}::jsonb,
+      version = agent_profile_definitions.version + 1,
+      updated_at = now()
+  `);
+  return certifyEmploymentPack(employment);
+}
+
+async function ensureAnalystDailyTask(analyst: AgentRow | null) {
+  if (!analyst) return { task: null, created: false };
+  const [existing] = await db.select().from(tasksTable).where(and(
+    eq(tasksTable.title, DAILY_INTELLIGENCE_TASK.title),
+    eq(tasksTable.assignee, DAILY_INTELLIGENCE_TASK.assignee),
+    eq(tasksTable.recurrence, DAILY_INTELLIGENCE_TASK.recurrence),
+  ));
+  if (existing) return { task: existing, created: false };
+  const [task] = await db.insert(tasksTable).values({ ...DAILY_INTELLIGENCE_TASK, status: "backlog" }).returning();
+  return { task, created: true };
+}
+
+async function contextProbe(agent: AgentRow | null) {
+  if (!agent) return { ready: false, reason: "Employee record missing.", length: 0 };
+  const context = await buildCanonicalAgentContext(agent.id).catch(() => "");
+  const lower = context.toLowerCase();
+  return {
+    ready: context.includes("Scale fast, but safely") && lower.includes(agent.name.toLowerCase()),
+    reason: context ? "Canonical company context and employee direction assembled." : "Canonical runtime context could not be assembled.",
+    length: context.length,
+  };
+}
+
+async function statusSnapshot() {
+  const agents = await db.select().from(agentsTable).orderBy(agentsTable.id);
+  const james = agents.find(agent => matches(agent, ["james", "orchestrator"])) ?? null;
+  const amanda = agents.find(agent => matches(agent, ["amanda", "financial controller"])) ?? null;
+  const justin = agents.find(agent => matches(agent, ["justin", "operations manager"])) ?? null;
+  const analyst = agents.find(agent => matches(agent, ["ai intelligence analyst", "intelligence analyst"])) ?? null;
+  const [dailyTask] = await db.select().from(tasksTable).where(and(eq(tasksTable.title, DAILY_INTELLIGENCE_TASK.title), eq(tasksTable.assignee, DAILY_INTELLIGENCE_TASK.assignee)));
+
+  const amandaSystems = amanda ? await liveSystemNames(amanda.id) : [];
+  const justinSystems = justin ? await liveSystemNames(justin.id) : [];
+  const amandaProfile = amanda ? await profileJson(amanda.id) : {};
+  const justinProfile = justin ? await profileJson(justin.id) : {};
+  const amandaEvidence = (amandaProfile.amandaCertification && typeof amandaProfile.amandaCertification === "object" ? amandaProfile.amandaCertification : {}) as Record<string, boolean>;
+  const justinEvidence = (justinProfile.justinCertification && typeof justinProfile.justinCertification === "object" ? justinProfile.justinCertification : {}) as Record<string, boolean>;
+
+  const rows = await Promise.all([james, amanda, justin, analyst].map(async agent => agent ? {
+    id: agent.id,
+    name: agent.name,
+    role: agent.role,
+    status: agent.status,
+    provider: agent.provider,
+    model: agent.model,
+    runtimeConfigured: isRuntimeConfigured(agent),
+    context: await contextProbe(agent),
+    modelPolicy: await getAgentModelPolicy(agent.id, `${agent.name} ${agent.role}`).catch(() => null),
+  } : null));
+
+  const gaps: string[] = [];
+  if (!james) gaps.push("James Orchestrator employee record is missing.");
+  if (!amanda) gaps.push("Amanda Financial Controller employee record is missing.");
+  if (!justin) gaps.push("Justin Operations Manager employee record is missing and must be provisioned before operational certification.");
+  if (!analyst) gaps.push("AI Intelligence Analyst employee record is missing.");
+  if (james && !isRuntimeConfigured(james)) gaps.push("James runtime/provider is not configured.");
+  if (amanda && !isRuntimeConfigured(amanda)) gaps.push("Amanda runtime/provider is not configured.");
+  if (justin && !isRuntimeConfigured(justin)) gaps.push("Justin runtime/provider is not configured.");
+  if (analyst && !isRuntimeConfigured(analyst)) gaps.push("AI Intelligence Analyst runtime/provider is not configured.");
+
+  return {
+    guidingRule: "Scale fast, but safely.",
+    employees: { james: rows[0], amanda: rows[1], justin: rows[2], analyst: rows[3] },
+    certifications: {
+      amandaEmployment: certifyEmploymentPack(buildAmandaEmploymentPack()),
+      amandaOperational: certifyAmandaFinancialController({ availableSystems: amandaSystems, demonstrated: amandaEvidence }),
+      justinEmployment: certifyEmploymentPack(buildJustinEmploymentPack()),
+      justinOperational: certifyJustinOperationsManager({ availableSystems: justinSystems, demonstrated: justinEvidence }),
+      analystEmployment: certifyAIIntelligenceAnalystPack(),
+      analystDailyTask: dailyTask ?? null,
+      analystOperational: Boolean(analyst && dailyTask && isRuntimeConfigured(analyst)),
+    },
+    gaps,
+    readyForEndToEndCertification: gaps.length === 0 && Boolean(rows.every(row => row?.context.ready && row.runtimeConfigured)),
+  };
+}
+
+router.get("/ground-zero/certification", async (_req, res): Promise<void> => {
+  res.json(await statusSnapshot());
+});
+
+router.post("/ground-zero/prepare", createRateLimit("admin-write", 5, 60_000), async (_req, res): Promise<void> => {
+  const agents = await db.select().from(agentsTable).orderBy(agentsTable.id);
+  const james = agents.find(agent => matches(agent, ["james", "orchestrator"])) ?? null;
+  const amanda = agents.find(agent => matches(agent, ["amanda", "financial controller"])) ?? null;
+  const justin = agents.find(agent => matches(agent, ["justin", "operations manager"])) ?? null;
+  const analyst = agents.find(agent => matches(agent, ["ai intelligence analyst", "intelligence analyst"])) ?? null;
+  const actions: Array<Record<string, unknown>> = [];
+
+  if (amanda) actions.push({ employee: "Amanda", employment: await applyEmploymentPack(amanda.id, buildAmandaEmploymentPack()) });
+  if (justin) actions.push({ employee: "Justin", employment: await applyEmploymentPack(justin.id, buildJustinEmploymentPack()) });
+  if (analyst) actions.push({ employee: AI_INTELLIGENCE_ANALYST_NAME, employment: await applyEmploymentPack(analyst.id, buildAIIntelligenceAnalystEmploymentPack()) });
+
+  for (const agent of [james, amanda, justin, analyst].filter(Boolean) as AgentRow[]) {
+    const policy = await seedRolePolicy(agent);
+    const workspace = await syncCanonicalContextToWorkspace(agent.id).catch(error => ({ synced: false, workspacePath: null, error: error instanceof Error ? error.message : String(error) }));
+    actions.push({ employee: agent.name, modelPolicy: policy, contextWorkspace: workspace });
+  }
+
+  const daily = await ensureAnalystDailyTask(analyst);
+  actions.push({ employee: AI_INTELLIGENCE_ANALYST_NAME, dailyTask: daily.task?.id ?? null, dailyTaskCreated: daily.created });
+  await auditLog({ action: "ground_zero_operational_prepare", entityType: "system", entityId: "ground-zero", actorType: "admin", actorName: "Mission Control", metadata: `agents=${[james, amanda, justin, analyst].filter(Boolean).length}; analystDailyCreated=${daily.created}` });
+  res.json({ actions, status: await statusSnapshot() });
+});
+
+router.post("/ground-zero/certification-evidence/:employee", createRateLimit("admin-write", 10, 60_000), async (req, res): Promise<void> => {
+  const employee = String(req.params.employee || "").toLowerCase();
+  const agents = await db.select().from(agentsTable).orderBy(agentsTable.id);
+  const target = employee === "amanda"
+    ? agents.find(agent => matches(agent, ["amanda", "financial controller"]))
+    : employee === "justin"
+      ? agents.find(agent => matches(agent, ["justin", "operations manager"]))
+      : null;
+  if (!target) { res.status(404).json({ error: "Employee not found or certification evidence is not supported for this employee." }); return; }
+  const evidenceKey = employee === "amanda" ? "amandaCertification" : "justinCertification";
+  const allowed = employee === "amanda"
+    ? ["retrieve", "identify", "investigate", "delegatedDecision", "conciseReport", "correctEscalation"]
+    : ["retrieve", "costing", "stockReview", "investigate", "delegatedDecision", "conciseReport", "correctEscalation"];
+  const evidence = Object.fromEntries(allowed.map(id => [id, req.body?.[id] === true]));
+  await db.execute(sql`
+    INSERT INTO agent_profile_definitions (agent_id, profile_json, generated_files, version, updated_at)
+    VALUES (${target.id}, ${JSON.stringify({ [evidenceKey]: evidence })}::jsonb, '{}'::jsonb, 1, now())
+    ON CONFLICT (agent_id) DO UPDATE SET
+      profile_json = agent_profile_definitions.profile_json || ${JSON.stringify({ [evidenceKey]: evidence })}::jsonb,
+      version = agent_profile_definitions.version + 1,
+      updated_at = now()
+  `);
+  await auditLog({ action: "ground_zero_certification_evidence_recorded", entityType: "agent", entityId: target.id, actorType: "admin", actorName: "Mission Control", metadata: `${employee}:${JSON.stringify(evidence)}` });
+  res.json(await statusSnapshot());
+});
+
+export default router;
