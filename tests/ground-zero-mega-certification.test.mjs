@@ -9,6 +9,7 @@ const packageJson = await readFile(new URL("../package.json", import.meta.url), 
 test("Ground Zero exposes one unified preparation and certification surface", () => {
   assert.match(route, /\/ground-zero\/certification/);
   assert.match(route, /\/ground-zero\/prepare/);
+  assert.match(route, /\/ground-zero\/live-probe/);
   assert.match(route, /\/ground-zero\/certification-evidence\/:employee/);
   assert.match(index, /groundZeroCertificationRouter/);
 });
@@ -28,6 +29,15 @@ test("certification never fabricates missing employees, access or runtime", () =
   assert.match(route, /runtimeConfigured: isRuntimeConfigured\(agent\)/);
   assert.match(route, /liveSystemNames/);
   assert.doesNotMatch(route, /status:\s*"READY"/);
+});
+
+test("live probe exercises actual configured runtimes with role-specific context checks", () => {
+  assert.match(route, /dispatchRuntime\(probe\.agent/);
+  assert.match(route, /mode: "test"/);
+  assert.match(route, /company guiding rule/);
+  assert.match(route, /role boundary with Justin/);
+  assert.match(route, /operational ownership and your boundary with Amanda/);
+  assert.match(route, /what qualifies for the AI Intelligence Brief/);
 });
 
 test("mega regression tests are part of CI workflow", () => {
