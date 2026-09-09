@@ -45,6 +45,15 @@ Capabilities are not permanent permission simply because an agent has a tool. Th
 ### Failure replay rule
 When completion evals fail, Mission Control retains the failed evaluation and result on the Work Request. Future changes to prompts, models, tools, skills or policies should be tested against these known failures before broader autonomy is granted.
 
+### Operational certification rule
+After any material change to the execution control plane, agent context, Employment Packs, model policy, approval policy, supervision or capability routing, run the production certification command before claiming Mission Control is operationally proven:
+
+`bash ./scripts/certify-agentic-os-1.6.sh`
+
+The certification is intentionally stricter than CI. It starts from a clean Task board, re-applies approved employee packs/context, live-probes current employees, proves failed completion is rejected and replayed, runs real James and specialist executions, verifies a protected action stops at approval, removes certification Tasks, and writes durable evidence under `/var/lib/ai-mission-control/certifications`.
+
+A failed certification is an operational blocker. Do not reinterpret a failed check as success. Investigate the failing layer, correct it, and rerun the certification.
+
 ## Delegation levels
 ### L0 — investigation and analysis
 Agents may autonomously read, research, inspect, analyse, test, communicate internally within granted channels, retry and correct reversible work.

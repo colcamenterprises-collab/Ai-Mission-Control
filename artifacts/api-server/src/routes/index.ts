@@ -34,6 +34,7 @@ import agentProfileRouter from "./agent-profile";
 import amandaCertificationRouter from "./amanda-certification";
 import modelPolicyRouter from "./model-policy";
 import groundZeroCertificationRouter from "./ground-zero-certification";
+import agenticOsCertificationRouter from "./agentic-os-certification";
 import { requireAdminAuth } from "../lib/auth.js";
 
 const router: IRouter = Router();
@@ -62,6 +63,7 @@ router.use(operationsRouter);
 router.use(inboxRouter);
 router.use(modelPolicyRouter);
 router.use(groundZeroCertificationRouter);
+router.use(agenticOsCertificationRouter);
 router.use(amandaCertificationRouter);
 router.use(agentProfileRouter);
 router.use(employeeFactoryRouter);
