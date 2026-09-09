@@ -48,7 +48,7 @@ When completion evals fail, Mission Control retains the failed evaluation and re
 ### Operational certification rule
 After any material change to the execution control plane, agent context, Employment Packs, model policy, approval policy, supervision or capability routing, run the production certification command before claiming Mission Control is operationally proven:
 
-`./scripts/certify-agentic-os-1.6.sh`
+`bash ./scripts/certify-agentic-os-1.6.sh`
 
 The certification is intentionally stricter than CI. It starts from a clean Task board, re-applies approved employee packs/context, live-probes current employees, proves failed completion is rejected and replayed, runs real James and specialist executions, verifies a protected action stops at approval, removes certification Tasks, and writes durable evidence under `/var/lib/ai-mission-control/certifications`.
 
