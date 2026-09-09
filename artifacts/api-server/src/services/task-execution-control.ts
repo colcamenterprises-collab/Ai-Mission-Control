@@ -8,6 +8,13 @@ import {
 } from "@workspace/db";
 import { evaluateApproval, type WorkRequestState } from "./execution-policy.js";
 import { transitionWorkRequest } from "./execution-runtime.js";
+import {
+  buildExecutionHarnessContract,
+  contractFromRequirements,
+  evaluateCompletionContract,
+  recordHarnessEvaluation,
+  withExecutionHarnessRequirements,
+} from "./agentic-harness.js";
 
 const TERMINAL_STATES = new Set<WorkRequestState>([
   "completed",
@@ -47,6 +54,11 @@ export async function ensureTaskWorkRequest(params: {
   const executionKey = existing
     ? `${taskExecutionKey(params.task.id)}:${Date.now()}`
     : taskExecutionKey(params.task.id);
+  const harnessContract = buildExecutionHarnessContract({
+    title: params.task.title,
+    description: params.task.description,
+    approvalRequired: params.task.approvalRequired,
+  });
 
   const [created] = await db
     .insert(workRequestsTable)
@@ -60,11 +72,11 @@ export async function ensureTaskWorkRequest(params: {
       approvalDecision,
       routingReason: params.routingReason ?? "Canonical Mission Control task execution",
       project: params.task.project,
-      requirements: {
+      requirements: withExecutionHarnessRequirements({
         source: "canonical-task",
         ownerReviewRequired: params.task.ownerReviewRequired,
         taskStatus: params.task.status,
-      },
+      }, harnessContract),
       maxAttempts: 3,
       idempotencyClass: "side_effecting",
     })
@@ -160,10 +172,41 @@ export async function markTaskExecutionCompleted(
     request = (await markTaskExecutionRunning(taskId)) ?? request;
   }
   if (request.state !== "running") return request;
+
+  const contract = contractFromRequirements(request.requirements);
+  if (!contract) {
+    throw new Error(`Execution harness contract missing for Task #${taskId}; completion is fail-closed.`);
+  }
+  const evaluation = evaluateCompletionContract({
+    contract,
+    result,
+    approvalDecision: request.approvalDecision,
+  });
+  await recordHarnessEvaluation({ request, result, evals: evaluation.evals, passed: evaluation.passed });
+  if (!evaluation.passed) {
+    await db
+      .update(workRequestsTable)
+      .set({
+        result: {
+          ...result,
+          agenticHarness: { passed: false, evals: evaluation.evals },
+        },
+        ownerReport: typeof result.summary === "string" ? result.summary : null,
+      })
+      .where(eq(workRequestsTable.id, request.id));
+    return (await latestTaskWorkRequest(taskId)) ?? request;
+  }
+
   await db
     .update(workRequestsTable)
-    .set({ result, ownerReport: typeof result.summary === "string" ? result.summary : null })
+    .set({
+      result: {
+        ...result,
+        agenticHarness: { passed: true, evals: evaluation.evals },
+      },
+      ownerReport: typeof result.summary === "string" ? result.summary : null,
+    })
     .where(eq(workRequestsTable.id, request.id));
   const refreshed = (await latestTaskWorkRequest(taskId)) ?? request;
-  return advance(refreshed, "completed", "James independently verified the Task outcome");
+  return advance(refreshed, "completed", "Agentic harness evals passed and James independently verified the Task outcome");
 }
