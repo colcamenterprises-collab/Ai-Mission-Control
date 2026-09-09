@@ -14,8 +14,9 @@ import {
 } from "../services/task-execution-control.js";
 
 const router: IRouter = Router();
+const AGENTIC_OS_CERTIFICATION_PROBE = "/agentic-os/certification/probe";
 
-router.post("/agentic-os/certification/probe", async (_req, res): Promise<void> => {
+router.post(AGENTIC_OS_CERTIFICATION_PROBE, async (_req, res): Promise<void> => {
   let taskId: number | null = null;
   try {
     const [agent] = await db.select().from(agentsTable).orderBy(agentsTable.id).limit(1);
