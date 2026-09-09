@@ -101,12 +101,13 @@ test("supervision safety limit stays inside James authority", () => {
   assert.match(taskSupervisor, /This remains inside orchestrator authority/);
 });
 
-test("Task execution lifecycle reaches running, blocked and James-verified completed states", () => {
+test("Task execution lifecycle reaches running, blocked and harness-gated James-verified completed states", () => {
   assert.match(intake, /markTaskExecutionRunning\(task\.id\)/);
   assert.match(intake, /markTaskExecutionBlocked\(task\.id/);
   assert.match(supervisionRoute, /markTaskExecutionCompleted\(taskId/);
   assert.match(supervisionRoute, /verifiedBy: "James Hermes"/);
-  assert.match(executionControl, /advance\(\s*refreshed,\s*"completed",\s*"James independently verified the Task outcome"\s*\)/);
+  assert.match(executionControl, /if \(!evaluation\.passed\) return/);
+  assert.match(executionControl, /advance\(refreshed, "completed", "Agentic harness evals passed and James independently verified the Task outcome"\)/);
 });
 
 test("James review has evidence gate and bounded rework inside orchestrator recovery", () => {

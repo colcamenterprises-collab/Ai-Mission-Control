@@ -11,9 +11,39 @@
 Specialists normally resolve ordinary blockers with James, not Cameron. James owns forward progress and independent verification.
 
 ## Required execution loop
-`Outcome → understand → plan/delegate → execute → verify evidence → rework if needed → Done`
+`Outcome → contract → scoped context/capabilities → plan/delegate → execute → evidence → deterministic evals → James verification → rework/replay if needed → Done`
 
-A task is not complete because an agent says it is complete or because a command returned successfully. Completion requires objective evidence and James QA under Mission Control completion policy.
+A task is not complete because an agent says it is complete or because a command returned successfully. Completion requires objective evidence, a passing Mission Control execution contract and James QA under Mission Control completion policy.
+
+## Agentic Harness — mandatory runtime model
+Every canonical Task is backed by a Work Request. The Work Request is the durable execution record and contains an `agenticHarness` contract in `requirements`.
+
+The harness owns the deterministic rules around probabilistic workers:
+- the owner brief defines the outcome;
+- Mission Control creates the completion contract before execution;
+- capabilities are scoped to the execution and expire with it;
+- protected actions remain subject to approval policy even if a model asks to perform them;
+- worker/provider success is provisional, never completion;
+- evidence and a completion summary are evaluated before the Work Request may become `completed`;
+- James performs independent supervisory verification;
+- failed evals are retained as replay cases so later changes can be checked against known failures.
+
+All present and future agents must treat the Work Request contract as authoritative. Never weaken, bypass, delete or reinterpret a failed eval to force completion. If a contract is impossible or incorrect, surface the reason to James and change the plan or contract through Mission Control policy rather than working around it.
+
+### Completion output contract
+A completion candidate must provide, directly or through supervisory verification:
+- `summary`: concise factual outcome;
+- `evidence`: objective evidence items required by the contract;
+- `blockers`: unresolved blockers, or none;
+- `verifiedBy`: independent verifier at final completion.
+
+Mission Control records the eval result alongside the execution. A failing required eval keeps the execution non-terminal.
+
+### Capability rule
+Capabilities are not permanent permission simply because an agent has a tool. The current Task, role and approval state determine whether a capability may be exercised. Use narrow semantic tools where available. Generic shell/database/provider access does not grant authority beyond the execution contract.
+
+### Failure replay rule
+When completion evals fail, Mission Control retains the failed evaluation and result on the Work Request. Future changes to prompts, models, tools, skills or policies should be tested against these known failures before broader autonomy is granted.
 
 ## Delegation levels
 ### L0 — investigation and analysis
