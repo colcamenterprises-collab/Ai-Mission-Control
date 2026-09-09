@@ -40,9 +40,13 @@ fail() { FAIL_COUNT=$((FAIL_COUNT+1)); printf '[FAIL] %s\n' "$1" >&2; }
 json_bool() { node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const p=process.argv[2].split(".");let v=x;for(const k of p)v=v?.[k];process.stdout.write(v===true?"true":"false")' "$1" "$2"; }
 json_text() { node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const p=process.argv[2].split(".");let v=x;for(const k of p)v=v?.[k];process.stdout.write(v==null?"":String(v))' "$1" "$2"; }
 
-api_get() { curl -fsS "${AUTH[@]}" "$BASE_URL$1"; }
-api_post() { curl -fsS "${AUTH[@]}" "${JSON[@]}" -X POST -d "${2:-{}}" "$BASE_URL$1"; }
-api_delete() { curl -fsS "${AUTH[@]}" -X DELETE "$BASE_URL$1" >/dev/null; }
+api_get() { curl --fail-with-body -sS "${AUTH[@]}" "$BASE_URL$1"; }
+api_post() {
+  local body="${2-}"
+  [[ -n "$body" ]] || body='{}'
+  curl --fail-with-body -sS "${AUTH[@]}" "${JSON[@]}" -X POST --data-binary "$body" "$BASE_URL$1"
+}
+api_delete() { curl --fail-with-body -sS "${AUTH[@]}" -X DELETE "$BASE_URL$1" >/dev/null; }
 
 purge_task_list() {
   local endpoint="$1" file="$TMP_DIR/tasks.json"
@@ -88,7 +92,7 @@ wait_task() {
 
 find_execution() {
   local title="$1" out="$2"
-  curl -fsS "${AUTH[@]}" -G --data-urlencode "query=$title" "$BASE_URL/api/executions" > "$out"
+  curl --fail-with-body -sS "${AUTH[@]}" -G --data-urlencode "query=$title" "$BASE_URL/api/executions" > "$out"
 }
 
 execution_check() {
