@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db, workRequestsTable, type WorkRequest } from "@workspace/db";
 
 export type HarnessEvalId =
@@ -114,7 +114,7 @@ export function evaluateCompletionContract(params: {
   const verifiedBy = typeof params.result.verifiedBy === "string" ? params.result.verifiedBy.trim() : "";
   const blockers = strings(params.result.blockers);
   const protectedActions = params.contract.capabilityScope.protected;
-  const protectedAuthorized = protectedActions.length === 0 || params.approvalDecision === "AUTO_EXECUTE" || params.approvalDecision === "ORCHESTRATOR_APPROVAL" || params.approvalDecision === "OWNER_APPROVAL";
+  const protectedAuthorized = protectedActions.length === 0 || ["AUTO_EXECUTE", "ORCHESTRATOR_APPROVAL", "OWNER_APPROVAL"].includes(params.approvalDecision ?? "");
 
   const checks: Record<HarnessEvalId, { passed: boolean; detail: string }> = {
     evidence_present: {
@@ -158,7 +158,12 @@ export function harnessPrompt(contract: ExecutionHarnessContract): string {
 }
 
 export async function loadTaskHarnessPrompt(taskId: number): Promise<string> {
-  const [request] = await db.select().from(workRequestsTable).where(eq(workRequestsTable.taskId, taskId)).orderBy(workRequestsTable.updatedAt).limit(1);
+  const [request] = await db
+    .select()
+    .from(workRequestsTable)
+    .where(eq(workRequestsTable.taskId, taskId))
+    .orderBy(desc(workRequestsTable.updatedAt))
+    .limit(1);
   if (!request) return "";
   const contract = contractFromRequirements(request.requirements);
   return contract ? harnessPrompt(contract) : "";
@@ -188,7 +193,7 @@ export async function recordHarnessEvaluation(params: {
     replay.push({
       recordedAt: new Date().toISOString(),
       requestId: params.request.id,
-      attempt: params.request.attemptCount,
+      attempt: params.request.retryCount,
       evals: params.evals,
       result: params.result,
     });
