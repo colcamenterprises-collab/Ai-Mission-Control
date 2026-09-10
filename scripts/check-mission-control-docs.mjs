@@ -5,12 +5,14 @@ import process from "node:process";
 const root = process.cwd();
 const docsDir = path.join(root, "docs", "mission-control");
 const routesDocPath = path.join(docsDir, "ROUTES.md");
+const continuousDeliveryDocPath = path.join(docsDir, "CONTINUOUS_DELIVERY.md");
 const legacyDocPath = path.join(docsDir, "LEGACY_AND_DEPRECATION.md");
 
 const requiredDocs = [
   "README.md",
   "SYSTEM_ARCHITECTURE.md",
   "ROUTES.md",
+  "CONTINUOUS_DELIVERY.md",
   "LEGACY_AND_DEPRECATION.md",
   "AGENT_SYSTEM_OVERVIEW.md",
   "SWOT_AND_RISK.md",
@@ -33,9 +35,12 @@ for (const file of requiredDocs) {
 }
 
 let routesDoc = "";
+let continuousDeliveryDoc = "";
 let legacyDoc = "";
 try { routesDoc = await readFile(routesDocPath, "utf8"); } catch {}
+try { continuousDeliveryDoc = await readFile(continuousDeliveryDocPath, "utf8"); } catch {}
 try { legacyDoc = await readFile(legacyDocPath, "utf8"); } catch {}
+const routeCoverageDoc = `${routesDoc}\n${continuousDeliveryDoc}`;
 
 function containsRouteToken(doc, token) {
   return doc.includes(`\`${token}\``) || doc.includes(token);
@@ -54,6 +59,8 @@ for (const route of [...frontendRoutes].sort()) {
 }
 
 // API: cover literal Express route declarations. Mount order/semantics still require human review.
+// The dedicated continuous-delivery control-plane inventory is canonical for its own routes;
+// all other API patterns remain in ROUTES.md.
 const routeDir = path.join(root, "artifacts", "api-server", "src", "routes");
 const routeFiles = (await readdir(routeDir)).filter((file) => file.endsWith(".ts")).sort();
 const apiRoutes = new Map();
@@ -70,7 +77,7 @@ for (const file of routeFiles) {
   }
 }
 for (const [token, owners] of [...apiRoutes.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-  if (!containsRouteToken(routesDoc, token)) {
+  if (!containsRouteToken(routeCoverageDoc, token)) {
     failures.push(`Undocumented API route ${token} (${owners.join(", ")})`);
   }
 }
