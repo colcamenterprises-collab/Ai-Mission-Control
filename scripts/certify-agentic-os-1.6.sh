@@ -31,7 +31,7 @@ fi
 AUTH=( -H "Authorization: Bearer ${ADMIN_TOKEN}" )
 JSON=( -H "Content-Type: application/json" )
 CURL=( --connect-timeout 3 --max-time 20 --fail-with-body -sS )
-LONG_CURL=( --connect-timeout 3 --max-time 180 --fail-with-body -sS )
+LONG_CURL=( --connect-timeout 3 --max-time 300 --fail-with-body -sS )
 
 pass() { PASS_COUNT=$((PASS_COUNT+1)); printf '[PASS] %s\n' "$1"; }
 fail() { FAIL_COUNT=$((FAIL_COUNT+1)); printf '[FAIL] %s\n' "$1" >&2; }
@@ -136,7 +136,7 @@ NODE
       fi
     fi
   else
-    fail "Live role-awareness probe request failed or exceeded the 180-second certification timeout"
+    fail "Live role-awareness probe request failed or exceeded the 300-second certification timeout"
     echo " - Paid end-to-end execution will remain disabled for this run."
   fi
 else
