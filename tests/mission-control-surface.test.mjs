@@ -27,17 +27,33 @@ test("calendar is a compact fourth Kanban surface and prominent Dashboard briefi
   assert.match(css, /operating-calendar-dashboard\{[^}]*width:100%/);
 });
 
-test("task approval and review actions live on Kanban cards", async () => {
-  const [layout, component, app] = await Promise.all([
+test("task approval and review actions remain on Kanban cards", async () => {
+  const [layout, component] = await Promise.all([
     read("artifacts/mission-control/src/components/layout.tsx"),
     read("artifacts/mission-control/src/components/operating-surface-enhancements.tsx"),
-    read("artifacts/mission-control/src/App.tsx"),
   ]);
   assert.doesNotMatch(layout, /href: "\/approvals"/);
   assert.match(layout, /Task approvals & review/);
   assert.match(component, /\/api\/tasks\/\$\{task\.id\}\/approve/);
   assert.match(component, /\/api\/tasks\/\$\{task\.id\}\/accept/);
-  assert.match(app, /path="\/approvals" component=\{RedirectToTasks\}/);
+});
+
+test("execution approvals have a canonical owner surface and dashboard inbox", async () => {
+  const [app, dashboard, approvals] = await Promise.all([
+    read("artifacts/mission-control/src/App.tsx"),
+    read("artifacts/mission-control/src/pages/dashboard.tsx"),
+    read("artifacts/mission-control/src/pages/approvals.tsx"),
+  ]);
+  assert.match(app, /import Approvals from "@\/pages\/approvals"/);
+  assert.match(app, /path="\/approvals" component=\{Approvals\}/);
+  assert.doesNotMatch(app, /path="\/approvals" component=\{RedirectToTasks\}/);
+  assert.match(dashboard, /fetch\("\/api\/approvals"/);
+  assert.match(dashboard, /queryKey: \["approvals"\]/);
+  assert.match(dashboard, /action="Open approvals"/);
+  assert.match(dashboard, /href="\/approvals"/);
+  assert.doesNotMatch(dashboard, /task\.approvalRequired &&/);
+  assert.match(approvals, /\/approvals\/\$\{id\}\/decision/);
+  assert.match(approvals, /decision: "approve"/);
 });
 
 test("Notes and Tasks remain explicitly separate", async () => {

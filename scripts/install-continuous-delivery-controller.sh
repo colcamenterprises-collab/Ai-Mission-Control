@@ -35,6 +35,10 @@ gh auth status >/dev/null 2>&1 || {
   echo "ERROR: root gh CLI is not authenticated; authenticate GitHub before enabling production delivery" >&2
   exit 1
 }
+gh auth setup-git >/dev/null 2>&1 || {
+  echo "ERROR: root gh CLI could not configure non-interactive Git credentials" >&2
+  exit 1
+}
 codex --version >/dev/null 2>&1 || {
   echo "ERROR: Codex CLI is not operational for root" >&2
   exit 1
