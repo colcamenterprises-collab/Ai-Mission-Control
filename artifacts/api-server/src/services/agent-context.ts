@@ -1,4 +1,4 @@
-import { promises as fs } from "node:fs";
+import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq, sql } from "drizzle-orm";
@@ -7,10 +7,32 @@ import { employmentPackMarkdown, normalizeEmploymentPack } from "./agent-employm
 
 const MAX_FILE_CHARS = 20_000;
 const ROOT_FILES = ["CONTEXT.md", "AGENTS.md"] as const;
-const MODULE_REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../");
+
+function looksLikeRepoRoot(candidate: string): boolean {
+  return existsSync(path.join(candidate, "AGENTS.md")) && existsSync(path.join(candidate, "artifacts", "api-server", "package.json"));
+}
 
 function repoRoot(): string {
-  return process.env.MISSION_CONTROL_REPO_ROOT?.trim() || MODULE_REPO_ROOT;
+  const configured = process.env.MISSION_CONTROL_REPO_ROOT?.trim();
+  if (configured) return path.resolve(configured);
+
+  const starts = [
+    process.cwd(),
+    process.argv[1] ? path.dirname(path.resolve(process.argv[1])) : "",
+    path.dirname(fileURLToPath(import.meta.url)),
+  ].filter(Boolean);
+
+  for (const start of starts) {
+    let candidate = path.resolve(start);
+    for (let depth = 0; depth < 7; depth += 1) {
+      if (looksLikeRepoRoot(candidate)) return candidate;
+      const parent = path.dirname(candidate);
+      if (parent === candidate) break;
+      candidate = parent;
+    }
+  }
+
+  return "/opt/apps/ai-mission-control";
 }
 
 async function readRepoFile(relativePath: string): Promise<string> {
