@@ -4,6 +4,8 @@ set -Eeuo pipefail
 # Approval-gated production deploy wrapper.
 # This wrapper never chooses what to deploy. The controller passes the exact
 # GitHub merge SHA authorized by the owner-approved execution envelope.
+# A temporary local bare remote pins the existing conservative deploy script to
+# that SHA, eliminating a fetch/pull race if GitHub main advances mid-release.
 
 APP_ROOT="${MISSION_CONTROL_REPO_DIR:-/opt/apps/ai-mission-control}"
 SERVICE_NAME="${MISSION_CONTROL_SERVICE_NAME:-ai-mission-control-api.service}"
@@ -11,6 +13,7 @@ PUBLIC_ORIGIN="${MISSION_CONTROL_PUBLIC_ORIGIN:-https://mission.customli.io}"
 PORT="${PORT:-4100}"
 LOCK_FILE="${MISSION_CONTROL_DELIVERY_LOCK:-/run/lock/mission-control-production-delivery.lock}"
 EXPECTED_SHA="${1:-}"
+PINNED_REMOTE_DIR=""
 
 if [[ ! "${EXPECTED_SHA}" =~ ^[0-9a-fA-F]{40}$ ]]; then
   echo "ERROR: exact 40-character target SHA is required" >&2
@@ -42,6 +45,13 @@ fi
 PREVIOUS_SHA="$(git rev-parse HEAD | tr '[:upper:]' '[:lower:]')"
 ROLLBACK_STARTED=0
 DEPLOY_STARTED=0
+
+cleanup() {
+  if [[ -n "${PINNED_REMOTE_DIR}" && -d "${PINNED_REMOTE_DIR}" ]]; then
+    rm -rf -- "${PINNED_REMOTE_DIR}"
+  fi
+}
+trap cleanup EXIT
 
 health_check() {
   curl -fsS --max-time 10 "http://127.0.0.1:${PORT}/api/healthz" >/dev/null \
@@ -91,8 +101,19 @@ if [[ "${REMOTE_MAIN}" != "${EXPECTED_SHA}" ]]; then
   exit 78
 fi
 
+PINNED_REMOTE_DIR="$(mktemp -d /tmp/mission-control-approved-remote.XXXXXX)"
+git init --bare --quiet "${PINNED_REMOTE_DIR}"
+git --git-dir="${PINNED_REMOTE_DIR}" fetch --quiet "${APP_ROOT}" "${EXPECTED_SHA}:refs/heads/main"
+PINNED_SHA="$(git --git-dir="${PINNED_REMOTE_DIR}" rev-parse refs/heads/main | tr '[:upper:]' '[:lower:]')"
+if [[ "${PINNED_SHA}" != "${EXPECTED_SHA}" ]]; then
+  echo "ERROR: could not create exact-SHA pinned deployment remote" >&2
+  exit 79
+fi
+
 DEPLOY_STARTED=1
-MISSION_CONTROL_EXPECTED_DEPLOY_SHA="${EXPECTED_SHA}" ./scripts/deploy-mission-control.sh
+MISSION_CONTROL_DEPLOY_REMOTE="${PINNED_REMOTE_DIR}" \
+MISSION_CONTROL_EXPECTED_DEPLOY_SHA="${EXPECTED_SHA}" \
+  ./scripts/deploy-mission-control.sh
 
 ACTUAL_SHA="$(git rev-parse HEAD | tr '[:upper:]' '[:lower:]')"
 if [[ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]]; then
