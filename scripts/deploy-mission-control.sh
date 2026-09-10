@@ -6,7 +6,8 @@ set -Eeuo pipefail
 # - deploys only from a clean main checkout
 # - pulls with --ff-only
 # - installs/builds/tests the app
-# - restarts only the confirmed Mission Control API systemd service
+# - restarts only the confirmed Mission Control API systemd service plus the
+#   existing root user OpenClaw gateway when its credential environment is present
 # - verifies local and public health routes
 # - runs only the repository's additive, idempotent schema check; it never
 #   runs Drizzle push/force, drops tables, renames columns, or rewrites data
@@ -26,6 +27,10 @@ HEALTH_SLEEP_SECONDS="${MISSION_CONTROL_HEALTH_SLEEP_SECONDS:-1}"
 SKIP_TESTS="${MISSION_CONTROL_DEPLOY_SKIP_TESTS:-0}"
 JAMES_PROFILE_DIR="${JAMES_PROFILE_DIR:-/root/.hermes/profiles/james-hermes}"
 JAMES_PROFILE_ENV="${JAMES_PROFILE_ENV:-${JAMES_PROFILE_DIR}/.env}"
+OPENCLAW_ENV="${OPENCLAW_ENV:-/root/.openclaw/.env}"
+OPENCLAW_SERVICE="${OPENCLAW_SERVICE:-openclaw-gateway.service}"
+OPENCLAW_DROPIN_DIR="${OPENCLAW_DROPIN_DIR:-/root/.config/systemd/user/${OPENCLAW_SERVICE}.d}"
+OPENCLAW_DROPIN_FILE="${OPENCLAW_DROPIN_FILE:-${OPENCLAW_DROPIN_DIR}/mission-control-openrouter.conf}"
 PNPM_CMD=""
 
 step_name="initialization"
@@ -52,6 +57,14 @@ require_command() {
 
 as_root() {
   if [[ "${EUID}" -eq 0 ]]; then "$@"; else sudo "$@"; fi
+}
+
+root_user_systemctl() {
+  if [[ "${EUID}" -eq 0 ]]; then
+    XDG_RUNTIME_DIR="/run/user/0" systemctl --user "$@"
+  else
+    sudo -u root env XDG_RUNTIME_DIR="/run/user/0" systemctl --user "$@"
+  fi
 }
 
 resolve_pnpm_cmd() {
@@ -137,6 +150,43 @@ ensure_james_profile_environment() {
   echo "OPENROUTER_API_KEY presence verified without printing the secret."
 }
 
+ensure_openclaw_gateway_environment() {
+  if [[ ! -f "${OPENCLAW_ENV}" ]]; then
+    echo "ERROR: OpenClaw environment is missing: ${OPENCLAW_ENV}" >&2
+    return 1
+  fi
+  if ! grep -qE '^[[:space:]]*(export[[:space:]]+)?OPENROUTER_API_KEY=' "${OPENCLAW_ENV}"; then
+    echo "ERROR: OpenClaw environment does not declare OPENROUTER_API_KEY: ${OPENCLAW_ENV}" >&2
+    return 1
+  fi
+  if ! root_user_systemctl list-unit-files "${OPENCLAW_SERVICE}" --no-legend 2>/dev/null | grep -q "${OPENCLAW_SERVICE}"; then
+    echo "ERROR: OpenClaw gateway user service is not installed: ${OPENCLAW_SERVICE}" >&2
+    return 1
+  fi
+  as_root install -d -m 755 "${OPENCLAW_DROPIN_DIR}"
+  printf '[Service]\nEnvironmentFile=%s\n' "${OPENCLAW_ENV}" | as_root tee "${OPENCLAW_DROPIN_FILE}" >/dev/null
+  as_root chmod 644 "${OPENCLAW_DROPIN_FILE}"
+  root_user_systemctl daemon-reload
+  root_user_systemctl restart "${OPENCLAW_SERVICE}"
+  root_user_systemctl is-active --quiet "${OPENCLAW_SERVICE}"
+  local env_files pid
+  env_files="$(root_user_systemctl show "${OPENCLAW_SERVICE}" --property=EnvironmentFiles --value)"
+  if [[ "${env_files}" != *"${OPENCLAW_ENV}"* ]]; then
+    echo "ERROR: OpenClaw gateway did not register ${OPENCLAW_ENV}." >&2
+    return 1
+  fi
+  pid="$(root_user_systemctl show "${OPENCLAW_SERVICE}" --property=MainPID --value)"
+  if [[ -z "${pid}" || "${pid}" == "0" || ! -r "/proc/${pid}/environ" ]]; then
+    echo "ERROR: OpenClaw gateway has no readable running process." >&2
+    return 1
+  fi
+  if ! tr '\0' '\n' < "/proc/${pid}/environ" | grep -q '^OPENROUTER_API_KEY='; then
+    echo "ERROR: running OpenClaw gateway did not receive OPENROUTER_API_KEY." >&2
+    return 1
+  fi
+  echo "OpenClaw gateway environment attached and live process credential presence verified without printing the secret."
+}
+
 wait_for_url() {
   local label="$1" url="$2"; shift 2
   local attempt
@@ -215,6 +265,10 @@ step_name="attaching James runtime environment"
 log "Attaching James runtime environment"
 ensure_james_profile_environment
 
+step_name="attaching OpenClaw runtime environment"
+log "Attaching OpenClaw runtime environment"
+ensure_openclaw_gateway_environment
+
 step_name="restarting service"
 log "Restarting ${SERVICE_NAME}"
 as_root systemctl restart "${SERVICE_NAME}"
@@ -253,4 +307,5 @@ echo "Public API: ${PUBLIC_ORIGIN}/api/healthz"
 echo "Frontend: ${PUBLIC_ORIGIN}/"
 echo "Frontend build output: ${FRONTEND_DIST}"
 echo "James profile environment: ${JAMES_PROFILE_ENV} (secret values not printed)"
+echo "OpenClaw gateway environment: ${OPENCLAW_ENV} (secret values not printed)"
 echo "Operational database schema check completed (additive only; no Drizzle push)."
