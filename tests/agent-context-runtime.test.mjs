@@ -43,3 +43,11 @@ test("runtime dispatch injects canonical context once and OpenClaw receives prom
   assert.match(contextSource, /Live Employment Pack/);
   assert.match(runtimeSource, /export function isRuntimeConfigured/);
 });
+
+test("certification runtimes have bounded but realistic test-mode time budgets", () => {
+  assert.match(runtimeSource, /TEST_PROVIDER_TIMEOUT_MS = 30_000/);
+  assert.match(runtimeSource, /TEST_WEBHOOK_TIMEOUT_MS = 45_000/);
+  assert.match(runtimeSource, /TEST_OPENCLAW_TIMEOUT_SECONDS = 60/);
+  assert.match(runtimeSource, /input\.mode === "test" \? TEST_WEBHOOK_TIMEOUT_MS : 30_000/);
+  assert.match(runtimeSource, /input\.mode === "test" \? TEST_OPENCLAW_TIMEOUT_SECONDS : 600/);
+});
