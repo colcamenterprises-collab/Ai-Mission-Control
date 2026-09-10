@@ -37,6 +37,20 @@ type OperationsBrief = {
     recommendedNextAction: string;
   };
 };
+type ApprovalRow = {
+  approval: {
+    id: number;
+    proposedAction: string;
+    createdAt: string;
+  };
+  request: {
+    id: number;
+    requestedAction: string;
+    repository: string | null;
+    environment: string | null;
+    riskLevel: number;
+  };
+};
 function adminHeaders(): Record<string, string> {
   const token =
     localStorage.getItem("mission_control_admin_token") ??
@@ -63,8 +77,19 @@ export default function Dashboard() {
       return response.json() as Promise<OperationsBrief>;
     },
   });
+  const approvalsQuery = useQuery({
+    queryKey: ["approvals"],
+    queryFn: async () => {
+      const response = await fetch("/api/approvals", {
+        headers: adminHeaders(),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json() as Promise<{ data: ApprovalRow[] }>;
+    },
+  });
 
   const tasks = rawTasks as unknown as OperationalTask[];
+  const approvals = approvalsQuery.data?.data ?? [];
   const totalTasks =
     tasks.length ||
     (summary?.activeTaskCount ?? 0) + (summary?.pendingTaskCount ?? 0);
@@ -88,22 +113,6 @@ export default function Dashboard() {
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
         )
         .slice(0, 5),
-    [tasks],
-  );
-
-  const approvals = useMemo(
-    () =>
-      tasks
-        .filter(
-          (task) =>
-            task.approvalRequired &&
-            !["done", "completed", "archived"].includes(task.status),
-        )
-        .sort(
-          (a, b) =>
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-        )
-        .slice(0, 4),
     [tasks],
   );
 
@@ -262,19 +271,23 @@ export default function Dashboard() {
         <div className="mission-ops-grid mission-ops-grid-secondary">
           <OpsPanel
             title="Approval inbox"
-            action="Open tasks"
-            href="/tasks"
+            action="Open approvals"
+            href="/approvals"
             badge={approvals.length}
           >
-            {approvals.length === 0 ? (
+            {approvalsQuery.isLoading ? (
+              <CompactEmpty>Loading approvals…</CompactEmpty>
+            ) : approvalsQuery.error ? (
+              <CompactEmpty>Approvals unavailable</CompactEmpty>
+            ) : approvals.length === 0 ? (
               <CompactEmpty>Nothing needs approval</CompactEmpty>
             ) : (
-              approvals.map((task) => (
+              approvals.slice(0, 4).map(({ approval, request }) => (
                 <OpsRow
-                  key={task.id}
-                  title={task.title}
-                  meta={`${task.assignee || "AI team"} · ${prettyStatus(task.status)}`}
-                  href="/tasks"
+                  key={approval.id}
+                  title={approval.proposedAction || request.requestedAction}
+                  meta={`${request.environment || "Unknown environment"} · Risk level ${request.riskLevel}`}
+                  href="/approvals"
                   accent="approval"
                 />
               ))
@@ -460,6 +473,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
       label: "Add Note", detail: "Open quick capture", href: "/tasks?create=note",
     },
     { label: "Add Task", detail: "Open orchestrated task creation", href: "/tasks?create=task" },
+    { label: "Open approvals", detail: "Owner-gated execution decisions", href: "/approvals" },
     { label: "Open AI team", detail: "Agents and roles", href: "/team" },
     {
       label: "Search knowledge",
