@@ -13,6 +13,15 @@ OUTPUT_FILE="$STATE_DIR/$JOB_ID.out"
 ERROR_FILE="$STATE_DIR/$JOB_ID.err"
 
 mkdir -p "$STATE_DIR"
+
+# Detached systemd review jobs must receive the same provider/Hermes runtime
+# environment as production before James is invoked.
+if [[ -f "$REPO/.env" ]]; then
+  set -a
+  . "$REPO/.env"
+  set +a
+fi
+
 PROMPT="$(cat "$PROMPT_FILE")"
 PROMPT="$PROMPT
 
@@ -38,11 +47,6 @@ if [[ "$EXIT_CODE" -eq 124 || "$EXIT_CODE" -eq 137 ]]; then
   printf '\nMission Control terminated James supervisory review after %ss without a completed runtime response.\n' "$JAMES_REVIEW_TIMEOUT_SECONDS" >> "$ERROR_FILE"
 fi
 
-if [[ -f "$REPO/.env" ]]; then
-  set -a
-  . "$REPO/.env"
-  set +a
-fi
 PORT="${PORT:-4100}"
 TOKEN="${MISSION_CONTROL_ADMIN_TOKEN:-${VITE_MISSION_CONTROL_ADMIN_TOKEN:-}}"
 
