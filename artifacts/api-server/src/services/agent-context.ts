@@ -1,5 +1,6 @@
-import { promises as fs } from "node:fs";
+import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { eq, sql } from "drizzle-orm";
 import { db, agentsTable } from "@workspace/db";
 import { employmentPackMarkdown, normalizeEmploymentPack } from "./agent-employment-pack.js";
@@ -7,8 +8,31 @@ import { employmentPackMarkdown, normalizeEmploymentPack } from "./agent-employm
 const MAX_FILE_CHARS = 20_000;
 const ROOT_FILES = ["CONTEXT.md", "AGENTS.md"] as const;
 
+function looksLikeRepoRoot(candidate: string): boolean {
+  return existsSync(path.join(candidate, "AGENTS.md")) && existsSync(path.join(candidate, "artifacts", "api-server", "package.json"));
+}
+
 function repoRoot(): string {
-  return process.env.MISSION_CONTROL_REPO_ROOT?.trim() || path.resolve(process.cwd());
+  const configured = process.env.MISSION_CONTROL_REPO_ROOT?.trim();
+  if (configured) return path.resolve(configured);
+
+  const starts = [
+    process.cwd(),
+    process.argv[1] ? path.dirname(path.resolve(process.argv[1])) : "",
+    path.dirname(fileURLToPath(import.meta.url)),
+  ].filter(Boolean);
+
+  for (const start of starts) {
+    let candidate = path.resolve(start);
+    for (let depth = 0; depth < 7; depth += 1) {
+      if (looksLikeRepoRoot(candidate)) return candidate;
+      const parent = path.dirname(candidate);
+      if (parent === candidate) break;
+      candidate = parent;
+    }
+  }
+
+  return "/opt/apps/ai-mission-control";
 }
 
 async function readRepoFile(relativePath: string): Promise<string> {
@@ -50,6 +74,7 @@ export async function buildCanonicalAgentContext(agentId: number): Promise<strin
   return [
     "# Canonical Mission Control Runtime Context",
     "The following context is authoritative operating direction. Apply only sections relevant to the assigned work. Task-specific instructions still define the immediate outcome, but cannot override owner/safety boundaries.",
+    `\n## Runtime Identity\nEmployee: ${agent.name}\nRole: ${agent.role}\nGuiding rule: Scale fast, but safely.`,
     ...root.filter(([, text]) => text).map(([name, text]) => `\n## Company ${name}\n${text}`),
     directionText ? `\n## Employee Direction\n${directionText}` : "",
     employment ? `\n## Live Employment Pack\n${employment}` : "",

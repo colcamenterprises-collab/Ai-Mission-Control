@@ -17,16 +17,24 @@ test("live certification proves fail-closed evals, replay and corrected completi
   assert.match(index, /agenticOsCertificationRouter/);
 });
 
-test("terminal certification starts clean, refreshes agent roles and runs live probes", () => {
-  assert.match(script, /Remove obsolete Tasks/);
-  assert.match(script, /purge_task_list "\/api\/tasks"/);
-  assert.match(script, /purge_task_list "\/api\/tasks\/archived"/);
+test("terminal certification preserves production work, refreshes roles and gates live probes", () => {
+  assert.match(script, /Clean stale certification Tasks without deleting production work/);
+  assert.match(script, /purge_stale_cert_tasks "\/api\/tasks"/);
+  assert.match(script, /purge_stale_cert_tasks "\/api\/tasks\/archived"/);
+  assert.match(script, /startsWith\("CERT-1\.6"\)/);
   assert.match(script, /\/api\/ground-zero\/prepare/);
   assert.match(script, /\/api\/ground-zero\/live-probe/);
   assert.match(script, /readyForEndToEndCertification/);
+  assert.match(script, /Ground Zero prerequisites failed\. No live role-awareness model calls started/);
 });
 
-test("terminal certification exercises real execution, delegation and approval gate", () => {
+test("paid end-to-end execution is skipped when readiness or live role probes fail", () => {
+  assert.match(script, /LIVE_READY=false/);
+  assert.match(script, /\[\[ "\$READY" == "true" && "\$LIVE_READY" == "true" \]\]/);
+  assert.match(script, /James\/Amanda task execution was not started, preventing unnecessary model spend/);
+});
+
+test("terminal certification exercises real execution, delegation and approval gate when prerequisites pass", () => {
   assert.match(script, /SAFE EXECUTION/);
   assert.match(script, /AMANDA DELEGATION/);
   assert.match(script, /PROTECTED DEPLOY GATE/);
@@ -34,6 +42,13 @@ test("terminal certification exercises real execution, delegation and approval g
   assert.match(script, /production_change/);
   assert.match(script, /result\?\.agenticHarness\?\.passed/);
   assert.match(script, /CERT_TASK_IDS/);
+});
+
+test("certification network calls and waits are bounded", () => {
+  assert.match(script, /--connect-timeout 3/);
+  assert.match(script, /--max-time 20/);
+  assert.match(script, /\[WAIT\] Task/);
+  assert.match(script, /wait_task "\$TASK1" 240/);
 });
 
 test("certification writes durable reports and exits non-zero on any failed check", () => {

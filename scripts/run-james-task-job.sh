@@ -7,6 +7,7 @@ COMMAND_ID="${3:-}"
 PROMPT_FILE="${4:?prompt file required}"
 REPO="${MISSION_CONTROL_REPO_DIR:-/opt/apps/ai-mission-control}"
 JAMES_BINARY="${JAMES_BINARY:-/usr/local/bin/james-hermes}"
+JAMES_TASK_TIMEOUT_SECONDS="${JAMES_TASK_TIMEOUT_SECONDS:-180}"
 STATE_DIR="/var/lib/ai-mission-control/james-jobs"
 WORKTREE_ROOT="/var/lib/ai-mission-control/worktrees"
 WORKTREE="$WORKTREE_ROOT/task-$TASK_ID"
@@ -16,6 +17,15 @@ STATUS_FILE="$STATE_DIR/$JOB_ID.status"
 
 mkdir -p "$STATE_DIR" "$WORKTREE_ROOT"
 printf 'running\n' > "$STATUS_FILE"
+
+# Detached systemd jobs do not inherit the interactive shell configuration.
+# Load the production runtime environment before invoking James so Hermes/provider
+# identity and credentials are available to the worker itself, not only to its callback.
+if [[ -f "$REPO/.env" ]]; then
+  set -a
+  . "$REPO/.env"
+  set +a
+fi
 
 # James must never develop in the production checkout. Each task gets a persistent,
 # isolated worktree that can survive follow-up executions without dirtying production.
@@ -44,16 +54,15 @@ $PROMPT"
 set +e
 (
   cd "$WORKTREE"
-  "$JAMES_BINARY" -z "$PROMPT"
+  timeout --signal=TERM --kill-after=15s "$JAMES_TASK_TIMEOUT_SECONDS" "$JAMES_BINARY" -z "$PROMPT"
 ) >"$OUTPUT_FILE" 2>"$ERROR_FILE"
 EXIT_CODE=$?
 set -e
 
-if [[ -f "$REPO/.env" ]]; then
-  set -a
-  . "$REPO/.env"
-  set +a
+if [[ "$EXIT_CODE" -eq 124 || "$EXIT_CODE" -eq 137 ]]; then
+  printf '\nMission Control terminated James after %ss without a completed runtime response.\n' "$JAMES_TASK_TIMEOUT_SECONDS" >> "$ERROR_FILE"
 fi
+
 PORT="${PORT:-4100}"
 TOKEN="${MISSION_CONTROL_ADMIN_TOKEN:-${VITE_MISSION_CONTROL_ADMIN_TOKEN:-}}"
 
@@ -62,19 +71,10 @@ const fs = require('fs');
 const [exitCodeRaw, outPath] = process.argv.slice(2);
 const exitCode = Number(exitCodeRaw);
 const output = fs.existsSync(outPath) ? fs.readFileSync(outPath, 'utf8') : '';
-
-if (exitCode !== 0) {
-  process.stdout.write('FAILED');
-  process.exit(0);
-}
-
+if (exitCode !== 0) { process.stdout.write('FAILED'); process.exit(0); }
 const allowed = new Set(['COMPLETED', 'IN_PROGRESS', 'CHANGES_REQUIRED', 'BLOCKED', 'FAILED', 'NEEDS_CLARIFICATION']);
 const explicit = [...output.matchAll(/MISSION_CONTROL_RESULT\s*:\s*([A-Z_]+)/gi)].map(m => m[1].toUpperCase()).filter(v => allowed.has(v));
-if (explicit.length) {
-  process.stdout.write(explicit[explicit.length - 1]);
-  process.exit(0);
-}
-
+if (explicit.length) { process.stdout.write(explicit[explicit.length - 1]); process.exit(0); }
 const normalized = output.toUpperCase();
 if (/^\s*BLOCKED\b/m.test(normalized) || /\bSTATUS\s*:\s*BLOCKED\b/.test(normalized)) process.stdout.write('BLOCKED');
 else if (/\bNEEDS[_ ]CLARIFICATION\b/.test(normalized)) process.stdout.write('NEEDS_CLARIFICATION');
@@ -87,9 +87,8 @@ NODE
 )"
 
 printf '%s\n' "$RESULT_STATE" > "$STATUS_FILE"
-
 for attempt in $(seq 1 90); do
-  if curl -fsS "http://127.0.0.1:${PORT}/api/healthz" >/dev/null 2>&1; then break; fi
+  if curl --connect-timeout 3 --max-time 5 -fsS "http://127.0.0.1:${PORT}/api/healthz" >/dev/null 2>&1; then break; fi
   sleep 2
 done
 
@@ -98,24 +97,15 @@ const fs = require('fs');
 const [taskId, commandId, jobId, resultState, exitCode, outPath, errPath, worktree] = process.argv.slice(2);
 const output = fs.existsSync(outPath) ? fs.readFileSync(outPath, 'utf8') : '';
 const error = fs.existsSync(errPath) ? fs.readFileSync(errPath, 'utf8') : '';
-process.stdout.write(JSON.stringify({
-  taskId: Number(taskId),
-  commandId: commandId ? Number(commandId) : null,
-  jobId,
-  resultState,
-  exitCode: Number(exitCode),
-  output,
-  error,
-  worktree,
-}));
+process.stdout.write(JSON.stringify({ taskId: Number(taskId), commandId: commandId ? Number(commandId) : null, jobId, resultState, exitCode: Number(exitCode), output, error, worktree }));
 NODE
 )"
 
-curl -fsS -X POST "http://127.0.0.1:${PORT}/api/james/report" \
+curl --connect-timeout 3 --max-time 15 --fail-with-body -sS -X POST "http://127.0.0.1:${PORT}/api/james/report" \
   -H 'Content-Type: application/json' \
   ${TOKEN:+-H "Authorization: Bearer $TOKEN"} \
   ${TOKEN:+-H "x-admin-token: $TOKEN"} \
-  --data "$PAYLOAD" >/dev/null
+  --data-binary "$PAYLOAD" >/dev/null
 
 rm -f "$PROMPT_FILE"
 exit "$EXIT_CODE"
