@@ -141,11 +141,12 @@ router.post("/ground-zero/live-probe", createRateLimit("admin-write", 5, 60_000)
   const status = await statusSnapshot();
   if (!status.readyForEndToEndCertification) { res.status(409).json({ passed: false, skipped: true, reason: "Ground Zero prerequisites are not ready; live model probes were not started.", gaps: status.gaps, status }); return; }
   const targets = await targetAgents();
+  const probeRule = "Certification-only role check. Answer only from the canonical context supplied in this request. Do not browse the web, call tools, inspect files, run commands, perform work, or contact external systems. Do not retry or start a research workflow. ";
   const probes: Array<{ key: keyof typeof targets; agent: AgentRow | null; prompt: string; expected: RegExp }> = [
-    { key: "james", agent: targets.james, prompt: "State the company guiding rule and whether you may make ordinary reversible business/process decisions without asking Cameron. Keep the answer to two short sentences.", expected: /scale fast|reversible/i },
-    { key: "amanda", agent: targets.amanda, prompt: "State your SBB role boundary with Justin and when you should ask Cameron a factual question. Keep the answer to two short sentences.", expected: /sales|expenses|finance/i },
-    { key: "justin", agent: targets.justin, prompt: "State your SBB operational ownership and your boundary with Amanda. Keep the answer to two short sentences.", expected: /stock|supplier|cost/i },
-    { key: "analyst", agent: targets.analyst, prompt: "State what qualifies for the AI Intelligence Brief and what happens to irrelevant AI news. Keep the answer to two short sentences.", expected: /noise|scale|streamline|secure|simpl/i },
+    { key: "james", agent: targets.james, prompt: `${probeRule}State the company guiding rule and whether you may make ordinary reversible business/process decisions without asking Cameron. Keep the answer to two short sentences.`, expected: /scale fast|reversible/i },
+    { key: "amanda", agent: targets.amanda, prompt: `${probeRule}State your SBB role boundary with Justin and when you should ask Cameron a factual question. Keep the answer to two short sentences.`, expected: /sales|expenses|finance/i },
+    { key: "justin", agent: targets.justin, prompt: `${probeRule}State your SBB operational ownership and your boundary with Amanda. Keep the answer to two short sentences.`, expected: /stock|supplier|cost/i },
+    { key: "analyst", agent: targets.analyst, prompt: `${probeRule}State what qualifies for the AI Intelligence Brief and what happens to irrelevant AI news. Keep the answer to two short sentences.`, expected: /noise|scale|streamline|secure|simpl/i },
   ];
   const results = [];
   for (const probe of probes) {

@@ -77,6 +77,15 @@ test("production deploy attaches the James profile env to the API service withou
   assert.match(deploy, /OPENROUTER_API_KEY presence verified without printing the secret/);
 });
 
+test("production deploy persistently attaches the shared OpenRouter env to the OpenClaw gateway", () => {
+  assert.match(deploy, /OPENCLAW_ENV=.*\/root\/\.openclaw\/\.env/);
+  assert.match(deploy, /OPENCLAW_SERVICE=.*openclaw-gateway\.service/);
+  assert.match(deploy, /mission-control-openrouter\.conf/);
+  assert.match(deploy, /root_user_systemctl restart/);
+  assert.match(deploy, /running OpenClaw gateway did not receive OPENROUTER_API_KEY/);
+  assert.match(deploy, /OpenClaw gateway environment attached and live process credential presence verified without printing the secret/);
+});
+
 test("Task execution lifecycle remains harness-gated", () => { assert.match(intake, /markTaskExecutionRunning\(task\.id\)/); assert.match(supervisionRoute, /markTaskExecutionCompleted\(taskId/); assert.match(supervisionRoute, /verifiedBy: "James Hermes"/); assert.match(executionControl, /if \(!evaluation\.passed\) return/); });
 test("James review retains bounded QA rework", () => { assert.match(supervisionRoute, /MAX_AUTOMATIC_REWORKS = 3/); assert.match(supervisionRoute, /dispatchRework\(task/); });
 test("James QA reports correlate active review job", () => { assert.match(supervision, /activeReviewFile/); assert.match(supervisionRoute, /staleReviewIgnored/); });
