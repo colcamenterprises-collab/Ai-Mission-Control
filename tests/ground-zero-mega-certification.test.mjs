@@ -23,12 +23,20 @@ test("mega preparation applies packs, model policy, canonical context and analys
   assert.match(route, /ensureAnalystDailyTask\(analyst\)/);
 });
 
-test("certification never fabricates missing employees, access or runtime", () => {
+test("certification never fabricates missing employees, access, runtime or context readiness", () => {
   assert.match(route, /Employee record missing/);
-  assert.match(route, /Justin Operations Manager employee record is missing/);
+  assert.match(route, /employee record is missing/);
   assert.match(route, /runtimeConfigured: isRuntimeConfigured\(agent\)/);
   assert.match(route, /liveSystemNames/);
+  assert.match(route, /canonical context is not ready/);
+  assert.match(route, /readyForEndToEndCertification: gaps\.length === 0/);
   assert.doesNotMatch(route, /status:\s*"READY"/);
+});
+
+test("live probe is fail-closed when Ground Zero prerequisites are not ready", () => {
+  assert.match(route, /if \(!status\.readyForEndToEndCertification\)/);
+  assert.match(route, /res\.status\(409\)/);
+  assert.match(route, /live model probes were not started/);
 });
 
 test("live probe exercises actual configured runtimes with role-specific context checks", () => {
