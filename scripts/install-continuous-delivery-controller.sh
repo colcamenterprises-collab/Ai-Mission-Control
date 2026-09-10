@@ -57,6 +57,7 @@ if [[ -z "${ADMIN_TOKEN}" ]]; then
 fi
 
 install -d -m 700 "${ENV_DIR}"
+install -d -m 700 /var/lib/ai-mission-control/continuous-delivery
 umask 077
 {
   printf 'MISSION_CONTROL_ADMIN_TOKEN=%q\n' "${ADMIN_TOKEN}"
@@ -89,7 +90,7 @@ TimeoutStopSec=30
 NoNewPrivileges=false
 PrivateTmp=true
 ProtectHome=read-only
-ReadWritePaths=${APP_ROOT} /var/lib/ai-mission-control /run/lock /tmp /root/.codex /root/.config/gh
+ReadWritePaths=${APP_ROOT} /var/lib/ai-mission-control /run/lock /tmp -/root/.codex -/root/.config/gh
 
 [Install]
 WantedBy=multi-user.target
