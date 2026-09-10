@@ -31,13 +31,16 @@ fi
 AUTH=( -H "Authorization: Bearer ${ADMIN_TOKEN}" )
 JSON=( -H "Content-Type: application/json" )
 CURL=( --connect-timeout 3 --max-time 20 --fail-with-body -sS )
+LONG_CURL=( --connect-timeout 3 --max-time 180 --fail-with-body -sS )
 
 pass() { PASS_COUNT=$((PASS_COUNT+1)); printf '[PASS] %s\n' "$1"; }
 fail() { FAIL_COUNT=$((FAIL_COUNT+1)); printf '[FAIL] %s\n' "$1" >&2; }
 json_bool() { node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const p=process.argv[2].split(".");let v=x;for(const k of p)v=v?.[k];process.stdout.write(v===true?"true":"false")' "$1" "$2"; }
 json_text() { node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const p=process.argv[2].split(".");let v=x;for(const k of p)v=v?.[k];process.stdout.write(v==null?"":String(v))' "$1" "$2"; }
+json_valid() { [[ -s "$1" ]] && node -e 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))' "$1" >/dev/null 2>&1; }
 api_get() { curl "${CURL[@]}" "${AUTH[@]}" "$BASE_URL$1"; }
 api_post() { local body="${2-}"; [[ -n "$body" ]] || body='{}'; curl "${CURL[@]}" "${AUTH[@]}" "${JSON[@]}" -X POST --data-binary "$body" "$BASE_URL$1"; }
+api_post_long() { local body="${2-}"; [[ -n "$body" ]] || body='{}'; curl "${LONG_CURL[@]}" "${AUTH[@]}" "${JSON[@]}" -X POST --data-binary "$body" "$BASE_URL$1"; }
 api_delete() { curl "${CURL[@]}" "${AUTH[@]}" -X DELETE "$BASE_URL$1" >/dev/null; }
 
 purge_stale_cert_tasks() {
@@ -118,14 +121,23 @@ AMANDA_NAME="$(json_text "$TMP_DIR/ground-zero.json" employees.amanda.name)"
 LIVE_READY=false
 if [[ "$READY" == "true" ]]; then
   echo_step "4. Live role-awareness probes"
-  if api_post "/api/ground-zero/live-probe" '{}' > "$TMP_DIR/live-probe.json" && [[ "$(json_bool "$TMP_DIR/live-probe.json" passed)" == "true" ]]; then
-    pass "Live agents can state their current role/boundary from canonical context"
-    LIVE_READY=true
-  else
-    fail "One or more live role-awareness probes failed"
-    [[ -f "$TMP_DIR/live-probe.json" ]] && node - "$TMP_DIR/live-probe.json" <<'NODE'
+  if api_post_long "/api/ground-zero/live-probe" '{}' > "$TMP_DIR/live-probe.json"; then
+    if json_valid "$TMP_DIR/live-probe.json" && [[ "$(json_bool "$TMP_DIR/live-probe.json" passed)" == "true" ]]; then
+      pass "Live agents can state their current role/boundary from canonical context"
+      LIVE_READY=true
+    else
+      fail "One or more live role-awareness probes failed"
+      if json_valid "$TMP_DIR/live-probe.json"; then
+        node - "$TMP_DIR/live-probe.json" <<'NODE'
 const fs=require("fs");const x=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));for(const r of x.results||[])if(!r.passed)console.log(` - ${r.employee}: ${r.error||r.blocker||r.output||"probe failed"}`);
 NODE
+      else
+        echo " - Live probe returned an empty or invalid JSON response. See API logs; certification will continue to durable reporting without starting paid end-to-end tasks."
+      fi
+    fi
+  else
+    fail "Live role-awareness probe request failed or exceeded the 180-second certification timeout"
+    echo " - Paid end-to-end execution will remain disabled for this run."
   fi
 else
   echo_step "4. Live role-awareness probes"
