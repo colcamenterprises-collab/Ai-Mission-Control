@@ -48,6 +48,9 @@ test("controller enforces green CI and bounded sandboxed Codex repairs", async (
   assert.match(controller, /--sandbox", "workspace-write"/);
   assert.doesNotMatch(controller, /dangerously-bypass-approvals-and-sandbox|--yolo/);
   assert.match(controller, /PROTECTED_REPAIR_PATHS/);
+  assert.match(controller, /package\\.json/);
+  assert.match(controller, /pnpm-lock\\.yaml/);
+  assert.match(controller, /pnpm-workspace\\.yaml/);
   assert.match(controller, /Repair crossed protected boundary/);
   assert.match(controller, /pnpm", \["typecheck:production"\]/);
   assert.match(controller, /pnpm", \["test:execution"\]/);
@@ -63,6 +66,7 @@ test("controller installer keeps credentials root-only and runs outside API serv
   assert.match(installer, /\/etc\/mission-control\/continuous-delivery\.env/);
   assert.match(installer, /chmod 600/);
   assert.match(installer, /gh auth status/);
+  assert.match(installer, /gh auth setup-git/);
   assert.match(installer, /codex --version/);
   assert.match(installer, /Restart=on-failure/);
   assert.match(installer, /ExecStart=.*continuous-delivery-controller\.mjs/);
