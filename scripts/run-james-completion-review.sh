@@ -7,6 +7,7 @@ WORKER_NAME="${3:?worker name required}"
 PROMPT_FILE="${4:?prompt file required}"
 REPO="${MISSION_CONTROL_REPO_DIR:-/opt/apps/ai-mission-control}"
 JAMES_BINARY="${JAMES_BINARY:-/usr/local/bin/james-hermes}"
+JAMES_REVIEW_TIMEOUT_SECONDS="${JAMES_REVIEW_TIMEOUT_SECONDS:-120}"
 STATE_DIR="/var/lib/ai-mission-control/james-review-jobs"
 OUTPUT_FILE="$STATE_DIR/$JOB_ID.out"
 ERROR_FILE="$STATE_DIR/$JOB_ID.err"
@@ -28,10 +29,14 @@ Do not use VERIFIED_COMPLETE unless the result is genuinely satisfactory against
 set +e
 (
   cd "$REPO"
-  "$JAMES_BINARY" -z "$PROMPT"
+  timeout --signal=TERM --kill-after=15s "$JAMES_REVIEW_TIMEOUT_SECONDS" "$JAMES_BINARY" -z "$PROMPT"
 ) >"$OUTPUT_FILE" 2>"$ERROR_FILE"
 EXIT_CODE=$?
 set -e
+
+if [[ "$EXIT_CODE" -eq 124 || "$EXIT_CODE" -eq 137 ]]; then
+  printf '\nMission Control terminated James supervisory review after %ss without a completed runtime response.\n' "$JAMES_REVIEW_TIMEOUT_SECONDS" >> "$ERROR_FILE"
+fi
 
 if [[ -f "$REPO/.env" ]]; then
   set -a
@@ -60,15 +65,15 @@ NODE
 )"
 
 for attempt in $(seq 1 90); do
-  if curl -fsS "http://127.0.0.1:${PORT}/api/healthz" >/dev/null 2>&1; then break; fi
+  if curl --connect-timeout 3 --max-time 5 -fsS "http://127.0.0.1:${PORT}/api/healthz" >/dev/null 2>&1; then break; fi
   sleep 2
 done
 
-curl -fsS -X POST "http://127.0.0.1:${PORT}/api/james/completion-review-report" \
+curl --connect-timeout 3 --max-time 15 --fail-with-body -sS -X POST "http://127.0.0.1:${PORT}/api/james/completion-review-report" \
   -H 'Content-Type: application/json' \
   ${TOKEN:+-H "Authorization: Bearer $TOKEN"} \
   ${TOKEN:+-H "x-admin-token: $TOKEN"} \
-  --data "$PAYLOAD" >/dev/null
+  --data-binary "$PAYLOAD" >/dev/null
 
 rm -f "$PROMPT_FILE"
 exit 0
