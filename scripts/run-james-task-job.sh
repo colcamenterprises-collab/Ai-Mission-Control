@@ -7,6 +7,7 @@ COMMAND_ID="${3:-}"
 PROMPT_FILE="${4:?prompt file required}"
 REPO="${MISSION_CONTROL_REPO_DIR:-/opt/apps/ai-mission-control}"
 JAMES_BINARY="${JAMES_BINARY:-/usr/local/bin/james-hermes}"
+JAMES_TASK_TIMEOUT_SECONDS="${JAMES_TASK_TIMEOUT_SECONDS:-180}"
 STATE_DIR="/var/lib/ai-mission-control/james-jobs"
 WORKTREE_ROOT="/var/lib/ai-mission-control/worktrees"
 WORKTREE="$WORKTREE_ROOT/task-$TASK_ID"
@@ -44,10 +45,14 @@ $PROMPT"
 set +e
 (
   cd "$WORKTREE"
-  "$JAMES_BINARY" -z "$PROMPT"
+  timeout --signal=TERM --kill-after=15s "$JAMES_TASK_TIMEOUT_SECONDS" "$JAMES_BINARY" -z "$PROMPT"
 ) >"$OUTPUT_FILE" 2>"$ERROR_FILE"
 EXIT_CODE=$?
 set -e
+
+if [[ "$EXIT_CODE" -eq 124 || "$EXIT_CODE" -eq 137 ]]; then
+  printf '\nMission Control terminated James after %ss without a completed runtime response.\n' "$JAMES_TASK_TIMEOUT_SECONDS" >> "$ERROR_FILE"
+fi
 
 if [[ -f "$REPO/.env" ]]; then
   set -a
@@ -89,7 +94,7 @@ NODE
 printf '%s\n' "$RESULT_STATE" > "$STATUS_FILE"
 
 for attempt in $(seq 1 90); do
-  if curl -fsS "http://127.0.0.1:${PORT}/api/healthz" >/dev/null 2>&1; then break; fi
+  if curl --connect-timeout 3 --max-time 5 -fsS "http://127.0.0.1:${PORT}/api/healthz" >/dev/null 2>&1; then break; fi
   sleep 2
 done
 
@@ -111,11 +116,11 @@ process.stdout.write(JSON.stringify({
 NODE
 )"
 
-curl -fsS -X POST "http://127.0.0.1:${PORT}/api/james/report" \
+curl --connect-timeout 3 --max-time 15 --fail-with-body -sS -X POST "http://127.0.0.1:${PORT}/api/james/report" \
   -H 'Content-Type: application/json' \
   ${TOKEN:+-H "Authorization: Bearer $TOKEN"} \
   ${TOKEN:+-H "x-admin-token: $TOKEN"} \
-  --data "$PAYLOAD" >/dev/null
+  --data-binary "$PAYLOAD" >/dev/null
 
 rm -f "$PROMPT_FILE"
 exit "$EXIT_CODE"
