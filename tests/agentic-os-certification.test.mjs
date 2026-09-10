@@ -47,7 +47,7 @@ test("terminal certification exercises real execution, delegation and approval g
 test("certification network calls and waits are bounded", () => {
   assert.match(script, /--connect-timeout 3/);
   assert.match(script, /--max-time 20/);
-  assert.match(script, /LONG_CURL=.*--max-time 180/);
+  assert.match(script, /LONG_CURL=.*--max-time 300/);
   assert.match(script, /api_post_long "\/api\/ground-zero\/live-probe"/);
   assert.match(script, /\[WAIT\] Task/);
   assert.match(script, /wait_task "\$TASK1" 240/);
@@ -55,7 +55,7 @@ test("certification network calls and waits are bounded", () => {
 
 test("live probe timeout cannot crash certification on empty JSON", () => {
   assert.match(script, /json_valid\(\)/);
-  assert.match(script, /Live role-awareness probe request failed or exceeded the 180-second certification timeout/);
+  assert.match(script, /Live role-awareness probe request failed or exceeded the 300-second certification timeout/);
   assert.match(script, /Paid end-to-end execution will remain disabled for this run/);
   assert.match(script, /empty or invalid JSON response/);
 });
