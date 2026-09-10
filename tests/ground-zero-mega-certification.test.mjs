@@ -48,6 +48,13 @@ test("live probe exercises actual configured runtimes with role-specific context
   assert.match(route, /what qualifies for the AI Intelligence Brief/);
 });
 
+test("role-awareness probes are deterministic and prohibit tool or research side effects", () => {
+  assert.match(route, /Certification-only role check/);
+  assert.match(route, /Answer only from the canonical context supplied in this request/);
+  assert.match(route, /Do not browse the web, call tools, inspect files, run commands, perform work, or contact external systems/);
+  assert.match(route, /Do not retry or start a research workflow/);
+});
+
 test("mega regression tests are part of CI workflow", () => {
   assert.match(packageJson, /ground-zero-mega-certification\.test\.mjs/);
   assert.match(packageJson, /justin-operations-manager\.test\.ts/);
