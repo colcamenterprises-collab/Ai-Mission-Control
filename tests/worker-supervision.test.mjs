@@ -11,6 +11,7 @@ const executionControl = fs.readFileSync("artifacts/api-server/src/services/task
 const supervisionRoute = fs.readFileSync("artifacts/api-server/src/routes/worker-supervision.ts", "utf8");
 const runner = fs.readFileSync("scripts/run-james-completion-review.sh", "utf8");
 const taskRunner = fs.readFileSync("scripts/run-james-task-job.sh", "utf8");
+const deploy = fs.readFileSync("scripts/deploy-mission-control.sh", "utf8");
 const routeIndex = fs.readFileSync("artifacts/api-server/src/routes/index.ts", "utf8");
 
 test("normal specialist completion cannot self-certify Review or Done", () => { assert.match(intake, /status:\s*"completion_pending"/); assert.match(intake, /queueJamesCompletionReview\(task\.id, agent\.name/); });
@@ -58,6 +59,22 @@ test("detached endpoint refuses to spend credits while circuit is open", () => {
 test("detached runners have hard wall-clock timeout", () => {
   assert.match(taskRunner, /timeout/);
   assert.match(runner, /timeout/);
+});
+
+test("James detached task and QA runners load the real Hermes profile credentials", () => {
+  for (const source of [taskRunner, runner]) {
+    assert.match(source, /JAMES_PROFILE_DIR=.*\/root\/\.hermes\/profiles\/james-hermes/);
+    assert.match(source, /JAMES_PROFILE_ENV/);
+    assert.match(source, /\. "\$JAMES_PROFILE_ENV"/);
+    assert.match(source, /OPENROUTER_API_KEY/);
+  }
+});
+
+test("production deploy attaches the James profile env to the API service without printing secrets", () => {
+  assert.match(deploy, /JAMES_PROFILE_ENV/);
+  assert.match(deploy, /EnvironmentFile=%s/);
+  assert.match(deploy, /james-profile-env\.conf/);
+  assert.match(deploy, /OPENROUTER_API_KEY presence verified without printing the secret/);
 });
 
 test("Task execution lifecycle remains harness-gated", () => { assert.match(intake, /markTaskExecutionRunning\(task\.id\)/); assert.match(supervisionRoute, /markTaskExecutionCompleted\(taskId/); assert.match(supervisionRoute, /verifiedBy: "James Hermes"/); assert.match(executionControl, /if \(!evaluation\.passed\) return/); });
