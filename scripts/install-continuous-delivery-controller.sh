@@ -5,7 +5,7 @@ APP_ROOT="${MISSION_CONTROL_REPO_DIR:-/opt/apps/ai-mission-control}"
 API_SERVICE="${MISSION_CONTROL_SERVICE_NAME:-ai-mission-control-api.service}"
 CONTROLLER_SERVICE="mission-control-continuous-delivery.service"
 ENV_DIR="/etc/mission-control"
-ENV_FILE="${ENV_DIR}/continuous-delivery.env"
+ENV_FILE="/etc/mission-control/continuous-delivery.env"
 NODE_BIN="${MISSION_CONTROL_NODE_BIN:-$(command -v node || true)}"
 
 if [[ "${EUID}" -ne 0 ]]; then
