@@ -4,7 +4,7 @@ import { agentsTable, db, tasksTable } from "@workspace/db";
 import { createRateLimit } from "../lib/rate-limit.js";
 import { auditLog } from "../lib/audit.js";
 import { buildCanonicalAgentContext, syncCanonicalContextToWorkspace } from "../services/agent-context.js";
-import { dispatchRuntime, isRuntimeConfigured } from "../services/agent-runtime.js";
+import { dispatchRuntime, isRuntimeConfigured, type RuntimeDispatchResult } from "../services/agent-runtime.js";
 import { certifyEmploymentPack, employmentPackMarkdown, type EmploymentPack } from "../services/agent-employment-pack.js";
 import { buildAmandaEmploymentPack, certifyAmandaFinancialController } from "../services/amanda-financial-controller.js";
 import { buildJustinEmploymentPack, certifyJustinOperationsManager } from "../services/justin-operations-manager.js";
@@ -13,6 +13,9 @@ import { getAgentModelPolicy, seedRolePolicy } from "../services/model-policy.js
 
 const router: IRouter = Router();
 type AgentRow = typeof agentsTable.$inferSelect;
+
+const ROLE_PROBE_DISCIPLINE = "This is a role-memory certification probe. Do not use tools, web search, files, integrations, external systems, or network access. Answer only from the canonical Mission Control role context already supplied in this request.";
+const JAMES_ROLE_PROBE_TIMEOUT_MS = 90_000;
 
 function key(agent: AgentRow) { return `${agent.name} ${agent.role}`.toLowerCase(); }
 function matches(agent: AgentRow, terms: string[]) { const value = key(agent); return terms.some(term => value.includes(term)); }
@@ -118,6 +121,42 @@ async function statusSnapshot() {
   };
 }
 
+async function dispatchJamesRoleProbe(agent: AgentRow, prompt: string): Promise<RuntimeDispatchResult> {
+  const adminToken = process.env.MISSION_CONTROL_ADMIN_TOKEN?.trim();
+  if (!adminToken) {
+    return { ok: false, provider: "hermes", delivery: "webhook", output: null, statusCode: null, error: "Mission Control admin token is unavailable for James role probe.", model: agent.model };
+  }
+  const canonicalContext = await buildCanonicalAgentContext(agent.id).catch(() => "");
+  const port = process.env.PORT ?? "4100";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), JAMES_ROLE_PROBE_TIMEOUT_MS);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/james/message`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${adminToken}`,
+        "x-admin-token": adminToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message: [ROLE_PROBE_DISCIPLINE, prompt, canonicalContext ? `Canonical role context:\n${canonicalContext}` : ""].filter(Boolean).join("\n\n") }),
+      signal: controller.signal,
+    });
+    const raw = await response.text();
+    let output = raw;
+    try {
+      const parsed = JSON.parse(raw) as { success?: boolean; response?: string; error?: string; details?: string };
+      output = parsed.response?.trim() || parsed.details?.trim() || parsed.error?.trim() || raw;
+      return { ok: response.ok && parsed.success !== false, provider: "hermes", delivery: "webhook", output: output || null, statusCode: response.status, error: response.ok && parsed.success !== false ? null : output || `James role probe returned HTTP ${response.status}`, model: agent.model };
+    } catch {
+      return { ok: response.ok, provider: "hermes", delivery: "webhook", output: output || null, statusCode: response.status, error: response.ok ? null : output || `James role probe returned HTTP ${response.status}`, model: agent.model };
+    }
+  } catch (error) {
+    return { ok: false, provider: "hermes", delivery: "webhook", output: null, statusCode: null, error: error instanceof Error ? error.message : String(error), model: agent.model };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 router.get("/ground-zero/certification", async (_req, res): Promise<void> => { res.json(await statusSnapshot()); });
 
 router.post("/ground-zero/prepare", createRateLimit("admin-write", 5, 60_000), async (_req, res): Promise<void> => {
@@ -150,12 +189,16 @@ router.post("/ground-zero/live-probe", createRateLimit("admin-write", 5, 60_000)
   const results = [];
   for (const probe of probes) {
     if (!probe.agent) { results.push({ employee: probe.key, passed: false, blocker: "Employee record missing." }); continue; }
+    const startedAt = Date.now();
+    const rolePrompt = `${ROLE_PROBE_DISCIPLINE}\n\n${probe.prompt}`;
     try {
-      const result = await dispatchRuntime(probe.agent, { instructions: probe.prompt, mode: "test" });
+      const result = probe.key === "james"
+        ? await dispatchJamesRoleProbe(probe.agent, probe.prompt)
+        : await dispatchRuntime(probe.agent, { instructions: rolePrompt, mode: "test" });
       const text = result.output ?? "";
-      results.push({ employee: probe.agent.name, passed: result.ok && probe.expected.test(text), runtimeOk: result.ok, provider: result.provider, model: result.model ?? null, output: text.slice(0, 1200), error: result.error });
+      results.push({ employee: probe.agent.name, passed: result.ok && probe.expected.test(text), runtimeOk: result.ok, provider: result.provider, model: result.model ?? null, durationMs: Date.now() - startedAt, output: text.slice(0, 1200), error: result.error });
     } catch (error) {
-      results.push({ employee: probe.agent.name, passed: false, runtimeOk: false, provider: probe.agent.provider, model: probe.agent.model, output: "", error: error instanceof Error ? error.message : String(error) });
+      results.push({ employee: probe.agent.name, passed: false, runtimeOk: false, provider: probe.agent.provider, model: probe.agent.model, durationMs: Date.now() - startedAt, output: "", error: error instanceof Error ? error.message : String(error) });
     }
   }
   await auditLog({ action: "ground_zero_live_context_probe", entityType: "system", entityId: "ground-zero", actorType: "admin", actorName: "Mission Control", metadata: results.map(item => `${item.employee}:${item.passed}`).join(",") });

@@ -41,11 +41,19 @@ test("live probe is fail-closed when Ground Zero prerequisites are not ready", (
 
 test("live probe exercises actual configured runtimes with role-specific context checks", () => {
   assert.match(route, /dispatchRuntime\(probe\.agent/);
+  assert.match(route, /dispatchJamesRoleProbe/);
   assert.match(route, /mode: "test"/);
   assert.match(route, /company guiding rule/);
   assert.match(route, /role boundary with Justin/);
   assert.match(route, /operational ownership and your boundary with Amanda/);
   assert.match(route, /what qualifies for the AI Intelligence Brief/);
+});
+
+test("role-memory probes are bounded and explicitly prohibit tool or web-search side effects", () => {
+  assert.match(route, /ROLE_PROBE_DISCIPLINE/);
+  assert.match(route, /Do not use tools, web search, files, integrations, external systems, or network access/);
+  assert.match(route, /JAMES_ROLE_PROBE_TIMEOUT_MS = 90_000/);
+  assert.match(route, /durationMs: Date\.now\(\) - startedAt/);
 });
 
 test("mega regression tests are part of CI workflow", () => {
