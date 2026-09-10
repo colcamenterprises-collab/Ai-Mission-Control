@@ -31,7 +31,7 @@ function missionControlNote(result: WorkerResult): string {
   switch (result) {
     case "COMPLETED": return "AGENT REPORTED COMPLETE — completion evidence received. A fresh supervisory verification pass is required before Review or Done.";
     case "CHANGES_REQUIRED": return "CHANGES REQUIRED — the task remains active. James must continue the correction cycle; owner approval is not required.";
-    case "BLOCKED": return "BLOCKED — the task remains blocked. Approval is required only when execution policy identifies a protected action.";
+    case "BLOCKED": return "BLOCKED — the task remains blocked. Approval is required only when execution policy identifies a protected action. Missing credentials or configuration require owner action, not Approve/Reject controls.";
     case "FAILED": return "EXECUTION FAILED — the task is not complete. Diagnose the failure within the bounded retry policy; do not request owner acceptance.";
     case "NEEDS_CLARIFICATION": return "WAITING ON JAMES — clarification is required within orchestration. This is not task completion or owner acceptance.";
     default: return "IN PROGRESS — James reported incomplete work. The task remains active and must not be presented for final owner acceptance.";
