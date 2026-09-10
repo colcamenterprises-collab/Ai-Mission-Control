@@ -7,6 +7,8 @@ COMMAND_ID="${3:-}"
 PROMPT_FILE="${4:?prompt file required}"
 REPO="${MISSION_CONTROL_REPO_DIR:-/opt/apps/ai-mission-control}"
 JAMES_BINARY="${JAMES_BINARY:-/usr/local/bin/james-hermes}"
+JAMES_PROFILE_DIR="${JAMES_PROFILE_DIR:-/root/.hermes/profiles/james-hermes}"
+JAMES_PROFILE_ENV="${JAMES_PROFILE_ENV:-$JAMES_PROFILE_DIR/.env}"
 JAMES_TASK_TIMEOUT_SECONDS="${JAMES_TASK_TIMEOUT_SECONDS:-180}"
 STATE_DIR="/var/lib/ai-mission-control/james-jobs"
 WORKTREE_ROOT="/var/lib/ai-mission-control/worktrees"
@@ -19,12 +21,26 @@ mkdir -p "$STATE_DIR" "$WORKTREE_ROOT"
 printf 'running\n' > "$STATUS_FILE"
 
 # Detached systemd jobs do not inherit the interactive shell configuration.
-# Load the production runtime environment before invoking James so Hermes/provider
-# identity and credentials are available to the worker itself, not only to its callback.
+# Load Mission Control first for callback/admin settings, then load James's actual
+# Hermes profile environment last so provider identity/credentials are authoritative
+# for the worker invocation itself.
 if [[ -f "$REPO/.env" ]]; then
   set -a
   . "$REPO/.env"
   set +a
+fi
+if [[ ! -f "$JAMES_PROFILE_ENV" ]]; then
+  printf 'James profile environment is missing: %s\n' "$JAMES_PROFILE_ENV" > "$ERROR_FILE"
+  printf 'BLOCKED\n' > "$STATUS_FILE"
+  exit 78
+fi
+set -a
+. "$JAMES_PROFILE_ENV"
+set +a
+if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
+  printf 'James profile environment does not provide OPENROUTER_API_KEY: %s\n' "$JAMES_PROFILE_ENV" > "$ERROR_FILE"
+  printf 'BLOCKED\n' > "$STATUS_FILE"
+  exit 78
 fi
 
 # James must never develop in the production checkout. Each task gets a persistent,

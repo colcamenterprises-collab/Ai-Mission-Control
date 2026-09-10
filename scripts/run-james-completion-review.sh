@@ -7,6 +7,8 @@ WORKER_NAME="${3:?worker name required}"
 PROMPT_FILE="${4:?prompt file required}"
 REPO="${MISSION_CONTROL_REPO_DIR:-/opt/apps/ai-mission-control}"
 JAMES_BINARY="${JAMES_BINARY:-/usr/local/bin/james-hermes}"
+JAMES_PROFILE_DIR="${JAMES_PROFILE_DIR:-/root/.hermes/profiles/james-hermes}"
+JAMES_PROFILE_ENV="${JAMES_PROFILE_ENV:-$JAMES_PROFILE_DIR/.env}"
 JAMES_REVIEW_TIMEOUT_SECONDS="${JAMES_REVIEW_TIMEOUT_SECONDS:-120}"
 STATE_DIR="/var/lib/ai-mission-control/james-review-jobs"
 OUTPUT_FILE="$STATE_DIR/$JOB_ID.out"
@@ -14,12 +16,23 @@ ERROR_FILE="$STATE_DIR/$JOB_ID.err"
 
 mkdir -p "$STATE_DIR"
 
-# Detached systemd review jobs must receive the same provider/Hermes runtime
-# environment as production before James is invoked.
+# Detached systemd review jobs must receive Mission Control callback settings and
+# James's actual Hermes profile/provider credentials before James is invoked.
 if [[ -f "$REPO/.env" ]]; then
   set -a
   . "$REPO/.env"
   set +a
+fi
+if [[ ! -f "$JAMES_PROFILE_ENV" ]]; then
+  printf 'James profile environment is missing: %s\n' "$JAMES_PROFILE_ENV" > "$ERROR_FILE"
+  exit 78
+fi
+set -a
+. "$JAMES_PROFILE_ENV"
+set +a
+if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
+  printf 'James profile environment does not provide OPENROUTER_API_KEY: %s\n' "$JAMES_PROFILE_ENV" > "$ERROR_FILE"
+  exit 78
 fi
 
 PROMPT="$(cat "$PROMPT_FILE")"
