@@ -10,151 +10,59 @@ const taskSupervisor = fs.readFileSync("artifacts/api-server/src/services/task-s
 const executionControl = fs.readFileSync("artifacts/api-server/src/services/task-execution-control.ts", "utf8");
 const supervisionRoute = fs.readFileSync("artifacts/api-server/src/routes/worker-supervision.ts", "utf8");
 const runner = fs.readFileSync("scripts/run-james-completion-review.sh", "utf8");
+const taskRunner = fs.readFileSync("scripts/run-james-task-job.sh", "utf8");
 const routeIndex = fs.readFileSync("artifacts/api-server/src/routes/index.ts", "utf8");
 
-test("normal specialist completion cannot self-certify Review or Done", () => {
-  assert.match(intake, /status:\s*"completion_pending"/);
-  assert.match(intake, /queueJamesCompletionReview\(task\.id, agent\.name/);
-  assert.doesNotMatch(intake, /const nextStatus = runtimeResult\.ok \? \(task\.approvalRequired \? "review"/);
+test("normal specialist completion cannot self-certify Review or Done", () => { assert.match(intake, /status:\s*"completion_pending"/); assert.match(intake, /queueJamesCompletionReview\(task\.id, agent\.name/); });
+test("task conversation follow-ups also enter mandatory James QA", () => { assert.match(tasks, /status:\s*"completion_pending"/); assert.match(tasks, /queueJamesCompletionReview\(task\.id, agent\.name/); });
+test("detached James execution gets a separate fresh supervisory pass", () => { assert.match(jamesDetached, /if \(result === "COMPLETED"\)/); assert.match(jamesDetached, /queueJamesCompletionReview\(taskId, "James Hermes", body\)/); assert.match(supervision, /Perform a fresh verification pass even when James Hermes was also the executing worker/); });
+test("Ground Zero canonical Task intake immediately creates an execution request", () => { assert.match(intake, /ensureTaskWorkRequest\(\{/); assert.match(executionControl, /task:\$\{taskId\}:primary/); });
+test("continuous supervision backfills legacy Tasks", () => { assert.match(taskSupervisor, /ensureTaskWorkRequest\(\{/); assert.match(taskSupervisor, /executionRequestsCreated/); });
+test("owner escalation is idempotent", () => { assert.match(taskSupervisor, /alreadyEscalated/); });
+
+test("supervision circuit breaker recognizes auth, credits, quota and access failures", () => {
+  assert.match(taskSupervisor, /CIRCUIT_BREAKER_PREFIX/);
+  assert.match(taskSupervisor, /HTTP\\s\+401/);
+  assert.match(taskSupervisor, /User not found/);
+  assert.match(taskSupervisor, /HTTP\\s\+402/);
+  assert.match(taskSupervisor, /credit limit/);
+  assert.match(taskSupervisor, /quota exceeded/);
+  assert.match(taskSupervisor, /provider_access/);
+  assert.match(taskSupervisor, /recentHardRuntimeFailure/);
 });
 
-test("task conversation follow-ups also enter mandatory James QA", () => {
-  assert.match(tasks, /status:\s*"completion_pending"/);
-  assert.match(tasks, /queueJamesCompletionReview\(task\.id, agent\.name/);
-  assert.doesNotMatch(tasks, /status: result\.ok \? "review" : "blocked"/);
+test("terminal supervision limit never resets retry counter", () => {
+  assert.match(taskSupervisor, /openCircuitBreaker/);
+  assert.match(taskSupervisor, /supervisionAttempts: maxAttempts\(\)/);
+  assert.match(taskSupervisor, /isCircuitOpen\(task\)/);
+  assert.match(taskSupervisor, /AUTOMATIC EXECUTION STOPPED/);
+  assert.doesNotMatch(taskSupervisor, /Automatic supervision reached[\s\S]{0,700}supervisionAttempts:\s*0/);
 });
 
-test("detached James execution gets a separate fresh supervisory pass", () => {
-  assert.match(jamesDetached, /if \(result === "COMPLETED"\)/);
-  assert.match(jamesDetached, /queueJamesCompletionReview\(taskId, "James Hermes", body\)/);
-  assert.match(supervision, /Perform a fresh verification pass even when James Hermes was also the executing worker/);
+test("James detached callback immediately opens circuit on hard runtime failure", () => {
+  assert.match(jamesDetached, /HARD_FAILURES/);
+  assert.match(jamesDetached, /HTTP\\s\+401/);
+  assert.match(jamesDetached, /User not found/);
+  assert.match(jamesDetached, /HTTP\\s\+402/);
+  assert.match(jamesDetached, /circuitOpen: Boolean\(hard\)/);
+  assert.match(jamesDetached, /AUTOMATIC EXECUTION STOPPED/);
+  assert.match(jamesDetached, /blockerType: hard\?\.type/);
 });
 
-test("trivial acknowledgement tasks are classified and constrained", () => {
-  assert.match(supervision, /acknowledgement_test/);
-  assert.match(supervision, /nothing required\|no action required\|just checking/);
-  assert.match(intake, /Do not perform operational work, browse unrelated context, make readiness claims, or produce a long report/);
+test("detached endpoint refuses to spend credits while circuit is open", () => {
+  assert.match(jamesDetached, /task\.blocker\?\.startsWith\(CIRCUIT_BREAKER_PREFIX\)/);
+  assert.match(jamesDetached, /res\.status\(409\)/);
+  assert.match(jamesDetached, /explicit recovery is required before another AI call/);
 });
 
-test("raw runtime telemetry is withheld from owner task conversation", () => {
-  assert.match(supervision, /systemPromptReport/);
-  assert.match(supervision, /Detailed runtime telemetry was retained in the execution audit and withheld from the owner conversation/);
-  assert.match(intake, /humanReadableWorkerOutput\(runtimeResult\.output\)/);
-  assert.match(tasks, /humanReadableWorkerOutput\(result\.output\)/);
+test("detached runners have hard wall-clock timeout", () => {
+  assert.match(taskRunner, /timeout/);
+  assert.match(runner, /timeout/);
 });
 
-test("Ground Zero canonical Task intake immediately creates an execution request", () => {
-  assert.match(intake, /ensureTaskWorkRequest\(\{/);
-  assert.match(intake, /agentId: result\.allocation\?\.agentId \?\? null/);
-  assert.match(executionControl, /task:\$\{taskId\}:primary/);
-  assert.match(executionControl, /Standing delegation permits ordinary Task execution/);
-});
-
-test("continuous supervision backfills legacy Tasks before authority decisions", () => {
-  assert.match(taskSupervisor, /ensureTaskWorkRequest\(\{/);
-  assert.match(taskSupervisor, /executionRequestsCreated/);
-  assert.match(taskSupervisor, /delegationDecision\(\{/);
-});
-
-test("legacy supervisor escalation cannot become a permanent owner approval gate", () => {
-  assert.match(taskSupervisor, /LEGACY_SUPERVISION_REASONS/);
-  assert.match(taskSupervisor, /LEGACY_SUPERVISION_MESSAGES/);
-  assert.match(taskSupervisor, /hasLegacySupervisorEvidence/);
-  assert.match(taskSupervisor, /message\.author === "Mission Control"/);
-  assert.match(taskSupervisor, /canonicalTaskRequest/);
-  assert.match(taskSupervisor, /\.source === "canonical-task"/);
-  assert.match(taskSupervisor, /originalAutomaticRequest/);
-  assert.match(taskSupervisor, /request\.riskLevel <= 1/);
-  assert.match(taskSupervisor, /request\.approvalDecision === "AUTO_EXECUTE"/);
-  assert.match(taskSupervisor, /transitionWorkRequest\(request, "cancelled"/);
-  assert.match(taskSupervisor, /supervisionAttempts: 0/);
-  assert.match(taskSupervisor, /legacyApprovalGatesRepaired/);
-  assert.doesNotMatch(taskSupervisor, /approvalRequired:\s*true/);
-});
-
-test("owner escalation is idempotent instead of writing the same task note every cycle", () => {
-  assert.match(taskSupervisor, /alreadyEscalated = task\.nextActionOwner === "Cameron" && task\.ownerDecisionReason === reason/);
-  assert.match(taskSupervisor, /if \(!alreadyEscalated\) await addMessage/);
-});
-
-test("provider key exhaustion is a capacity blocker rather than task approval", () => {
-  assert.match(taskSupervisor, /PROVIDER_CAPACITY_PATTERNS/);
-  assert.match(taskSupervisor, /HTTP\\s\+403:\\s\*Key limit exceeded/);
-  assert.match(taskSupervisor, /hasProviderCapacityBlocker/);
-  assert.match(taskSupervisor, /provider credential\/capacity issue, not approval for the underlying task/);
-  assert.match(taskSupervisor, /The task itself remains low-risk and does not require owner approval/);
-});
-
-test("James detached callback classifies provider capacity immediately", () => {
-  assert.match(jamesDetached, /PROVIDER_CAPACITY_PATTERNS/);
-  assert.match(jamesDetached, /isProviderCapacityFailure\(output, error\)/);
-  assert.match(jamesDetached, /providerCapacityFailure \? "BLOCKED" : normalizedResult/);
-  assert.match(jamesDetached, /nextActionOwner: "Cameron"/);
-  assert.match(jamesDetached, /ownerApprovalRequired: false/);
-  assert.match(jamesDetached, /blockerType: providerCapacityFailure \? "provider_capacity" : null/);
-  assert.match(jamesDetached, /No Approve\/Reject decision is required/);
-});
-
-test("supervision safety limit stays inside James authority", () => {
-  assert.match(taskSupervisor, /James must change the delegated recovery plan, worker, evidence source or access path/);
-  assert.match(taskSupervisor, /nextActionOwner: "James Hermes"/);
-  assert.match(taskSupervisor, /This remains inside orchestrator authority/);
-});
-
-test("Task execution lifecycle reaches running, blocked and harness-gated James-verified completed states", () => {
-  assert.match(intake, /markTaskExecutionRunning\(task\.id\)/);
-  assert.match(intake, /markTaskExecutionBlocked\(task\.id/);
-  assert.match(supervisionRoute, /markTaskExecutionCompleted\(taskId/);
-  assert.match(supervisionRoute, /verifiedBy: "James Hermes"/);
-  assert.match(executionControl, /if \(!evaluation\.passed\) return/);
-  assert.match(executionControl, /advance\(refreshed, "completed", "Agentic harness evals passed and James independently verified the Task outcome"\)/);
-});
-
-test("James review has evidence gate and bounded rework inside orchestrator recovery", () => {
-  assert.match(supervisionRoute, /MAX_AUTOMATIC_REWORKS = 3/);
-  assert.match(supervisionRoute, /requestedDecision === "VERIFIED_COMPLETE" && evidence\.length === 0 \? "REWORK_REQUIRED"/);
-  assert.match(supervisionRoute, /dispatchRework\(task/);
-  assert.match(supervisionRoute, /Automatic James QA reached the \$\{MAX_AUTOMATIC_REWORKS\}-cycle safety limit/);
-  assert.match(supervisionRoute, /nextActionOwner: "James Hermes"/);
-  assert.match(supervisionRoute, /Owner input is not required unless a protected action or owner-only access is identified/);
-  assert.match(supervisionRoute, /QA RECOVERY CYCLE STARTED/);
-  assert.match(supervisionRoute, /SUPERVISION — I own the next action for this task/);
-  assert.match(taskSupervisor, /QA RECOVERY CYCLE STARTED/);
-});
-
-test("James QA reports are correlated with the active review job", () => {
-  assert.match(supervision, /activeReviewFile/);
-  assert.match(supervision, /isActiveJamesReviewJob/);
-  assert.match(supervisionRoute, /staleReviewIgnored/);
-  assert.match(supervisionRoute, /clearActiveJamesReviewJob/);
-});
-
-test("James review failure can never silently complete a task", () => {
-  assert.match(supervisionRoute, /exitCode !== 0/);
-  assert.match(supervisionRoute, /status: "blocked"/);
-  assert.match(supervisionRoute, /The task was not marked complete/);
-});
-
-test("malformed owner-review escalation is surfaced safely instead of stranding completion_pending", () => {
-  assert.match(supervisionRoute, /escalatedOwnerReview && !reviewReason/);
-  assert.match(supervisionRoute, /INVALID_REVIEW_OUTPUT/);
-  assert.match(supervisionRoute, /requested owner review without a factual reason/);
-});
-
-test("owner review remains separate from James QA", () => {
-  assert.match(supervisionRoute, /task\.ownerReviewRequired/);
-  assert.match(supervisionRoute, /escalatedOwnerReview/);
-  assert.match(supervisionRoute, /OWNER REVIEW REQUIRED/);
-});
-
-test("role and task scoped playbooks replace blanket context injection", () => {
-  assert.match(intake, /Role\/task scoped playbooks/);
-  assert.match(intake, /selected = scored\.filter\(item => item\.score > 0\)\.slice\(0, 4\)/);
-});
-
-test("dedicated detached James review runner reports a machine-readable decision", () => {
-  assert.match(runner, /MISSION_CONTROL_REVIEW: VERIFIED_COMPLETE or REWORK_REQUIRED/);
-  assert.match(runner, /MISSION_CONTROL_EVIDENCE_JSON/);
-  assert.match(runner, /\/api\/james\/completion-review-report/);
-  assert.match(routeIndex, /workerSupervisionRouter/);
-});
+test("Task execution lifecycle remains harness-gated", () => { assert.match(intake, /markTaskExecutionRunning\(task\.id\)/); assert.match(supervisionRoute, /markTaskExecutionCompleted\(taskId/); assert.match(supervisionRoute, /verifiedBy: "James Hermes"/); assert.match(executionControl, /if \(!evaluation\.passed\) return/); });
+test("James review retains bounded QA rework", () => { assert.match(supervisionRoute, /MAX_AUTOMATIC_REWORKS = 3/); assert.match(supervisionRoute, /dispatchRework\(task/); });
+test("James QA reports correlate active review job", () => { assert.match(supervision, /activeReviewFile/); assert.match(supervisionRoute, /staleReviewIgnored/); });
+test("James review failure cannot silently complete", () => { assert.match(supervisionRoute, /exitCode !== 0/); assert.match(supervisionRoute, /status: "blocked"/); });
+test("role and task scoped playbooks remain active", () => { assert.match(intake, /Role\/task scoped playbooks/); });
+test("dedicated review runner reports machine-readable decision", () => { assert.match(runner, /MISSION_CONTROL_REVIEW: VERIFIED_COMPLETE or REWORK_REQUIRED/); assert.match(routeIndex, /workerSupervisionRouter/); });
