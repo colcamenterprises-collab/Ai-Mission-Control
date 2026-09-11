@@ -82,7 +82,7 @@ export function certifyAmandaFinancialController(input: {
     return { system: name, purpose, status: ready ? "READY" : "MISSING", evidence: ready ? "Capability reported available for certification." : "No live capability evidence supplied; do not infer access from the role profile." };
   };
   const access = [
-    system("SBB App / Final Dashboard", ["sbb app", "final dashboard", "sbb app / final dashboard"], "Daily sales, banking, shopping, wages, refunds and operational control records."),
+    system("SBB App / Final Dashboard", ["sbb app", "final dashboard", "sbb dashboard", "sbb app / final dashboard"], "Banking, shopping, wages, refunds, operational submissions and consolidated reporting records."),
     system("SBB inbuilt POS", ["sbb pos", "sbb inbuilt pos", "customli pos"], "Canonical live POS sales, receipts, payments and shifts."),
     system("Grab Merchant", ["grab", "grab merchant"], "Delivery-channel transaction evidence."),
     system("Mission Control Knowledge", ["mission control knowledge", "mission brain", "knowledge"], "Current SBB policy, task history and operating rules."),

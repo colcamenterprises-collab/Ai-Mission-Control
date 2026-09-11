@@ -55,6 +55,13 @@ WITH target AS (
   FROM ordering_order_items oi
   JOIN paid_orders oo ON oo.id = oi.order_id
   WHERE coalesce(oi.is_set_component,false) = false
+), dashboard AS (
+  SELECT d.*
+  FROM daily_sales_v2 d
+  JOIN target s ON d."shiftDate" = (s.opened_at AT TIME ZONE 'Asia/Bangkok')::date::text
+  WHERE d."deletedAt" IS NULL
+  ORDER BY d."createdAt" DESC
+  LIMIT 1
 ), refunds AS (
   SELECT count(*)::int AS refund_count,
          coalesce(sum(r.amount),0)::numeric(12,2) AS refund_total
@@ -64,7 +71,7 @@ WITH target AS (
 SELECT coalesce(jsonb_pretty(jsonb_build_object(
   'ok', true,
   'source', 'SBB inbuilt POS',
-  'source_tables', jsonb_build_array('pos_shifts','ordering_orders','ordering_payments','ordering_order_items','refund_logs'),
+  'source_tables', jsonb_build_array('pos_shifts','ordering_orders','ordering_payments','ordering_order_items','daily_sales_v2','refund_logs'),
   'shift', jsonb_build_object(
     'id', s.id,
     'staff_name', s.staff_name,
@@ -83,11 +90,19 @@ SELECT coalesce(jsonb_pretty(jsonb_build_object(
     'item_units', i.units
   ),
   'payments', coalesce((SELECT jsonb_object_agg(method, jsonb_build_object('amount', amount, 'receipt_count', receipt_count)) FROM payments), '{}'::jsonb),
+  'dashboard', CASE WHEN d.id IS NULL THEN NULL ELSE jsonb_build_object(
+    'shift_date', d."shiftDate", 'completed_by', d."completedBy",
+    'starting_cash', d."startingCash", 'ending_cash', d."endingCash",
+    'cash_sales', d."cashSales", 'qr_sales', d."qrSales", 'grab_sales', d."grabSales",
+    'total_sales', d."totalSales", 'total_expenses', d."totalExpenses",
+    'cash_banked', d."cashBanked", 'qr_transferred', d."qrTransfer"
+  ) END,
   'refunds', jsonb_build_object('count', r.refund_count, 'total', r.refund_total),
   'retrieved_at', now()
 )), '{"ok":false,"error":"no matching closed POS shift"}')
 FROM target s
 CROSS JOIN item_totals i
+LEFT JOIN dashboard d ON TRUE
 CROSS JOIN refunds r;
 COMMIT;
 SQL
