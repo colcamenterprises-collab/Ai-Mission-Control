@@ -32,9 +32,9 @@ export function buildAmandaEmploymentPack(): EmploymentPack {
       prohibited: "Never invent a balance, transaction, receipt, source result or system access; never alter source-of-truth financial records to force reconciliation; never expose credentials; never bypass approval policy; never mark an unresolved discrepancy reconciled.",
     },
     systems: {
-      required: "SBB App / Final Dashboard for daily sales, banking, shopping, wages, refunds and stock control records; Loyverse POS for sales/receipts/shifts; Grab Merchant for delivery-channel evidence; Mission Control Knowledge/Mission Brain for current SBB policies and task history. Access is capability-based: a named system is not evidence that credentials or a live connector are granted.",
+      required: "SBB inbuilt POS for live sales, receipts, payments and shifts; SBB App / Final Dashboard for banking, shopping, wages, refunds, stock-control and reporting records; Grab Merchant for delivery-channel settlement evidence; Mission Control Knowledge/Mission Brain for current SBB policies and task history. Access is capability-based: a named system is not evidence that credentials or a live connector are granted.",
       optional: "Relevant approved Google Drive/Sheets finance records and approved staff communication channels such as WhatsApp or LINE when actually connected and granted. CSV exports may be used as verification evidence when their provenance is known.",
-      accessRules: "Use source-of-truth hierarchy: Loyverse for POS sales/receipts/shifts, Grab Merchant for Grab evidence, SBB App/Final Dashboard for SBB operational submissions/display, and provenance-known CSVs for verification. Search granted systems before asking the owner for facts. If access is absent, report MISSING or BLOCKED; never pretend the system was checked.",
+      accessRules: "Use source-of-truth hierarchy: SBB inbuilt POS for live POS sales/receipts/payments/shifts, SBB App/Final Dashboard for SBB operational submissions, banking and reporting, Grab Merchant for Grab settlement evidence, and provenance-known CSVs for verification. Loyverse is historical/reference evidence only for periods before the SBB POS cutover. Search granted systems before asking the owner for facts. If access is absent, report MISSING or BLOCKED; never pretend the system was checked.",
     },
     skills: {
       required: "Financial reconciliation; cash and banking control; POS/delivery reconciliation; expense/wage/refund review; exception investigation; evidence provenance; tolerance-based control; concise management reporting; internal evidence requests; Mission Control task/evidence handling.",
@@ -69,7 +69,7 @@ export const AMANDA_SBB_CONTROL_RULES = {
   startingCashThb: 2500,
   tolerances: { registerThb: 30, rollsPieces: 5, meatGrams: 500, drinksUnits: 3 },
   alerts: { cashShortThb: 500, criticalCashShortThb: 3000 },
-  truthSources: ["Loyverse POS", "Grab Merchant", "SBB App / Final Dashboard", "provenance-known CSV verification"],
+  truthSources: ["SBB inbuilt POS", "SBB App / Final Dashboard", "Grab Merchant", "provenance-known CSV verification"],
 } as const;
 
 export function certifyAmandaFinancialController(input: {
@@ -83,7 +83,7 @@ export function certifyAmandaFinancialController(input: {
   };
   const access = [
     system("SBB App / Final Dashboard", ["sbb app", "final dashboard", "sbb app / final dashboard"], "Daily sales, banking, shopping, wages, refunds and operational control records."),
-    system("Loyverse POS", ["loyverse", "loyverse pos"], "POS sales, receipts and shifts."),
+    system("SBB inbuilt POS", ["sbb pos", "sbb inbuilt pos", "customli pos"], "Canonical live POS sales, receipts, payments and shifts."),
     system("Grab Merchant", ["grab", "grab merchant"], "Delivery-channel transaction evidence."),
     system("Mission Control Knowledge", ["mission control knowledge", "mission brain", "knowledge"], "Current SBB policy, task history and operating rules."),
   ];
