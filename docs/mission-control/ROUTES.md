@@ -362,3 +362,10 @@ The event API remains CURRENT even though `/calendar` is a legacy frontend redir
 3. Compatibility interceptors must be documented with an explicit removal condition.
 4. A page source file is not a supported route merely because it exists.
 5. New frontend or API route patterns must be added here in the same PR. CI checks route-documentation coverage.
+## 13. WhatsApp agent bridge
+
+`POST /api/whatsapp/webhook` is the signed inbound webhook for the dedicated Mission Control WhatsApp device.
+
+It is intentionally mounted before global admin authentication because GoWA cannot use the owner session. The route instead requires the configured HMAC-SHA256 webhook secret, accepts messages only from the configured allowlisted chat JID, ignores self-originated and empty messages, and deduplicates message IDs before agent dispatch.
+
+The bridge routes finance-oriented messages to Amanda Financial Controller and other approved test-group messages to James. Outbound replies use the private localhost GoWA service. This route does not expose GoWA administration or pairing publicly.
