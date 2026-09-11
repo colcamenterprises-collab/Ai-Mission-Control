@@ -37,11 +37,13 @@ import amandaCertificationRouter from "./amanda-certification";
 import modelPolicyRouter from "./model-policy";
 import groundZeroCertificationRouter from "./ground-zero-certification";
 import agenticOsCertificationRouter from "./agentic-os-certification";
+import whatsappRouter from "./whatsapp";
 import { requireAdminAuth } from "../lib/auth.js";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(whatsappRouter);
 router.use("/agents/:id/dispatch", requireAdminAuth);
 router.use("/agents/:id/token", requireAdminAuth);
 router.use("/agents/:id/test", requireAdminAuth);
