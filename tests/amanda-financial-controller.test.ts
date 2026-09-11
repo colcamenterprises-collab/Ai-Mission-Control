@@ -32,7 +32,7 @@ test("Amanda cannot be operationally certified from profile text alone", () => {
 });
 
 test("Amanda certification requires access and demonstrated workflow", () => {
-  const availableSystems = ["SBB App", "Loyverse POS", "Grab Merchant", "Mission Control Knowledge"];
+  const availableSystems = ["SBB App", "SBB inbuilt POS", "Grab Merchant", "Mission Control Knowledge"];
   const incomplete = certifyAmandaFinancialController({ availableSystems, demonstrated: { retrieve: true, identify: true, investigate: true } });
   assert.equal(incomplete.ready, false);
   const complete = certifyAmandaFinancialController({ availableSystems, demonstrated: { retrieve: true, identify: true, investigate: true, delegatedDecision: true, conciseReport: true, correctEscalation: true } });

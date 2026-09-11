@@ -12,9 +12,10 @@ Amanda owns day-to-day financial control for SBB: reconcile verified trading dat
 
 ## Source-of-truth hierarchy
 
-- **Loyverse POS:** POS sales, receipts and shifts.
-- **Grab Merchant:** Grab delivery-channel evidence.
-- **SBB App / Final Dashboard:** daily sales, banking, wages, shopping, refunds, purchasing/stock control submissions and operational display.
+- **SBB inbuilt POS / Customli POS:** canonical live sales, receipts, payments and shifts.
+- **SBB App / Final Dashboard:** banking, wages, shopping, refunds, purchasing/stock control submissions and consolidated reporting.
+- **Grab Merchant:** delivery settlement and reconciliation evidence.
+- **Loyverse POS:** historical/reference evidence for pre-cutover periods only.
 - **Provenance-known CSV exports:** verification evidence, not an excuse to override a canonical live source.
 - **Mission Control Knowledge / Mission Brain:** current SBB operating policy and task history.
 

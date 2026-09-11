@@ -22,3 +22,9 @@ Accurate evidence-backed finance control, early anomaly detection, concise repor
 
 ## Guiding rule
 Scale fast, but safely.
+
+## SBB finance source of truth
+For current trading periods, the SBB inbuilt POS is the canonical source for live sales, receipts, payment methods and shifts. The SBB App / Final Dashboard is the operational/reporting store for banking, shopping, wages, refunds, stock-control and consolidated reporting. Grab Merchant remains the settlement source for Grab reconciliation. Loyverse is historical/reference evidence only for pre-cutover periods.
+
+## Read-only POS access
+Use `sbb-finance-read latest-shift` for the most recent closed POS shift. Use `sbb-finance-read shift <uuid>` for a known shift or `sbb-finance-read date YYYY-MM-DD` for a Bangkok shift date. This tool is read-only, returns JSON with source provenance, and must be used before asking Cameron for POS figures that the tool can retrieve. Do not attempt direct database writes or expose its connection configuration.
