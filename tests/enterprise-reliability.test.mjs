@@ -19,6 +19,10 @@ const execution = fs.readFileSync(
   "artifacts/api-server/src/services/task-execution-control.ts",
   "utf8",
 );
+const tasksRoute = fs.readFileSync(
+  "artifacts/api-server/src/routes/tasks.ts",
+  "utf8",
+);
 
 test("worker ownership is acquired while request is approved before dispatch", () => {
   const claim = bridge.indexOf("claimedByAgentId: agent.id");
@@ -55,4 +59,13 @@ test("completion verifier cannot equal declared executor", () => {
   );
   assert.match(harness, /independent verification required/);
   assert.match(execution, /executedBy: `agent:\$\{request\.agentId\}`/);
+});
+
+
+test("circuit-broken tasks expose an explicit audited resume path", () => {
+  assert.match(tasksRoute, /router\.post\("\/tasks\/:id\/resume"/);
+  assert.match(tasksRoute, /task\.blocker\?\.startsWith\("CIRCUIT BREAKER —"\)/);
+  assert.match(tasksRoute, /await reopenTaskExecution\(id\)/);
+  assert.match(tasksRoute, /supervisionAttempts: 0/);
+  assert.match(tasksRoute, /CIRCUIT BREAKER RESET/);
 });

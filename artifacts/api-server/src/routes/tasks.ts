@@ -28,6 +28,7 @@ import {
 } from "@workspace/api-zod";
 import { routeVerifiedCompletion } from "../services/task-completion-policy.js";
 import { humanReadableWorkerOutput, queueJamesCompletionReview } from "../services/worker-supervision.js";
+import { reopenTaskExecution } from "../services/task-execution-control.js";
 
 const router: IRouter = Router();
 
@@ -161,6 +162,33 @@ router.post("/tasks/:id/messages", async (req, res): Promise<void> => {
   const command = await queueTaskFollowUp(task, `Owner added a new message to task #${id}. Review the task and conversation, respond inside the task, and continue the work if possible.\n\nOwner message:\n${body}\n\nRecent task conversation:\n${recentContext}`, "Owner message queued to assigned worker");
   if (command) await addTaskMessage(id, "Mission Control", `Owner message sent to ${task.assignee}.`);
   res.status(201).json(serializeDates(message));
+});
+
+router.post("/tasks/:id/resume", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+  if (!Number.isInteger(id) || id <= 0 || !reason) { res.status(400).json({ error: "Task id and recovery reason are required" }); return; }
+  const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, id));
+  if (!task) { res.status(404).json({ error: "Task not found" }); return; }
+  if (task.status !== "blocked" || !task.blocker?.startsWith("CIRCUIT BREAKER —")) { res.status(409).json({ error: "Only circuit-broken tasks can be explicitly resumed" }); return; }
+  const request = await reopenTaskExecution(id);
+  if (!request || !["approved", "queued"].includes(request.state)) { res.status(409).json({ error: "Canonical execution request could not be reopened" }); return; }
+  const resumedAt = new Date();
+  await db.update(tasksTable).set({
+    status: "ready",
+    approvalRequired: false,
+    ownerReviewRequired: false,
+    nextAction: "James Hermes to resume autonomous execution after repaired blocker.",
+    nextActionOwner: "James Hermes",
+    blocker: null,
+    ownerDecisionReason: null,
+    supervisionAttempts: 0,
+    lastOrchestratorReviewAt: resumedAt,
+  }).where(eq(tasksTable.id, id));
+  await addTaskMessage(id, "Cameron", `RESUME AUTHORIZED — ${reason}`);
+  await addTaskMessage(id, "Mission Control", "CIRCUIT BREAKER RESET — canonical execution reopened and bounded supervision counter reset to 0.");
+  await db.insert(activityTable).values({ agentName: "James Hermes", action: "Circuit-broken task explicitly resumed", detail: `Task #${id}: ${reason}`, status: "pending" });
+  res.json({ resumed: true, taskId: id, executionState: request.state, supervisionAttempts: 0, resumedAt: resumedAt.toISOString() });
 });
 
 router.post("/tasks/:id/approve", async (req, res): Promise<void> => {
