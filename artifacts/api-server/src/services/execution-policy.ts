@@ -99,3 +99,38 @@ export function redactSensitive(value: unknown): unknown {
     );
   return value;
 }
+
+
+export type DelegationLevel = 0 | 1 | 2 | 3 | 4;
+export type ActionClass = "observe" | "routine" | "controlled" | "protected" | "prohibited";
+export type DelegationAssessment = { riskLevel: DelegationLevel; actionClass: ActionClass; approvalDecision: ApprovalDecision; reason: string; signals: string[] };
+
+const PROTECTED_EXTERNAL_SIGNALS: Array<{ name: string; pattern: RegExp }> = [
+  { name: "financial_movement", pattern: /\b(pay|payment|transfer|refund|withdraw|purchase|spend|buy|invoice payment|bank transfer|cash out)\b/i },
+  { name: "credentials_security", pattern: /\b(password|credential|secret|api key|token|rotate key|security setting|encryption key)\b/i },
+  { name: "destructive_production", pattern: /\b(drop|truncate|delete database|delete table|wipe|destroy|purge|production database|prod database)\b/i },
+  { name: "legal_commitment", pattern: /\b(sign|execute|accept)\b.{0,40}\b(contract|agreement|terms|legal)\b/i },
+  { name: "external_commitment", pattern: /\b(send|publish|post|promise|commit|confirm)\b.{0,50}\b(customer|client|public|external|supplier|vendor)\b/i },
+  { name: "privilege_escalation", pattern: /\b(grant|elevate|admin|sudo|root|permission|role)\b.{0,40}\b(access|permission|privilege|admin|root)\b/i },
+];
+const CONTROLLED_EXTERNAL_SIGNALS: Array<{ name: string; pattern: RegExp }> = [
+  { name: "software_change", pattern: /\b(deploy|merge|release|install|restart|reconfigure|patch|change|update|edit|fix|create|write)\b/i },
+  { name: "operational_change", pattern: /\b(schedule|assign|reassign|archive|move|enable|disable|approve|reject|cancel)\b/i },
+];
+const OBSERVE_EXTERNAL_SIGNALS: Array<{ name: string; pattern: RegExp }> = [
+  { name: "question", pattern: /^\s*(what|why|when|where|who|how|is|are|can|could|does|do|did|has|have|show|tell)\b/i },
+  { name: "analysis", pattern: /\b(check|review|analyse|analyze|inspect|summari[sz]e|report|compare|explain|read|look up|find|status)\b/i },
+];
+
+/** External language is classified into a structured risk decision; only the structured decision grants authority. Ambiguity fails closed at L2. */
+export function assessExternalAction(action: string): DelegationAssessment {
+  const text = action.trim();
+  const protectedSignals = PROTECTED_EXTERNAL_SIGNALS.filter(item => item.pattern.test(text)).map(item => item.name);
+  if (protectedSignals.length) return { riskLevel: 3, actionClass: "protected", approvalDecision: "OWNER_APPROVAL", reason: `External request contains protected-action signals: ${protectedSignals.join(", ")}.`, signals: protectedSignals };
+  const controlledSignals = CONTROLLED_EXTERNAL_SIGNALS.filter(item => item.pattern.test(text)).map(item => item.name);
+  if (controlledSignals.length) return { riskLevel: 2, actionClass: "controlled", approvalDecision: "ORCHESTRATOR_APPROVAL", reason: `External request proposes a controlled side effect: ${controlledSignals.join(", ")}.`, signals: controlledSignals };
+  const observeSignals = OBSERVE_EXTERNAL_SIGNALS.filter(item => item.pattern.test(text)).map(item => item.name);
+  if (observeSignals.length) return { riskLevel: 1, actionClass: "observe", approvalDecision: "AUTO_EXECUTE", reason: `External request is observational/read-only: ${observeSignals.join(", ")}.`, signals: observeSignals };
+  if (/^\s*(hello|hi|hey|thanks|thank you|ok|okay|noted|received)[.! ]*$/i.test(text)) return { riskLevel: 1, actionClass: "routine", approvalDecision: "AUTO_EXECUTE", reason: "External request is harmless conversational acknowledgement with no requested side effect.", signals: ["benign_conversation"] };
+  return { riskLevel: 2, actionClass: "controlled", approvalDecision: "ORCHESTRATOR_APPROVAL", reason: "Unclassified external request defaults to controlled execution and requires orchestrator authorization.", signals: ["ambiguous_external_action"] };
+}

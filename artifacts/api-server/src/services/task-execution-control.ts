@@ -77,6 +77,14 @@ export async function ensureTaskWorkRequest(params: { task: typeof tasksTable.$i
   return current;
 }
 
+export async function authorizeOrchestratorApproval(taskId: number, decidedBy = "James Hermes"): Promise<WorkRequest | null> {
+  const request = await latestTaskWorkRequest(taskId);
+  if (!request) return null;
+  if (request.state !== "awaiting_approval" || request.approvalDecision !== "ORCHESTRATOR_APPROVAL") return request;
+  await db.update(approvalsTable).set({ status: "approved", decidedBy, decisionNote: "Approved under Mission Control L2 controlled-execution standing delegation.", decidedAt: new Date() }).where(eq(approvalsTable.requestId, request.id));
+  return transitionWorkRequest(request, "approved", { type: "orchestrator", id: decidedBy, reason: "L2 controlled execution authorized under standing orchestrator delegation", context: { approvalDecision: request.approvalDecision, riskLevel: request.riskLevel } });
+}
+
 async function advance(request: WorkRequest, to: WorkRequestState, reason: string): Promise<WorkRequest> {
   if (request.state === to) return request;
   return transitionWorkRequest(request, to, { type: "orchestrator", id: "Mission Control", reason });

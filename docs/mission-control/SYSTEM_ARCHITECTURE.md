@@ -407,3 +407,7 @@ The following rules should be treated as V1.0 invariants:
 8. Shared skills/knowledge/tools are company infrastructure; credentials remain centrally protected.
 9. New routes/compatibility shims must be documented in the same PR.
 10. Legacy paths are removed only after their consumer/data migration condition is satisfied and regression tests prove safety.
+
+### External intake authorization boundary
+
+External channels such as WhatsApp terminate at the control plane, not at an agent runtime. Each authenticated message is converted into a canonical Task and durable Work Request before any worker can act. Natural-language intake is converted into a structured L0-L3 risk/approval decision; source identity is audit metadata and never implies owner approval. The Work Request state is the dispatch authorization boundary, with durable idempotency based on the external message id and independent transition/audit records.

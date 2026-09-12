@@ -369,3 +369,7 @@ The event API remains CURRENT even though `/calendar` is a legacy frontend redir
 It is intentionally mounted before global admin authentication because GoWA cannot use the owner session. The route instead requires the configured HMAC-SHA256 webhook secret, accepts messages only from the configured allowlisted chat JID, ignores self-originated and empty messages, and deduplicates message IDs before agent dispatch.
 
 The bridge routes finance-oriented messages to Amanda Financial Controller and other approved test-group messages to James. Outbound replies use the private localhost GoWA service. This route does not expose GoWA administration or pairing publicly.
+
+### Enterprise external-intake control plane
+
+Authenticated WhatsApp intake is not an agent-execution endpoint. `POST /api/whatsapp/webhook` verifies the webhook signature and allowed chat, then creates or reuses a canonical Task + `work_requests` record keyed by the external message id. The stored Work Request carries channel/source metadata, structured delegation risk and the approval decision. L0/L1 work may enter `approved`; L2 is explicitly authorized by the orchestrator before execution; L3 remains `awaiting_approval` until owner approval. Replays return the existing Task/Work Request and never create duplicate execution.
