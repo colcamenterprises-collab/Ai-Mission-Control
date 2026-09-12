@@ -4,6 +4,7 @@ import { logger } from "./lib/logger";
 import { syncMemorySources } from "./services/memory-sync.js";
 import { initializeAgentSkillAssignments } from "./config-operational-agents.js";
 import { superviseActiveTasks } from "./services/task-supervisor.js";
+import { expireExecutionLeases } from "./services/execution-lease-maintenance.js";
 
 const rawPort = process.env["PORT"];
 
@@ -21,7 +22,10 @@ if (Number.isNaN(port) || port <= 0) {
 
 await ensureOperationalSchema();
 const skillAssignments = await initializeAgentSkillAssignments();
-logger.info({ skillAssignments }, "Durable agent skill assignments initialized");
+logger.info(
+  { skillAssignments },
+  "Durable agent skill assignments initialized",
+);
 
 try {
   const memorySync = await syncMemorySources({ force: true });
@@ -32,9 +36,22 @@ try {
 
 async function runTaskSupervision(): Promise<void> {
   try {
+    const expiredLeases = await expireExecutionLeases();
+    if (expiredLeases.length)
+      logger.warn(
+        { expiredLeases },
+        "Expired execution leases recovered before supervision",
+      );
     const supervision = await superviseActiveTasks();
-    if (supervision.delegated || supervision.ownerEscalations || supervision.runtimeFailures) {
-      logger.info({ supervision }, "Continuous task supervision cycle completed");
+    if (
+      supervision.delegated ||
+      supervision.ownerEscalations ||
+      supervision.runtimeFailures
+    ) {
+      logger.info(
+        { supervision },
+        "Continuous task supervision cycle completed",
+      );
     }
   } catch (err) {
     logger.error({ err }, "Continuous task supervision cycle failed");
@@ -49,8 +66,18 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
 
-  const firstRunMs = Number(process.env.MISSION_CONTROL_SUPERVISION_FIRST_RUN_MS ?? 30_000);
-  const intervalMs = Number(process.env.MISSION_CONTROL_SUPERVISION_INTERVAL_MS ?? 300_000);
-  setTimeout(() => void runTaskSupervision(), Number.isFinite(firstRunMs) && firstRunMs >= 0 ? firstRunMs : 30_000).unref();
-  setInterval(() => void runTaskSupervision(), Number.isFinite(intervalMs) && intervalMs >= 60_000 ? intervalMs : 300_000).unref();
+  const firstRunMs = Number(
+    process.env.MISSION_CONTROL_SUPERVISION_FIRST_RUN_MS ?? 30_000,
+  );
+  const intervalMs = Number(
+    process.env.MISSION_CONTROL_SUPERVISION_INTERVAL_MS ?? 300_000,
+  );
+  setTimeout(
+    () => void runTaskSupervision(),
+    Number.isFinite(firstRunMs) && firstRunMs >= 0 ? firstRunMs : 30_000,
+  ).unref();
+  setInterval(
+    () => void runTaskSupervision(),
+    Number.isFinite(intervalMs) && intervalMs >= 60_000 ? intervalMs : 300_000,
+  ).unref();
 });

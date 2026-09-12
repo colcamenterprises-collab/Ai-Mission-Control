@@ -34,27 +34,41 @@ export type ExecutionHarnessContract = {
 type JsonRecord = Record<string, unknown>;
 
 function record(value: unknown): JsonRecord {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : {};
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as JsonRecord)
+    : {};
 }
 
 function strings(value: unknown): string[] {
   return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map(item => item.trim())
+    ? value
+        .filter(
+          (item): item is string =>
+            typeof item === "string" && Boolean(item.trim()),
+        )
+        .map((item) => item.trim())
     : [];
 }
 
 function isAcknowledgementTask(title: string, description: string): boolean {
-  return /nothing required|no action required|just checking|checking you are allocated|acknowledge|test allocation|test dispatch/i.test(`${title} ${description}`);
+  return /nothing required|no action required|just checking|checking you are allocated|acknowledge|test allocation|test dispatch/i.test(
+    `${title} ${description}`,
+  );
 }
 
 function protectedCapabilities(title: string, description: string): string[] {
   const text = `${title} ${description}`.toLowerCase();
   const capabilities = new Set<string>();
-  if (/production|deploy|publish|merge/.test(text)) capabilities.add("production_change");
-  if (/delete|drop|destroy|purge|truncate/.test(text)) capabilities.add("destructive_change");
-  if (/payment|pay |purchase|spend|refund|bank|transfer/.test(text)) capabilities.add("financial_commitment");
-  if (/credential|secret|token|password|permission|security/.test(text)) capabilities.add("security_change");
-  if (/customer|client|contract|legal|external commitment/.test(text)) capabilities.add("consequential_external_commitment");
+  if (/production|deploy|publish|merge/.test(text))
+    capabilities.add("production_change");
+  if (/delete|drop|destroy|purge|truncate/.test(text))
+    capabilities.add("destructive_change");
+  if (/payment|pay |purchase|spend|refund|bank|transfer/.test(text))
+    capabilities.add("financial_commitment");
+  if (/credential|secret|token|password|permission|security/.test(text))
+    capabilities.add("security_change");
+  if (/customer|client|contract|legal|external commitment/.test(text))
+    capabilities.add("consequential_external_commitment");
   return [...capabilities];
 }
 
@@ -72,7 +86,8 @@ export function buildExecutionHarnessContract(params: {
     "no_unresolved_blockers",
   ];
   if (!acknowledgement) requiredEvals.unshift("evidence_present");
-  if (protectedActions.length > 0) requiredEvals.push("protected_action_authorized");
+  if (protectedActions.length > 0)
+    requiredEvals.push("protected_action_authorized");
 
   return {
     version: "1.0",
@@ -97,10 +112,16 @@ export function buildExecutionHarnessContract(params: {
   };
 }
 
-export function contractFromRequirements(requirements: unknown): ExecutionHarnessContract | null {
+export function contractFromRequirements(
+  requirements: unknown,
+): ExecutionHarnessContract | null {
   const harness = record(record(requirements).agenticHarness);
   const contract = record(harness.contract);
-  if (contract.version !== "1.0" || contract.completionPolicy !== "evidence_gated") return null;
+  if (
+    contract.version !== "1.0" ||
+    contract.completionPolicy !== "evidence_gated"
+  )
+    return null;
   return contract as unknown as ExecutionHarnessContract;
 }
 
@@ -110,11 +131,28 @@ export function evaluateCompletionContract(params: {
   approvalDecision?: string | null;
 }): { passed: boolean; evals: HarnessEval[] } {
   const evidence = strings(params.result.evidence);
-  const summary = typeof params.result.summary === "string" ? params.result.summary.trim() : "";
-  const verifiedBy = typeof params.result.verifiedBy === "string" ? params.result.verifiedBy.trim() : "";
+  const summary =
+    typeof params.result.summary === "string"
+      ? params.result.summary.trim()
+      : "";
+  const verifiedBy =
+    typeof params.result.verifiedBy === "string"
+      ? params.result.verifiedBy.trim()
+      : "";
+  const executedBy =
+    typeof params.result.executedBy === "string"
+      ? params.result.executedBy.trim()
+      : "";
+  const verifierIndependent =
+    Boolean(verifiedBy) &&
+    (!executedBy || verifiedBy.toLowerCase() !== executedBy.toLowerCase());
   const blockers = strings(params.result.blockers);
   const protectedActions = params.contract.capabilityScope.protected;
-  const protectedAuthorized = protectedActions.length === 0 || ["AUTO_EXECUTE", "ORCHESTRATOR_APPROVAL", "OWNER_APPROVAL"].includes(params.approvalDecision ?? "");
+  const protectedAuthorized =
+    protectedActions.length === 0 ||
+    ["AUTO_EXECUTE", "ORCHESTRATOR_APPROVAL", "OWNER_APPROVAL"].includes(
+      params.approvalDecision ?? "",
+    );
 
   const checks: Record<HarnessEvalId, { passed: boolean; detail: string }> = {
     evidence_present: {
@@ -122,25 +160,42 @@ export function evaluateCompletionContract(params: {
       detail: `${evidence.length}/${params.contract.minimumEvidence} evidence items supplied`,
     },
     supervisor_verified: {
-      passed: Boolean(verifiedBy),
-      detail: verifiedBy ? `verified by ${verifiedBy}` : "independent verifier is missing",
+      passed: verifierIndependent,
+      detail: !verifiedBy
+        ? "independent verifier is missing"
+        : !verifierIndependent
+          ? `verifier ${verifiedBy} matches executor; independent verification required`
+          : executedBy
+            ? `independently verified by ${verifiedBy}; executor was ${executedBy}`
+            : `verified by ${verifiedBy}`,
     },
     no_unresolved_blockers: {
       passed: blockers.length === 0,
-      detail: blockers.length === 0 ? "no unresolved blockers reported" : `${blockers.length} unresolved blocker(s) reported`,
+      detail:
+        blockers.length === 0
+          ? "no unresolved blockers reported"
+          : `${blockers.length} unresolved blocker(s) reported`,
     },
     completion_summary_present: {
       passed: Boolean(summary),
-      detail: summary ? "completion summary supplied" : "completion summary is missing",
+      detail: summary
+        ? "completion summary supplied"
+        : "completion summary is missing",
     },
     protected_action_authorized: {
       passed: protectedAuthorized,
-      detail: protectedAuthorized ? "protected capability policy satisfied" : `protected capabilities require authorization: ${protectedActions.join(", ")}`,
+      detail: protectedAuthorized
+        ? "protected capability policy satisfied"
+        : `protected capabilities require authorization: ${protectedActions.join(", ")}`,
     },
   };
 
-  const evals = params.contract.requiredEvals.map(id => ({ id, required: true, ...checks[id] }));
-  return { passed: evals.every(item => item.passed), evals };
+  const evals = params.contract.requiredEvals.map((id) => ({
+    id,
+    required: true,
+    ...checks[id],
+  }));
+  return { passed: evals.every((item) => item.passed), evals };
 }
 
 export function harnessPrompt(contract: ExecutionHarnessContract): string {
@@ -169,7 +224,10 @@ export async function loadTaskHarnessPrompt(taskId: number): Promise<string> {
   return contract ? harnessPrompt(contract) : "";
 }
 
-export function withExecutionHarnessRequirements(existing: unknown, contract: ExecutionHarnessContract): JsonRecord {
+export function withExecutionHarnessRequirements(
+  existing: unknown,
+  contract: ExecutionHarnessContract,
+): JsonRecord {
   return {
     ...record(existing),
     agenticHarness: {
@@ -188,7 +246,9 @@ export async function recordHarnessEvaluation(params: {
 }): Promise<void> {
   const requirements = record(params.request.requirements);
   const harness = record(requirements.agenticHarness);
-  const replay = Array.isArray(harness.failureReplayLog) ? [...harness.failureReplayLog] : [];
+  const replay = Array.isArray(harness.failureReplayLog)
+    ? [...harness.failureReplayLog]
+    : [];
   if (!params.passed) {
     replay.push({
       recordedAt: new Date().toISOString(),
@@ -198,14 +258,21 @@ export async function recordHarnessEvaluation(params: {
       result: params.result,
     });
   }
-  await db.update(workRequestsTable).set({
-    requirements: {
-      ...requirements,
-      agenticHarness: {
-        ...harness,
-        lastEvaluation: { evaluatedAt: new Date().toISOString(), passed: params.passed, evals: params.evals },
-        failureReplayLog: replay.slice(-10),
+  await db
+    .update(workRequestsTable)
+    .set({
+      requirements: {
+        ...requirements,
+        agenticHarness: {
+          ...harness,
+          lastEvaluation: {
+            evaluatedAt: new Date().toISOString(),
+            passed: params.passed,
+            evals: params.evals,
+          },
+          failureReplayLog: replay.slice(-10),
+        },
       },
-    },
-  }).where(eq(workRequestsTable.id, params.request.id));
+    })
+    .where(eq(workRequestsTable.id, params.request.id));
 }

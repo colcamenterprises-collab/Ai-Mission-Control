@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
-import { and, desc, eq, ilike, inArray, lte, or } from "drizzle-orm";
+import { and, desc, eq, ilike, or } from "drizzle-orm";
 import {
   db,
   approvalsTable,
@@ -14,6 +14,7 @@ import {
   redactSensitive,
 } from "../services/execution-policy.js";
 import { transitionWorkRequest } from "../services/execution-runtime.js";
+import { expireExecutionLeases } from "../services/execution-lease-maintenance.js";
 import { evaluateAgentEligibility } from "../services/execution-permissions.js";
 
 const router: IRouter = Router();
@@ -32,13 +33,11 @@ type ExecutionInstructionInput = {
 function normalizeInstructions(value: unknown): ExecutionInstructionInput[] {
   if (!Array.isArray(value)) return [];
   return value
-    .filter(
-      (item: unknown): item is Record<string, unknown> =>
-        Boolean(item && typeof item === "object"),
+    .filter((item: unknown): item is Record<string, unknown> =>
+      Boolean(item && typeof item === "object"),
     )
     .map((item) => ({
-      instructionType:
-        clean(item.type) === "playbook" ? "playbook" : "skill",
+      instructionType: clean(item.type) === "playbook" ? "playbook" : "skill",
       stableId: clean(item.id) ?? "UNMAPPED",
       name: clean(item.name) ?? "UNMAPPED",
       version: clean(item.version),
@@ -80,56 +79,7 @@ router.get("/executions", async (req, res): Promise<void> => {
 router.post(
   "/executions/maintenance/expire-leases",
   async (_req, res): Promise<void> => {
-    const expired = await db
-      .select()
-      .from(workRequestsTable)
-      .where(
-        and(
-          inArray(workRequestsTable.state, ["acknowledged", "running"]),
-          lte(workRequestsTable.leaseExpiresAt, new Date()),
-        ),
-      )
-      .limit(100);
-    const outcomes: Array<{ id: number; state: string }> = [];
-    for (const request of expired) {
-      try {
-        const failed = await transitionWorkRequest(request, "failed", {
-          type: "system",
-          reason: "Worker lease expired",
-        });
-        const retrySafe =
-          failed.idempotencyClass === "read_only" &&
-          failed.retryCount < failed.maxAttempts - 1;
-        if (retrySafe) {
-          const [retryable] = await db
-            .update(workRequestsTable)
-            .set({
-              retryCount: failed.retryCount + 1,
-              claimedByAgentId: null,
-              leaseExpiresAt: null,
-              error: "Worker lease expired; safe read-only retry queued",
-            })
-            .where(
-              and(
-                eq(workRequestsTable.id, failed.id),
-                eq(workRequestsTable.state, "failed"),
-              ),
-            )
-            .returning();
-          const queued = await transitionWorkRequest(retryable, "queued", {
-            type: "system",
-            reason: "Safe read-only retry",
-          });
-          const approved = await transitionWorkRequest(queued, "approved", {
-            type: "policy",
-            reason: "Existing approval remains scoped to this execution",
-          });
-          outcomes.push({ id: approved.id, state: approved.state });
-        } else outcomes.push({ id: failed.id, state: failed.state });
-      } catch {
-        outcomes.push({ id: request.id, state: "concurrent_change" });
-      }
-    }
+    const outcomes = await expireExecutionLeases();
     res.json({ processed: outcomes.length, outcomes });
   },
 );
