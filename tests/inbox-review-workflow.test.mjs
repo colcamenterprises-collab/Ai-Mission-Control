@@ -26,7 +26,7 @@ test("Inbox promotion and direct creation converge on canonical orchestrator int
   assert.match(intake, /Orchestrator reviewed the task/);
   assert.match(intake, /insert\(agentCommandsTable\)/);
   assert.match(intake, /linkedTaskId: task\.id, reviewStatus: "promoted"/);
-  assert.match(intake, /if \(dispatch\) void runAssignedWork\(dispatch\)/);
+  assert.match(intake, /if \(dispatch && request\.state === "approved"\) void runAssignedWork\(dispatch\)/);
 });
 
 test("worker completion cannot directly reach Review or Done", async () => {

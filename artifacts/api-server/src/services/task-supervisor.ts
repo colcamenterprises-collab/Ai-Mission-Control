@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db, activityTable, agentsTable, taskMessagesTable, tasksTable, workRequestsTable, approvalsTable } from "@workspace/db";
 import { dispatchRuntime, isRuntimeConfigured } from "./agent-runtime.js";
 import { delegationDecision, supervisionAction } from "./autonomy-policy.js";
-import { ensureTaskWorkRequest, reopenTaskExecution } from "./task-execution-control.js";
+import { authorizeOrchestratorApproval, ensureTaskWorkRequest, reopenTaskExecution } from "./task-execution-control.js";
 import { transitionWorkRequest } from "./execution-runtime.js";
 
 const SUPERVISED_STATUSES = ["backlog", "ready", "running", "in_progress", "blocked", "changes_required"];
@@ -255,6 +255,11 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
       summary.circuitBreakersOpen += 1;
       continue;
     }
+
+    if (latestRequest?.state === "awaiting_approval" && latestRequest.approvalDecision === "ORCHESTRATOR_APPROVAL") {
+      latestRequest = (await authorizeOrchestratorApproval(task.id, james.name)) ?? latestRequest;
+    }
+    if (latestRequest?.state === "awaiting_approval") { summary.skipped += 1; continue; }
 
     await reopenTaskExecution(task.id);
     const attempt = (task.supervisionAttempts ?? 0) + 1;

@@ -201,11 +201,12 @@ export async function intakeActionableTask(body: IntakeBody, options: { inboxIte
       allocation: assignedAgent && command ? { agentId: assignedAgent.id, agentName: assignedAgent.name, commandId: command.id, delivery: "queued_for_worker", nextStep: "Work has been queued. Specialist completion will be independently reviewed by James before Review or Done." } : null,
     };
   });
-  await ensureTaskWorkRequest({
+  const request = await ensureTaskWorkRequest({
     task: result.task,
     agentId: result.allocation?.agentId ?? null,
     routingReason: result.orchestratorReview?.reason ?? "Canonical orchestrator intake",
   });
-  if (dispatch) void runAssignedWork(dispatch);
+  // The Work Request is the authorization boundary. Allocation never bypasses a pending approval.
+  if (dispatch && request.state === "approved") void runAssignedWork(dispatch);
   return result;
 }
