@@ -94,6 +94,7 @@ All remaining route modules are mounted after `requireAdminAuth`.
 `DELETE /api/tasks/:id`
 `PATCH /api/tasks/:id/move`
 `POST /api/tasks/:id/messages`
+`POST /api/tasks/:id/resume` — explicitly resumes a circuit-broken task after its blocker is repaired; reopens the canonical Work Request, resets bounded supervision attempts, and records the recovery reason.
 `POST /api/tasks/:id/approve`
 `POST /api/tasks/:id/request-changes`
 `POST /api/tasks/:id/accept`
