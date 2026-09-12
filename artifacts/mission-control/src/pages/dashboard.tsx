@@ -9,6 +9,7 @@ import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { JamesAvatar } from "@/components/james-avatar";
+import { ModelObservability } from "@/components/model-observability";
 import "./workspaces.css";
 import "./dashboard-operations.css";
 
@@ -61,11 +62,18 @@ function adminHeaders(): Record<string, string> {
 }
 
 export default function Dashboard() {
-  const { data: summary, isLoading: isSummaryLoading } =
-    useGetDashboardSummary();
-  const { data: rawTasks = [], isLoading: isTasksLoading } = useListTasks();
-  const { data: agents = [] } = useListAgents();
-  const { data: memories = [] } = useListMemories();
+  const {
+    data: summary,
+    isLoading: isSummaryLoading,
+    isError: isSummaryError,
+  } = useGetDashboardSummary();
+  const {
+    data: rawTasks = [],
+    isLoading: isTasksLoading,
+    isError: isTasksError,
+  } = useListTasks();
+  const { data: agents = [], isError: isAgentsError } = useListAgents();
+  const { data: memories = [], isError: isMemoriesError } = useListMemories();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const briefQuery = useQuery({
     queryKey: ["operations-brief"],
@@ -149,6 +157,14 @@ export default function Dashboard() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  const controlPlaneError =
+    isSummaryError ||
+    isTasksError ||
+    isAgentsError ||
+    isMemoriesError ||
+    briefQuery.isError ||
+    approvalsQuery.isError;
+
   return (
     <div className="mission-shell h-full overflow-y-auto">
       <div className="mission-canvas mission-home-canvas mission-operations-home">
@@ -156,32 +172,44 @@ export default function Dashboard() {
           <Link href="/tasks?create=note">+ Note</Link>
           <Link href="/tasks?create=task">+ Task</Link>
         </section>
+        {controlPlaneError && (
+          <section className="mission-control-data-alert">
+            <strong>Control-plane data degraded</strong>
+            <span>
+              Mission Control cannot retrieve one or more live operational
+              datasets. Values are not being treated as healthy zeroes.
+            </span>
+          </section>
+        )}
         <section className="mission-metric-grid">
           <MetricCard
             title="Work open"
-            value={String(totalTasks)}
+            value={isSummaryError || isTasksError ? "—" : String(totalTasks)}
             loading={isSummaryLoading || isTasksLoading}
             tone="blue"
           />
           <MetricCard
             title="Working now"
-            value={String(activeTasks)}
+            value={isSummaryError || isTasksError ? "—" : String(activeTasks)}
             loading={isSummaryLoading || isTasksLoading}
             tone="green"
           />
           <MetricCard
             title="AI team"
-            value={String(installedAgents)}
+            value={
+              isSummaryError || isAgentsError ? "—" : String(installedAgents)
+            }
             loading={isSummaryLoading}
             tone="violet"
           />
           <MetricCard
             title="Knowledge"
-            value={String(memories.length)}
+            value={isMemoriesError ? "—" : String(memories.length)}
             loading={false}
             tone="amber"
           />
         </section>
+        <ModelObservability />
 
         <div className="mission-ops-grid mission-ops-grid-primary">
           <article className="mission-panel mission-current-work">
@@ -282,15 +310,17 @@ export default function Dashboard() {
             ) : approvals.length === 0 ? (
               <CompactEmpty>Nothing needs approval</CompactEmpty>
             ) : (
-              approvals.slice(0, 4).map(({ approval, request }) => (
-                <OpsRow
-                  key={approval.id}
-                  title={approval.proposedAction || request.requestedAction}
-                  meta={`${request.environment || "Unknown environment"} · Risk level ${request.riskLevel}`}
-                  href="/approvals"
-                  accent="approval"
-                />
-              ))
+              approvals
+                .slice(0, 4)
+                .map(({ approval, request }) => (
+                  <OpsRow
+                    key={approval.id}
+                    title={approval.proposedAction || request.requestedAction}
+                    meta={`${request.environment || "Unknown environment"} · Risk level ${request.riskLevel}`}
+                    href="/approvals"
+                    accent="approval"
+                  />
+                ))
             )}
           </OpsPanel>
 
@@ -470,10 +500,20 @@ function CompactEmpty({ children }: { children: React.ReactNode }) {
 function CommandPalette({ onClose }: { onClose: () => void }) {
   const actions = [
     {
-      label: "Add Note", detail: "Open quick capture", href: "/tasks?create=note",
+      label: "Add Note",
+      detail: "Open quick capture",
+      href: "/tasks?create=note",
     },
-    { label: "Add Task", detail: "Open orchestrated task creation", href: "/tasks?create=task" },
-    { label: "Open approvals", detail: "Owner-gated execution decisions", href: "/approvals" },
+    {
+      label: "Add Task",
+      detail: "Open orchestrated task creation",
+      href: "/tasks?create=task",
+    },
+    {
+      label: "Open approvals",
+      detail: "Owner-gated execution decisions",
+      href: "/approvals",
+    },
     { label: "Open AI team", detail: "Agents and roles", href: "/team" },
     {
       label: "Search knowledge",

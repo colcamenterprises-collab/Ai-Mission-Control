@@ -39,10 +39,13 @@ import groundZeroCertificationRouter from "./ground-zero-certification";
 import agenticOsCertificationRouter from "./agentic-os-certification";
 import whatsappRouter from "./whatsapp";
 import { requireAdminAuth } from "../lib/auth.js";
+import authSessionRouter from "./auth-session.js";
+import brainGraphRouter from "./brain-graph.js";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(authSessionRouter);
 router.use(whatsappRouter);
 router.use("/agents/:id/dispatch", requireAdminAuth);
 router.use("/agents/:id/token", requireAdminAuth);
@@ -52,6 +55,7 @@ router.use(agentSkillsRouter);
 router.use(agentBridgeRouter);
 router.use(requireAdminAuth);
 router.use(dashboardRouter);
+router.use(brainGraphRouter);
 router.use(jamesNativeVoiceBridgeRouter);
 router.use(jamesRouter);
 router.use(jamesDetachedRouter);
