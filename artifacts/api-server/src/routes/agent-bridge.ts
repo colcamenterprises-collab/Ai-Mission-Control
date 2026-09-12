@@ -118,42 +118,62 @@ router.post(
         });
         continue;
       }
-      let dispatched;
-      try {
-        dispatched = await transitionWorkRequest(candidate, "dispatched", {
-          type: "system",
-          reason: "Eligible worker requested work",
-        });
-      } catch {
-        continue;
-      }
+      // Claim ownership while the request is still approved. The conditional update is
+      // the concurrency boundary: only one worker can acquire an unclaimed/expired lease.
       const leaseExpiresAt = new Date(Date.now() + LEASE_MS);
       const [claimed] = await db
         .update(workRequestsTable)
-        .set({ claimedByAgentId: agent.id, leaseExpiresAt })
+        .set({
+          claimedByAgentId: agent.id,
+          leaseExpiresAt,
+          lastProgressAt: new Date(),
+        })
         .where(
           and(
-            eq(workRequestsTable.id, dispatched.id),
-            eq(workRequestsTable.state, "dispatched"),
-            isNull(workRequestsTable.claimedByAgentId),
+            eq(workRequestsTable.id, candidate.id),
+            eq(workRequestsTable.state, "approved"),
+            or(
+              isNull(workRequestsTable.claimedByAgentId),
+              lt(workRequestsTable.leaseExpiresAt, new Date()),
+            ),
           ),
         )
         .returning();
       if (!claimed) continue;
-      const acknowledged = await transitionWorkRequest(
-        claimed,
-        "acknowledged",
-        {
-          type: "agent",
+      try {
+        const dispatched = await transitionWorkRequest(claimed, "dispatched", {
+          type: "system",
           id: String(agent.id),
-          reason: "Worker claimed execution",
-        },
-      );
-      res.json({
-        request: { ...acknowledged, leaseExpiresAt },
-        leaseDurationMs: LEASE_MS,
-      });
-      return;
+          reason: "Eligible worker atomically claimed execution",
+        });
+        const acknowledged = await transitionWorkRequest(
+          dispatched,
+          "acknowledged",
+          {
+            type: "agent",
+            id: String(agent.id),
+            reason: "Worker acknowledged claimed execution",
+          },
+        );
+        res.json({
+          request: { ...acknowledged, leaseExpiresAt },
+          leaseDurationMs: LEASE_MS,
+        });
+        return;
+      } catch {
+        // If state advancement loses a race, never leave an approved claim orphaned.
+        await db
+          .update(workRequestsTable)
+          .set({ claimedByAgentId: null, leaseExpiresAt: null })
+          .where(
+            and(
+              eq(workRequestsTable.id, claimed.id),
+              eq(workRequestsTable.state, "approved"),
+              eq(workRequestsTable.claimedByAgentId, agent.id),
+            ),
+          );
+        continue;
+      }
     }
     res.status(204).send();
   },
@@ -325,7 +345,11 @@ router.post(
     if (completed.taskId)
       await db
         .update(tasksTable)
-        .set({ status: "completion_pending", report: ownerReport, updatedAt: new Date() })
+        .set({
+          status: "completion_pending",
+          report: ownerReport,
+          updatedAt: new Date(),
+        })
         .where(
           and(
             eq(tasksTable.id, completed.taskId),
@@ -639,7 +663,8 @@ router.post(
           .json({ error: "This worker is not assigned to that work item." });
         return;
       }
-      const requestedStatus = taskStatus === "blocked" ? "blocked" : "completion_pending";
+      const requestedStatus =
+        taskStatus === "blocked" ? "blocked" : "completion_pending";
       await db
         .update(tasksTable)
         .set({ status: requestedStatus })
