@@ -86,6 +86,12 @@ The API has three authentication classes:
 
 Agent bridge endpoints authenticate their own Bearer token through `getAgentFromBearer`. They are mounted before global admin authentication. They cover worker skills, memory grants, work-request claim/heartbeat/progress/completion/failure, ping, command acknowledgement, reporting and granted-tool discovery.
 
+### Owner browser session
+
+The owner-facing browser uses a dedicated login flow. `POST /api/auth/login` verifies `MISSION_CONTROL_OWNER_PASSWORD` (with the existing admin token retained only as a bootstrap fallback) and issues a signed HttpOnly, SameSite=Strict session cookie. `GET /api/auth/session` is the browser session check and `POST /api/auth/logout` terminates the session. The frontend is expected to use this session rather than persisting the admin API token in browser storage. Service-to-service callers continue to use the admin Bearer token.
+
+A failed or expired owner session must be rendered as an authentication/degraded-control-plane state, never as valid zero business data.
+
 ### Admin routes
 
 Admin control routes are protected by Mission Control admin auth. Four agent control endpoints are explicitly admin-gated before the agent bridge is mounted:
@@ -261,6 +267,10 @@ OpenClaw provisioning was hardened in PRs #126–#129. The shared OpenClaw gatew
 Each source document is represented in the database with metadata and revisions. Source-document updates create new revisions rather than duplicate knowledge rows.
 
 Repository and Agent OS records are protected in the Knowledge API: they cannot be modified or deleted through the UI. The source file must be changed in Git.
+
+### Mission Brain graph
+
+`GET /api/brain/graph` provides the visual organisational graph used by the owner UI. Nodes are derived from persisted projects, agents, tasks and memories; edges are derived from real assignment, project and memory-agent grant relationships. The graph is an observability/navigation surface over canonical data rather than a separate source of truth.
 
 ### Obsidian
 

@@ -1,7 +1,7 @@
 # Mission Control V1.0 — Route Inventory
 
-**Status:** CURRENT  
-**Reviewed:** 2026-09-08  
+**Status:** CURRENT
+**Reviewed:** 2026-09-08
 **Router sources:** `artifacts/mission-control/src/App.tsx`, `artifacts/api-server/src/app.ts`, `artifacts/api-server/src/routes/*`
 
 This inventory records route ownership and compatibility status. Unless stated otherwise, API routes below are mounted under `/api`.
@@ -48,18 +48,18 @@ This inventory records route ownership and compatibility status. Unless stated o
 
 ### Public before global admin auth
 
-`GET /api/healthz`  
-`GET /api/readyz`  
-`GET /api/employee-avatars/<filename>` — read-only static avatar delivery.  
+`GET /api/healthz`
+`GET /api/readyz`
+`GET /api/employee-avatars/<filename>` — read-only static avatar delivery.
 `GET /employee-avatars/<filename>` — LEGACY/local compatibility static mount outside `/api`.
 
 ### Explicit admin endpoints mounted before agent bridge
 
 These are intentionally admin-protected before route-local agent Bearer authentication:
 
-`POST /api/agents/:id/dispatch`  
-`POST /api/agents/:id/token`  
-`POST /api/agents/:id/test`  
+`POST /api/agents/:id/dispatch`
+`POST /api/agents/:id/token`
+`POST /api/agents/:id/test`
 `POST /api/agents/:id/test-task`
 
 ### Agent-token routes
@@ -72,39 +72,39 @@ All remaining route modules are mounted after `requireAdminAuth`.
 
 ## 3. Health and dashboard
 
-`GET /api/healthz` — liveness.  
-`GET /api/readyz` — deep readiness.  
+`GET /api/healthz` — liveness.
+`GET /api/readyz` — deep readiness.
 `GET /api/dashboard/summary` — aggregated owner dashboard counts.
 
 ## 4. Canonical task/project API
 
 ### Project records
 
-`GET /api/projects`  
+`GET /api/projects`
 `POST /api/projects`
 
 ### Task list/detail and lifecycle
 
-`GET /api/tasks`  
-`GET /api/tasks/archived`  
-`POST /api/tasks` — CURRENT canonical intake; intercepted by `orchestrator.ts` before the generic tasks router.  
-`GET /api/tasks/:id`  
-`GET /api/tasks/:id/details`  
-`PATCH /api/tasks/:id`  
-`DELETE /api/tasks/:id`  
-`PATCH /api/tasks/:id/move`  
-`POST /api/tasks/:id/messages`  
-`POST /api/tasks/:id/approve`  
-`POST /api/tasks/:id/request-changes`  
-`POST /api/tasks/:id/accept`  
-`POST /api/tasks/:id/orchestrator-completion-review`  
-`POST /api/tasks/:id/archive`  
+`GET /api/tasks`
+`GET /api/tasks/archived`
+`POST /api/tasks` — CURRENT canonical intake; intercepted by `orchestrator.ts` before the generic tasks router.
+`GET /api/tasks/:id`
+`GET /api/tasks/:id/details`
+`PATCH /api/tasks/:id`
+`DELETE /api/tasks/:id`
+`PATCH /api/tasks/:id/move`
+`POST /api/tasks/:id/messages`
+`POST /api/tasks/:id/approve`
+`POST /api/tasks/:id/request-changes`
+`POST /api/tasks/:id/accept`
+`POST /api/tasks/:id/orchestrator-completion-review`
+`POST /api/tasks/:id/archive`
 `POST /api/tasks/:id/restore`
 
 ### Task attachment storage
 
-`POST /api/tasks/:id/attachments`  
-`GET /api/tasks/:id/attachments/:storedName`  
+`POST /api/tasks/:id/attachments`
+`GET /api/tasks/:id/attachments/:storedName`
 `DELETE /api/tasks/:id/attachments/:storedName`
 
 ### Task compatibility interceptors
@@ -117,33 +117,33 @@ Removal condition for both: regenerate/fix OpenAPI + generated Zod/client workfl
 
 ## 5. Orchestration, executions and approvals
 
-`POST /api/orchestrator/intake` — canonical explicit orchestrator intake.  
-`POST /api/tasks` — orchestration-owned canonical task creation interceptor.  
-`POST /api/executions` — capability router first enriches/assigns when no explicit agent, then execution router creates governed work request.  
-`GET /api/executions` — execution list/filter.  
-`GET /api/executions/:id` — execution + transitions + approval + audit + selected instructions.  
-`POST /api/executions/maintenance/expire-leases` — expire stale worker leases and safely retry eligible read-only requests.  
-`GET /api/approvals` — pending execution approvals.  
+`POST /api/orchestrator/intake` — canonical explicit orchestrator intake.
+`POST /api/tasks` — orchestration-owned canonical task creation interceptor.
+`POST /api/executions` — capability router first enriches/assigns when no explicit agent, then execution router creates governed work request.
+`GET /api/executions` — execution list/filter.
+`GET /api/executions/:id` — execution + transitions + approval + audit + selected instructions.
+`POST /api/executions/maintenance/expire-leases` — expire stale worker leases and safely retry eligible read-only requests.
+`GET /api/approvals` — pending execution approvals.
 `POST /api/approvals/:id/decision` — approve/reject/request_changes.
 
 ## 6. Agent work-request bridge — Bearer-token worker API
 
-`POST /api/agent/work-requests/claim`  
-`POST /api/agent/work-requests/:id/heartbeat`  
-`POST /api/agent/work-requests/:id/progress`  
-`POST /api/agent/work-requests/:id/complete`  
+`POST /api/agent/work-requests/claim`
+`POST /api/agent/work-requests/:id/heartbeat`
+`POST /api/agent/work-requests/:id/progress`
+`POST /api/agent/work-requests/:id/complete`
 `POST /api/agent/work-requests/:id/fail`
 
 These routes enforce worker identity, request ownership/lease and execution eligibility.
 
 ## 7. Agent capability/memory/report bridge — Bearer-token worker API
 
-`GET /api/agent/skills`  
-`GET /api/agent/skills/:id`  
-`GET /api/agent/memories`  
-`GET /api/agent/tools`  
-`POST /api/agent/ping`  
-`POST /api/agent/command/:id/ack`  
+`GET /api/agent/skills`
+`GET /api/agent/skills/:id`
+`GET /api/agent/memories`
+`GET /api/agent/tools`
+`POST /api/agent/ping`
+`POST /api/agent/command/:id/ack`
 `POST /api/agent/report`
 
 ### Shadowed duplicate implementation
@@ -152,15 +152,15 @@ These routes enforce worker identity, request ownership/lease and execution elig
 
 ## 8. Admin agent directory/control
 
-`GET /api/agents`  
-`POST /api/agents`  
-`GET /api/agents/:id`  
-`PATCH /api/agents/:id`  
-`DELETE /api/agents/:id`  
-`PUT /api/agents/:id/skills`  
-`POST /api/agents/:id/dispatch`  
-`POST /api/agents/:id/token`  
-`POST /api/agents/:id/test`  
+`GET /api/agents`
+`POST /api/agents`
+`GET /api/agents/:id`
+`PATCH /api/agents/:id`
+`DELETE /api/agents/:id`
+`PUT /api/agents/:id/skills`
+`POST /api/agents/:id/dispatch`
+`POST /api/agents/:id/token`
+`POST /api/agents/:id/test`
 `POST /api/agents/:id/test-task`
 
 Agent create/update currently contains a **TRANSITIONAL** workaround for an obsolete generated department enum by validating with the legacy `Operators` placeholder while persisting the actual non-empty business department.
@@ -169,19 +169,19 @@ Agent create/update currently contains a **TRANSITIONAL** workaround for an obso
 
 ### Direct/in-memory James integration
 
-`GET /api/james/status`  
-`POST /api/james/message`  
-`POST /api/james/jobs`  
-`GET /api/james/jobs`  
-`GET /api/james/jobs/:jobId`  
+`GET /api/james/status`
+`POST /api/james/message`
+`POST /api/james/jobs`
+`GET /api/james/jobs`
+`GET /api/james/jobs/:jobId`
 `POST /api/james/jobs/:jobId/cancel`
 
 The `/james/jobs` store is process-memory only and resets when the API process restarts. Classify as **TRANSITIONAL/LEGACY MVP** relative to durable/detached execution.
 
 ### Detached systemd James work
 
-`POST /api/james/task-job`  
-`POST /api/james/inbox-review`  
+`POST /api/james/task-job`
+`POST /api/james/inbox-review`
 `POST /api/james/report`
 
 ### Supervisory QA
@@ -194,165 +194,174 @@ This is the current mandatory specialist-worker QA report path used by James sup
 
 ### Employee factory
 
-`GET /api/employee-factory/projects`  
-`GET /api/employee-factory/profiles`  
-`POST /api/employee-factory/avatar`  
-`POST /api/employee-factory/hire`  
+`GET /api/employee-factory/projects`
+`GET /api/employee-factory/profiles`
+`POST /api/employee-factory/avatar`
+`POST /api/employee-factory/hire`
 `PUT /api/employee-factory/agents/:id/profile`
 
 Uploaded/stored legacy avatar references beginning `/employee-avatars/` or the previous `/api/employee-factory/avatar/` prefix are canonicalized to `/api/employee-avatars/`. Those old prefixes are **LEGACY data compatibility**.
 
 ### Structured portable employee definition
 
-`GET /api/employee-factory/agents/:id/definition`  
-`PUT /api/employee-factory/agents/:id/definition`  
+`GET /api/employee-factory/agents/:id/definition`
+`PUT /api/employee-factory/agents/:id/definition`
 `GET /api/employee-factory/agents/:id/export`
 
 ### Amanda Financial Controller certification
 
-`GET /api/employee-factory/amanda/certification` — reports Employment Pack readiness, live granted SBB systems and demonstrated operational certification; profile text alone cannot produce READY access.  
+`GET /api/employee-factory/amanda/certification` — reports Employment Pack readiness, live granted SBB systems and demonstrated operational certification; profile text alone cannot produce READY access.
 `POST /api/employee-factory/amanda/apply-role-pack` — applies the canonical Patch 1.2 SBB Financial Controller Employment Pack to the existing Amanda employee without fabricating system grants.
 
 ### Ground Zero mega operational certification
 
-`GET /api/ground-zero/certification` — consolidated live readiness for James, Amanda, Justin and AI Intelligence Analyst: employee/runtime presence, canonical context assembly, model policy, Amanda/Justin certification state and Analyst daily-task state.  
-`POST /api/ground-zero/prepare` — idempotently applies already-approved Employment Packs to existing employees, seeds role-aware model policy, syncs canonical context to managed workspaces and ensures the Analyst daily task; it does not invent missing employees, credentials or access.  
-`POST /api/ground-zero/live-probe` — runs short read-only role/context prompts through each configured employee runtime to prove canonical context reaches the live worker.  
+`GET /api/ground-zero/certification` — consolidated live readiness for James, Amanda, Justin and AI Intelligence Analyst: employee/runtime presence, canonical context assembly, model policy, Amanda/Justin certification state and Analyst daily-task state.
+`POST /api/ground-zero/prepare` — idempotently applies already-approved Employment Packs to existing employees, seeds role-aware model policy, syncs canonical context to managed workspaces and ensures the Analyst daily task; it does not invent missing employees, credentials or access.
+`POST /api/ground-zero/live-probe` — runs short read-only role/context prompts through each configured employee runtime to prove canonical context reaches the live worker.
 `POST /api/ground-zero/certification-evidence/:employee` — records Amanda/Justin demonstrated workflow checks only after real evidence has been observed; it does not grant systems or fabricate readiness.
 
 ### Model policy and OpenRouter routing
 
-`GET /api/model-policy` — current employee policies, role defaults, runtime-model alignment.  
-`POST /api/model-policy/seed` — idempotently seeds role-aware policies for existing employees.  
-`GET /api/model-policy/recommend/:id` — recommended policy derived from employee role.  
-`PUT /api/agents/:id/model-policy` — updates the model independently of employee identity; direct providers apply immediately and OpenClaw is synchronized through its agent-scoped model command before the runtime metadata is marked aligned.  
+`GET /api/model-policy` — current employee policies, role defaults, runtime-model alignment.
+`POST /api/model-policy/seed` — idempotently seeds role-aware policies for existing employees.
+`GET /api/model-policy/recommend/:id` — recommended policy derived from employee role.
+`PUT /api/agents/:id/model-policy` — updates the model independently of employee identity; direct providers apply immediately and OpenClaw is synchronized through its agent-scoped model command before the runtime metadata is marked aligned.
 `GET /api/model-usage` — token/request/cost visibility aggregated by employee, provider, model and policy class.
 
 ### Provisioning/runtime lifecycle
 
-`GET /api/provisioning/overview`  
-`POST /api/provisioning/secrets`  
-`PATCH /api/provisioning/secrets/:id`  
-`POST /api/provisioning/runtime-hosts`  
-`POST /api/provisioning/templates`  
-`POST /api/provisioning/employees`  
-`POST /api/provisioning/agents/:id/runtime/:action` — supported actions: start, stop, restart, health, decommission.  
+`GET /api/provisioning/overview`
+`POST /api/provisioning/secrets`
+`PATCH /api/provisioning/secrets/:id`
+`POST /api/provisioning/runtime-hosts`
+`POST /api/provisioning/templates`
+`POST /api/provisioning/employees`
+`POST /api/provisioning/agents/:id/runtime/:action` — supported actions: start, stop, restart, health, decommission.
 `GET /api/provisioning/agents/:id/secrets`
 
 ## 11. Notes / Inbox
 
-`GET /api/inbox`  
-`GET /api/inbox/unreviewed`  
-`POST /api/inbox`  
-`PATCH /api/inbox/:id`  
-`POST /api/inbox/review-results`  
-`POST /api/inbox/:id/archive`  
-`POST /api/inbox/:id/promote-memory`  
+`GET /api/inbox`
+`GET /api/inbox/unreviewed`
+`POST /api/inbox`
+`PATCH /api/inbox/:id`
+`POST /api/inbox/review-results`
+`POST /api/inbox/:id/archive`
+`POST /api/inbox/:id/promote-memory`
 `POST /api/inbox/:id/convert`
 
 ## 12. Knowledge / Memory
 
-`GET /api/memories`  
-`POST /api/memories/sync`  
-`POST /api/memories`  
-`GET /api/memories/:id`  
-`PATCH /api/memories/:id`  
+`GET /api/memories`
+`POST /api/memories/sync`
+`POST /api/memories`
+`GET /api/memories/:id`
+`PATCH /api/memories/:id`
 `DELETE /api/memories/:id`
 
 Repository-doc and Agent OS synchronized records are protected from UI mutation; Obsidian-backed records can write through to the source note.
 
+## 12A. Owner authentication and Mission Brain graph
+
+`POST /api/auth/login` — verifies the dedicated owner password and creates a signed HttpOnly owner session cookie.
+`GET /api/auth/session` — returns the current owner-session state without exposing the underlying secret.
+`POST /api/auth/logout` — clears the owner session.
+`GET /api/brain/graph` — returns the persisted Mission Brain graph assembled from projects, agents, tasks, memories and memory-agent grants.
+
+Browser owner access uses the signed session cookie. Service-to-service and protected automation calls may continue using the existing admin Bearer token; the browser must not require that token in local storage.
+
 ## 13. Skills / Playbooks
 
-`GET /api/skills`  
-`POST /api/skills/sync`  
-`POST /api/skills/:id/status`  
+`GET /api/skills`
+`POST /api/skills/sync`
+`POST /api/skills/:id/status`
 `GET /api/skills/:id`
 
 Agent-token skill routes are listed in section 7.
 
 ## 14. Repositories / worktrees
 
-`GET /api/worktrees/repositories`  
-`GET /api/worktrees/path-preview`  
-`GET /api/worktrees/workspaces`  
-`GET /api/worktrees/diagnostics`  
-`GET /api/worktrees/repositories/:repoId/git`  
-`POST /api/worktrees/create`  
-`POST /api/worktrees/cleanup`  
+`GET /api/worktrees/repositories`
+`GET /api/worktrees/path-preview`
+`GET /api/worktrees/workspaces`
+`GET /api/worktrees/diagnostics`
+`GET /api/worktrees/repositories/:repoId/git`
+`POST /api/worktrees/create`
+`POST /api/worktrees/cleanup`
 `POST /api/worktrees/agents/launch`
 
 ## 15. Intelligence
 
-`GET /api/signals`  
-`POST /api/signals`  
-`POST /api/signals/:id/convert-to-task`  
-`GET /api/client-pulse`  
-`GET /api/intelligence-analyst/status` — live employee/task status and Employment Pack readiness.  
-`POST /api/intelligence-analyst/bootstrap` — provision/apply the canonical AI Intelligence Analyst role, research model policy and daily task; requires real runtime/secret inputs when no live analyst exists.  
-`POST /api/intelligence-analyst/score` — evaluate a finding without persistence.  
+`GET /api/signals`
+`POST /api/signals`
+`POST /api/signals/:id/convert-to-task`
+`GET /api/client-pulse`
+`GET /api/intelligence-analyst/status` — live employee/task status and Employment Pack readiness.
+`POST /api/intelligence-analyst/bootstrap` — provision/apply the canonical AI Intelligence Analyst role, research model policy and daily task; requires real runtime/secret inputs when no live analyst exists.
+`POST /api/intelligence-analyst/score` — evaluate a finding without persistence.
 `POST /api/intelligence-analyst/findings` — persist a scored Signal and create a James-owned task for REVIEW/IMPLEMENT findings.
 
 ## 16. Agent operations / owner brief / task-based automations
 
-`GET /api/operations/agents`  
-`GET /api/operations/brief`  
+`GET /api/operations/agents`
+`GET /api/operations/brief`
 `GET /api/operations/automations`
 
 The automations endpoint is a read model over canonical Tasks; it does not create a second scheduler.
 
 ## 17. Content
 
-`GET /api/content/pipeline/summary`  
-`GET /api/content`  
-`POST /api/content`  
-`GET /api/content/:id`  
-`PATCH /api/content/:id`  
-`DELETE /api/content/:id`  
+`GET /api/content/pipeline/summary`
+`GET /api/content`
+`POST /api/content`
+`GET /api/content/:id`
+`PATCH /api/content/:id`
+`DELETE /api/content/:id`
 `PATCH /api/content/:id/move`
 
 ## 18. Events
 
-`GET /api/events/upcoming`  
-`GET /api/events`  
-`POST /api/events`  
-`GET /api/events/:id`  
-`PATCH /api/events/:id`  
+`GET /api/events/upcoming`
+`GET /api/events`
+`POST /api/events`
+`GET /api/events/:id`
+`PATCH /api/events/:id`
 `DELETE /api/events/:id`
 
 The event API remains CURRENT even though `/calendar` is a legacy frontend redirect.
 
 ## 19. Contacts and activity
 
-`GET /api/contacts`  
-`POST /api/contacts`  
-`GET /api/contacts/:id`  
-`PATCH /api/contacts/:id`  
-`DELETE /api/contacts/:id`  
+`GET /api/contacts`
+`POST /api/contacts`
+`GET /api/contacts/:id`
+`PATCH /api/contacts/:id`
+`DELETE /api/contacts/:id`
 `GET /api/activity`
 
 ## 20. Tools and integrations
 
 ### Tools
 
-`GET /api/tools`  
-`POST /api/tools`  
-`PATCH /api/tools/:id`  
-`DELETE /api/tools/:id`  
-`GET /api/tools/:id/agents`  
-`POST /api/tools/:id/agents`  
-`DELETE /api/tools/:id/agents/:agentId`  
+`GET /api/tools`
+`POST /api/tools`
+`PATCH /api/tools/:id`
+`DELETE /api/tools/:id`
+`GET /api/tools/:id/agents`
+`POST /api/tools/:id/agents`
+`DELETE /api/tools/:id/agents/:agentId`
 `GET /api/agents/:id/tools`
 
 ### Integrations
 
-`GET /api/integrations`  
-`POST /api/integrations`  
-`GET /api/integrations/:id`  
-`PATCH /api/integrations/:id`  
-`DELETE /api/integrations/:id`  
-`GET /api/integrations/:id/agents`  
-`POST /api/integrations/:id/agents`  
-`DELETE /api/integrations/:id/agents/:agentId`  
+`GET /api/integrations`
+`POST /api/integrations`
+`GET /api/integrations/:id`
+`PATCH /api/integrations/:id`
+`DELETE /api/integrations/:id`
+`GET /api/integrations/:id/agents`
+`POST /api/integrations/:id/agents`
+`DELETE /api/integrations/:id/agents/:agentId`
 `GET /api/agents/:id/integrations`
 
 ## 21. Route ownership rules
