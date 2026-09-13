@@ -58,7 +58,7 @@ test("completion verifier cannot equal declared executor", () => {
     /verifiedBy\.toLowerCase\(\) !== executedBy\.toLowerCase\(\)/,
   );
   assert.match(harness, /independent verification required/);
-  assert.match(execution, /executedBy: `agent:\$\{request\.agentId\}`/);
+  assert.match(execution, /executedBy: executor\?\.name\?\.trim\(\) \|\| `agent:\$\{request\.agentId\}`/);
 });
 
 
@@ -68,4 +68,18 @@ test("circuit-broken tasks expose an explicit audited resume path", () => {
   assert.match(tasksRoute, /await reopenTaskExecution\(id\)/);
   assert.match(tasksRoute, /supervisionAttempts: 0/);
   assert.match(tasksRoute, /CIRCUIT BREAKER RESET/);
+});
+
+
+test("completion identity resolves canonical agent name before independence check", () => {
+  const execution = fs.readFileSync(
+    "artifacts/api-server/src/services/task-execution-control.ts",
+    "utf8",
+  );
+  const certification = fs.readFileSync(
+    "artifacts/api-server/src/routes/agentic-os-certification.ts",
+    "utf8",
+  );
+  assert.match(execution, /executedBy: executor\?\.name\?\.trim\(\) \|\| `agent:\$\{request\.agentId\}`/);
+  assert.match(certification, /ne\(agentsTable\.name, "James Hermes"\)/);
 });
