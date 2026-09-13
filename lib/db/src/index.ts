@@ -5,6 +5,7 @@ import { ensureOperationalSchema as ensureOperationalSchemaWithDb } from "./ensu
 import { ensureAgentProvisioningSchema as ensureAgentProvisioningSchemaWithDb } from "./ensure-agent-provisioning-schema";
 import { ensureAutonomySchema as ensureAutonomySchemaWithDb } from "./ensure-autonomy-schema";
 import { ensureModelPolicySchema as ensureModelPolicySchemaWithDb } from "./ensure-model-policy-schema";
+import { ensureCommercialSchema as ensureCommercialSchemaWithDb } from "./ensure-commercial-schema";
 
 const { Pool } = pg;
 
@@ -24,4 +25,5 @@ export async function ensureOperationalSchema(): Promise<void> {
   await ensureAgentProvisioningSchemaWithDb(db);
   await ensureAutonomySchemaWithDb(db);
   await ensureModelPolicySchemaWithDb(db);
+  await ensureCommercialSchemaWithDb(db);
 }
