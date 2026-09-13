@@ -115,8 +115,10 @@ NODE
 fi
 JAMES_NAME="$(json_text "$TMP_DIR/ground-zero.json" employees.james.name)"
 AMANDA_NAME="$(json_text "$TMP_DIR/ground-zero.json" employees.amanda.name)"
+JUSTIN_NAME="$(json_text "$TMP_DIR/ground-zero.json" employees.justin.name)"
 [[ -n "$JAMES_NAME" ]] && pass "James Orchestrator located: $JAMES_NAME" || fail "James Orchestrator missing"
 [[ -n "$AMANDA_NAME" ]] && pass "Amanda specialist located: $AMANDA_NAME" || fail "Amanda specialist missing"
+[[ -n "$JUSTIN_NAME" ]] && pass "Justin specialist located: $JUSTIN_NAME" || fail "Justin specialist missing"
 
 LIVE_READY=false
 if [[ "$READY" == "true" ]]; then
@@ -148,12 +150,15 @@ echo_step "5. Live deterministic harness failure/replay probe"
 if api_post "/api/agentic-os/certification/probe" '{}' > "$TMP_DIR/harness-probe.json" && [[ "$(json_bool "$TMP_DIR/harness-probe.json" passed)" == "true" ]]; then pass "Bad completion rejected, replay retained, corrected result accepted, protected capability detected"; else fail "Live harness probe failed"; fi
 
 if [[ "$READY" == "true" && "$LIVE_READY" == "true" ]]; then
-  echo_step "6. Real James end-to-end task"
-  TITLE1="CERT-1.6 SAFE EXECUTION $RUN_ID"
-  create_task "$TITLE1" "Read-only production certification. Verify the Mission Control API is operational using available evidence. Do not change configuration, deploy, send messages, or create external commitments. Return concise evidence." "$JAMES_NAME" false > "$TMP_DIR/create-james.json"
-  TASK1="$(json_text "$TMP_DIR/create-james.json" id)"; CERT_TASK_IDS+=("$TASK1")
-  STATUS1="$(wait_task "$TASK1" 240)"; find_execution "$TITLE1" "$TMP_DIR/execution-james.json"
-  if [[ "$STATUS1" == "done" || "$STATUS1" == "completed" ]] && execution_check "$TMP_DIR/execution-james.json" completed; then pass "James task passed contract → execution → evidence → evals → independent QA → completed"; else fail "James end-to-end task ended '$STATUS1' or failed execution-harness checks"; fi
+  echo_step "6. Real James orchestration with independent executor"
+  TITLE1="CERT-1.6 JAMES ORCHESTRATION $RUN_ID"
+  create_task "$TITLE1" "Read-only production certification. As the operations specialist, verify the Mission Control API is operational using available evidence and report concise evidence. Do not change configuration, deploy, send messages, or create external commitments. James must independently supervise and verify this result." "$JUSTIN_NAME" false > "$TMP_DIR/create-james-orchestration.json"
+  TASK1="$(json_text "$TMP_DIR/create-james-orchestration.json" id)"; CERT_TASK_IDS+=("$TASK1")
+  STATUS1="$(wait_task "$TASK1" 240)"; find_execution "$TITLE1" "$TMP_DIR/execution-james-orchestration.json"
+  if [[ "$STATUS1" == "done" || "$STATUS1" == "completed" ]] && execution_check "$TMP_DIR/execution-james-orchestration.json" completed && node - "$TMP_DIR/execution-james-orchestration.json" "$JAMES_NAME" "$JUSTIN_NAME" <<'NODE'
+const fs=require("fs"); const j=JSON.parse(fs.readFileSync(process.argv[2],"utf8")); const r=j.data?.[0]; const james=process.argv[3]; const justin=process.argv[4]; const result=r?.result||{}; const evals=result?.agenticHarness?.evals||[]; const verified=String(result.verifiedBy||"").trim(); const supervisor=evals.find(e=>e.id==="supervisor_verified"); process.exit(verified===james && justin!==james && supervisor?.passed===true ? 0 : 1);
+NODE
+  then pass "Justin executed; James independently supervised and verified; harness completed"; else fail "James orchestration certification ended '$STATUS1' or failed independent-verifier checks"; fi
 
   echo_step "7. Delegated specialist end-to-end task"
   TITLE2="CERT-1.6 AMANDA DELEGATION $RUN_ID"
