@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import {
   approvalsTable,
+  agentsTable,
   db,
   tasksTable,
   workRequestsTable,
@@ -284,10 +285,18 @@ export async function markTaskExecutionCompleted(
       `Execution harness contract missing for Task #${taskId}; completion is fail-closed.`,
     );
 
-  const evaluationResult =
-    request.agentId != null && typeof result.executedBy !== "string"
-      ? { ...result, executedBy: `agent:${request.agentId}` }
-      : result;
+  let evaluationResult = result;
+  if (request.agentId != null && typeof result.executedBy !== "string") {
+    const [executor] = await db
+      .select({ name: agentsTable.name })
+      .from(agentsTable)
+      .where(eq(agentsTable.id, request.agentId))
+      .limit(1);
+    evaluationResult = {
+      ...result,
+      executedBy: executor?.name?.trim() || `agent:${request.agentId}`,
+    };
+  }
   const evaluation = evaluateCompletionContract({
     contract,
     result: evaluationResult,

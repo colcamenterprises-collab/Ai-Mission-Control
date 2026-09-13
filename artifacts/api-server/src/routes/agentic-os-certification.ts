@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, ne } from "drizzle-orm";
 import { agentsTable, db, tasksTable } from "@workspace/db";
 import { auditLog } from "../lib/audit.js";
 import {
@@ -19,9 +19,9 @@ const AGENTIC_OS_CERTIFICATION_PROBE = "/agentic-os/certification/probe";
 router.post(AGENTIC_OS_CERTIFICATION_PROBE, async (_req, res): Promise<void> => {
   let taskId: number | null = null;
   try {
-    const [agent] = await db.select().from(agentsTable).orderBy(agentsTable.id).limit(1);
+    const [agent] = await db.select().from(agentsTable).where(ne(agentsTable.name, "James Hermes")).orderBy(agentsTable.id).limit(1);
     if (!agent) {
-      res.status(409).json({ passed: false, error: "No employee exists to anchor the live execution probe." });
+      res.status(409).json({ passed: false, error: "No non-James employee exists to anchor the independent-verification probe." });
       return;
     }
 
