@@ -35,7 +35,9 @@ test("paid end-to-end execution is skipped when readiness or live role probes fa
 });
 
 test("terminal certification exercises real execution, delegation and approval gate when prerequisites pass", () => {
-  assert.match(script, /SAFE EXECUTION/);
+  assert.match(script, /JAMES ORCHESTRATION/);
+  assert.match(script, /JUSTIN_NAME/);
+  assert.match(script, /James must independently supervise and verify/);
   assert.match(script, /AMANDA DELEGATION/);
   assert.match(script, /PROTECTED DEPLOY GATE/);
   assert.match(script, /awaiting_approval/);
