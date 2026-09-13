@@ -32,6 +32,7 @@ import JamesVoice from "@/pages/james-voice";
 import "@/pages/notes-knowledge.css";
 import "./visual-first.css";
 import "./minimal-dark.css";
+import "./enterprise-showcase.css";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
