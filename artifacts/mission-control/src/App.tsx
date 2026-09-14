@@ -19,6 +19,7 @@ import Skills from "@/pages/skills";
 import Reports from "@/pages/reports";
 import Approvals from "@/pages/approvals";
 import Settings from "@/pages/settings";
+import ProductSetup from "@/pages/product-setup";
 import Secrets from "@/pages/secrets";
 import MissionBrain from "@/pages/mission-brain";
 import Contacts from "@/pages/contacts";
@@ -108,6 +109,7 @@ function Router() {
         <Route path="/contacts" component={Contacts} />
         <Route path="/secrets" component={Secrets} />
         <Route path="/onboarding" component={Onboarding} />
+        <Route path="/product-setup" component={ProductSetup} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>

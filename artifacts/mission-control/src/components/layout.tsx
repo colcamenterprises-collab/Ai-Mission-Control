@@ -13,6 +13,7 @@ import {
   StickyNote,
   UsersRound,
   LogOut,
+  PackageCheck,
 } from "lucide-react";
 import { CustomliLogo } from "@/components/customli-logo";
 import { useOwnerAuth } from "@/components/auth-gate";
@@ -45,6 +46,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/team", label: "AI Team", icon: UsersRound },
     { href: "/brain", label: "Mission Brain", icon: Brain },
     { href: "/skills", label: "Skills", icon: BookOpen },
+    { href: "/product-setup", label: "Product Setup", icon: PackageCheck },
     { href: "/settings", label: "Settings", icon: Settings2 },
   ];
   const normalizedQuery = query.trim().toLowerCase();

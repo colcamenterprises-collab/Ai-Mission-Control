@@ -41,6 +41,8 @@ import whatsappRouter from "./whatsapp";
 import { requireAdminAuth } from "../lib/auth.js";
 import authSessionRouter from "./auth-session.js";
 import brainGraphRouter from "./brain-graph.js";
+import commercialRouter from "./commercial.js";
+import { requireTenantContext } from "../lib/tenant-context.js";
 
 const router: IRouter = Router();
 
@@ -54,6 +56,8 @@ router.use("/agents/:id/test-task", requireAdminAuth);
 router.use(agentSkillsRouter);
 router.use(agentBridgeRouter);
 router.use(requireAdminAuth);
+router.use(requireTenantContext);
+router.use(commercialRouter);
 router.use(dashboardRouter);
 router.use(brainGraphRouter);
 router.use(jamesNativeVoiceBridgeRouter);
