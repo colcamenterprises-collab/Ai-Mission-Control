@@ -88,6 +88,18 @@ test("opening a task circuit breaker also blocks the canonical execution request
   assert.match(taskSupervisor, /markTaskExecutionBlocked\(task\.id, reason\)/);
 });
 
+test("transient OpenRouter in-flight budget pressure is retryable, not a hard 402 circuit break", () => {
+  assert.match(taskSupervisor, /in_flight_budget_exhausted/);
+  assert.match(jamesDetached, /in_flight_budget_exhausted/);
+  assert.match(taskSupervisor, /current in-flight requests/);
+});
+
+test("continuous supervision caps detached dispatches per cycle", () => {
+  assert.match(taskSupervisor, /DEFAULT_MAX_DISPATCHES_PER_CYCLE = 2/);
+  assert.match(taskSupervisor, /MISSION_CONTROL_SUPERVISION_MAX_DISPATCHES_PER_CYCLE/);
+  assert.match(taskSupervisor, /summary\.delegated >= maxDispatchesPerCycle\(\)/);
+});
+
 test("terminal supervision limit never resets retry counter", () => {
   assert.match(taskSupervisor, /openCircuitBreaker/);
   assert.match(taskSupervisor, /supervisionAttempts: maxAttempts\(\)/);

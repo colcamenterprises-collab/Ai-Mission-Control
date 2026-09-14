@@ -38,7 +38,7 @@ function executionRepositoryForProject(project: string): string {
 }
 function normalizeResult(value: unknown, exitCode: number): WorkerResult { if (exitCode !== 0) return "FAILED"; const candidate = typeof value === "string" ? value.trim().toUpperCase() : ""; return (["COMPLETED", "IN_PROGRESS", "CHANGES_REQUIRED", "BLOCKED", "FAILED", "NEEDS_CLARIFICATION"].includes(candidate) ? candidate : "IN_PROGRESS") as WorkerResult; }
 function dbStateFor(result: WorkerResult): string { if (result === "COMPLETED") return "completion_pending"; if (result === "BLOCKED" || result === "FAILED" || result === "NEEDS_CLARIFICATION") return "blocked"; return "running"; }
-function hardFailure(...values: string[]): HardFailure | null { const text = values.join("\n"); for (const item of HARD_FAILURES) if (item.patterns.some(pattern => pattern.test(text))) return { type: item.type, reason: item.reason, action: item.action }; return null; }
+function hardFailure(...values: string[]): HardFailure | null { const text = values.join("\n"); if (/in_flight_budget_exhausted/i.test(text) || /current in-flight requests/i.test(text)) return null; for (const item of HARD_FAILURES) if (item.patterns.some(pattern => pattern.test(text))) return { type: item.type, reason: item.reason, action: item.action }; return null; }
 function missionControlNote(result: WorkerResult): string {
   switch (result) {
     case "COMPLETED": return "AGENT REPORTED COMPLETE — completion evidence received. A fresh supervisory verification pass is required before Review or Done.";
