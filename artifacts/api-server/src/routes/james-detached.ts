@@ -24,6 +24,18 @@ const HARD_FAILURES: Array<{ type: HardFailure["type"]; patterns: RegExp[]; reas
 ];
 
 function clamp(value: string | null | undefined, max: number): string { if (!value) return ""; return value.length <= max ? value : `${value.slice(0, max)}\n...[truncated by Mission Control]`; }
+function executionRepositoryForProject(project: string): string {
+  const fallback = process.env.MISSION_CONTROL_REPO_DIR?.trim() || "/opt/apps/ai-mission-control";
+  const raw = process.env.MISSION_CONTROL_PROJECT_REPO_MAP?.trim();
+  if (!raw) return fallback;
+  try {
+    const mapping = JSON.parse(raw) as Record<string, unknown>;
+    const candidate = mapping[project];
+    return typeof candidate === "string" && candidate.trim() ? candidate.trim() : fallback;
+  } catch {
+    return fallback;
+  }
+}
 function normalizeResult(value: unknown, exitCode: number): WorkerResult { if (exitCode !== 0) return "FAILED"; const candidate = typeof value === "string" ? value.trim().toUpperCase() : ""; return (["COMPLETED", "IN_PROGRESS", "CHANGES_REQUIRED", "BLOCKED", "FAILED", "NEEDS_CLARIFICATION"].includes(candidate) ? candidate : "IN_PROGRESS") as WorkerResult; }
 function dbStateFor(result: WorkerResult): string { if (result === "COMPLETED") return "completion_pending"; if (result === "BLOCKED" || result === "FAILED" || result === "NEEDS_CLARIFICATION") return "blocked"; return "running"; }
 function hardFailure(...values: string[]): HardFailure | null { const text = values.join("\n"); for (const item of HARD_FAILURES) if (item.patterns.some(pattern => pattern.test(text))) return { type: item.type, reason: item.reason, action: item.action }; return null; }
@@ -50,7 +62,8 @@ router.post("/james/task-job", async (req, res): Promise<void> => {
   const compactPrompt = [`Mission Control task #${task.id}: ${task.title}`, `Project: ${task.project}`, "", "AUTHORITATIVE ORIGINAL OWNER BRIEF:", clamp(task.description, 28000), "", "LATEST EXECUTION INSTRUCTION:", clamp(incomingInstruction, 12000), "", "RELEVANT RECENT TASK HISTORY:", recentHistory || "No prior task history.", "", "OPERATING RULES:", "- The original Owner Brief remains authoritative on every retry and continuation.", "- Do not ask Cameron to restate requirements already present above.", "- Continue until the success milestone is genuinely achieved or a real blocker exists.", "- A successful command/build/process exit is evidence only; it is not task completion.", "- Never retry authentication, credential, HTTP 401/402, provider-access, quota, credit or key-limit failures. Report them exactly and stop.", "- If incomplete, report IN_PROGRESS or CHANGES_REQUIRED rather than COMPLETED.", "- If blocked, state the exact blocker and whether owner action is genuinely required.", "- Keep evidence concise: files, branch/commit/PR, tests, logs, and outstanding work."].join("\n");
   const jobId = crypto.randomUUID().replace(/[^a-zA-Z0-9-]/g, ""); const promptFile = `${STATE_DIR}/${jobId}.prompt`; const unit = `james-task-${jobId}`;
   await mkdir(STATE_DIR, { recursive: true }); await writeFile(promptFile, compactPrompt, { encoding: "utf8", mode: 0o600 });
-  try { await execFileAsync("systemd-run", [`--unit=${unit}`, "--collect", "--no-block", "/bin/bash", RUNNER, jobId, String(taskId), commandId ? String(commandId) : "", promptFile], { timeout: 15_000, windowsHide: true }); }
+  const executionRepo = executionRepositoryForProject(task.project);
+  try { await execFileAsync("systemd-run", [`--unit=${unit}`, "--collect", "--no-block", "/bin/bash", RUNNER, jobId, String(taskId), commandId ? String(commandId) : "", promptFile, executionRepo], { timeout: 15_000, windowsHide: true }); }
   catch (error) { await db.insert(taskMessagesTable).values({ taskId, author: "Mission Control", body: `BLOCKED — James detached worker could not be launched: ${error instanceof Error ? error.message : "unknown error"}` }); await db.update(tasksTable).set({ status: "blocked", approvalRequired: false }).where(eq(tasksTable.id, taskId)); res.status(502).json({ error: "James detached worker launch failed" }); return; }
   await db.insert(taskMessagesTable).values({ taskId, author: "James Hermes", body: `Detached execution started. Job ${jobId}. Work will continue independently of Mission Control API restarts.` });
   res.status(202).json({ jobId, status: "queued", delivery: "detached-systemd" });
