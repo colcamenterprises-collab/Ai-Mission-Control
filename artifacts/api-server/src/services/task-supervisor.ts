@@ -8,6 +8,7 @@ import { transitionWorkRequest } from "./execution-runtime.js";
 const SUPERVISED_STATUSES = ["backlog", "ready", "running", "in_progress", "blocked", "changes_required"];
 const DEFAULT_STALE_MINUTES = 20;
 const DEFAULT_MAX_ATTEMPTS = 3;
+const DEFAULT_MAX_DISPATCHES_PER_CYCLE = 2;
 const CIRCUIT_BREAKER_PREFIX = "CIRCUIT BREAKER —";
 const LEGACY_SUPERVISION_REASONS = [
   /^Automatic supervision reached the \d+-attempt safety limit/i,
@@ -53,12 +54,18 @@ function maxAttempts(): number {
   return Number.isInteger(value) && value >= 1 && value <= 10 ? value : DEFAULT_MAX_ATTEMPTS;
 }
 
+function maxDispatchesPerCycle(): number {
+  const value = Number(process.env.MISSION_CONTROL_SUPERVISION_MAX_DISPATCHES_PER_CYCLE ?? DEFAULT_MAX_DISPATCHES_PER_CYCLE);
+  return Number.isInteger(value) && value >= 1 && value <= 10 ? value : DEFAULT_MAX_DISPATCHES_PER_CYCLE;
+}
+
 function isCircuitOpen(task: typeof tasksTable.$inferSelect): boolean {
   return Boolean(task.blocker?.startsWith(CIRCUIT_BREAKER_PREFIX));
 }
 
 function classifyHardRuntimeFailure(...values: Array<string | null | undefined>): HardRuntimeFailure | null {
   const text = values.filter(Boolean).join("\n");
+  if (/in_flight_budget_exhausted/i.test(text) || /current in-flight requests/i.test(text)) return null;
   for (const failure of HARD_RUNTIME_FAILURES) {
     if (failure.patterns.some(pattern => pattern.test(text))) return { code: failure.code, reason: failure.reason, nextAction: failure.nextAction };
   }
@@ -261,6 +268,7 @@ export async function superviseActiveTasks(): Promise<SupervisionSummary> {
       latestRequest = (await authorizeOrchestratorApproval(task.id, james.name)) ?? latestRequest;
     }
     if (latestRequest?.state === "awaiting_approval") { summary.skipped += 1; continue; }
+    if (summary.delegated >= maxDispatchesPerCycle()) { summary.skipped += 1; continue; }
 
     await reopenTaskExecution(task.id);
     const attempt = (task.supervisionAttempts ?? 0) + 1;
