@@ -121,6 +121,13 @@ test("detached runners have hard wall-clock timeout", () => {
   assert.match(runner, /timeout/);
 });
 
+test("detached James tasks route projects to configured repositories", () => {
+  assert.match(jamesDetached, /MISSION_CONTROL_PROJECT_REPO_MAP/);
+  assert.match(jamesDetached, /executionRepositoryForProject\(task\.project\)/);
+  assert.match(taskRunner, /REPO=\"\$\{5:-/);
+  assert.match(taskRunner, /REPO_KEY=/);
+});
+
 test("James detached task and QA runners load the real Hermes profile credentials", () => {
   for (const source of [taskRunner, runner]) {
     assert.match(

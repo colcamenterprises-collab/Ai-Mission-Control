@@ -5,20 +5,27 @@ JOB_ID="${1:?job id required}"
 TASK_ID="${2:?task id required}"
 COMMAND_ID="${3:-}"
 PROMPT_FILE="${4:?prompt file required}"
-REPO="${MISSION_CONTROL_REPO_DIR:-/opt/apps/ai-mission-control}"
+REPO="${5:-${MISSION_CONTROL_REPO_DIR:-/opt/apps/ai-mission-control}}"
 JAMES_BINARY="${JAMES_BINARY:-/usr/local/bin/james-hermes}"
 JAMES_PROFILE_DIR="${JAMES_PROFILE_DIR:-/root/.hermes/profiles/james-hermes}"
 JAMES_PROFILE_ENV="${JAMES_PROFILE_ENV:-$JAMES_PROFILE_DIR/.env}"
 JAMES_TASK_TIMEOUT_SECONDS="${JAMES_TASK_TIMEOUT_SECONDS:-180}"
 STATE_DIR="/var/lib/ai-mission-control/james-jobs"
 WORKTREE_ROOT="/var/lib/ai-mission-control/worktrees"
-WORKTREE="$WORKTREE_ROOT/task-$TASK_ID"
+REPO_KEY="$(basename "$REPO" | tr -c 'A-Za-z0-9._-' '-')"
+WORKTREE="$WORKTREE_ROOT/${REPO_KEY}-task-$TASK_ID"
 OUTPUT_FILE="$STATE_DIR/$JOB_ID.out"
 ERROR_FILE="$STATE_DIR/$JOB_ID.err"
 STATUS_FILE="$STATE_DIR/$JOB_ID.status"
 
 mkdir -p "$STATE_DIR" "$WORKTREE_ROOT"
 printf 'running\n' > "$STATUS_FILE"
+
+if ! git -C "$REPO" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  printf 'Configured execution repository is unavailable or not a git worktree: %s\n' "$REPO" > "$ERROR_FILE"
+  printf 'BLOCKED\n' > "$STATUS_FILE"
+  exit 78
+fi
 
 # Detached systemd jobs do not inherit the interactive shell configuration.
 # Load Mission Control first for callback/admin settings, then load James's actual
