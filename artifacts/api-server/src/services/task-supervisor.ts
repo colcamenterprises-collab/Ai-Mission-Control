@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db, activityTable, agentsTable, taskMessagesTable, tasksTable, workRequestsTable, approvalsTable } from "@workspace/db";
 import { dispatchRuntime, isRuntimeConfigured } from "./agent-runtime.js";
 import { delegationDecision, supervisionAction } from "./autonomy-policy.js";
-import { authorizeOrchestratorApproval, ensureTaskWorkRequest, reopenTaskExecution } from "./task-execution-control.js";
+import { authorizeOrchestratorApproval, ensureTaskWorkRequest, markTaskExecutionBlocked, reopenTaskExecution } from "./task-execution-control.js";
 import { transitionWorkRequest } from "./execution-runtime.js";
 
 const SUPERVISED_STATUSES = ["backlog", "ready", "running", "in_progress", "blocked", "changes_required"];
@@ -101,6 +101,7 @@ async function openCircuitBreaker(task: typeof tasksTable.$inferSelect, failure:
   const nextAction = failure?.nextAction ?? "Change the worker, evidence source, access path or execution plan, then explicitly resume/retry this task.";
   const blocker = `${CIRCUIT_BREAKER_PREFIX} ${reason}`;
   const alreadyOpen = task.blocker === blocker;
+  await markTaskExecutionBlocked(task.id, reason);
   await db.update(tasksTable).set({
     status: "blocked",
     nextAction,

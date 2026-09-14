@@ -83,6 +83,11 @@ test("supervision circuit breaker recognizes auth, credits, quota and access fai
   assert.match(taskSupervisor, /recentHardRuntimeFailure/);
 });
 
+
+test("opening a task circuit breaker also blocks the canonical execution request", () => {
+  assert.match(taskSupervisor, /markTaskExecutionBlocked\(task\.id, reason\)/);
+});
+
 test("terminal supervision limit never resets retry counter", () => {
   assert.match(taskSupervisor, /openCircuitBreaker/);
   assert.match(taskSupervisor, /supervisionAttempts: maxAttempts\(\)/);
