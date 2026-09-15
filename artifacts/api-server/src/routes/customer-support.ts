@@ -45,6 +45,10 @@ router.get("/support/tickets/:taskId", async (req, res): Promise<void> => {
   const [task]=await db.select().from(tasksTable).where(eq(tasksTable.id,taskId)).limit(1);
   if (!task || task.project!=="Customli Restaurant OS Support") { res.status(404).json({error:"Support ticket not found"}); return; }
   const [request]=await db.select().from(workRequestsTable).where(eq(workRequestsTable.taskId,taskId)).limit(1);
+  const organizationId=typeof req.headers["x-organization-id"]==="string" ? req.headers["x-organization-id"].trim() : "";
+  const requirements=request?.requirements && typeof request.requirements==="object" && !Array.isArray(request.requirements) ? request.requirements as Record<string,unknown> : {};
+  const externalSource=requirements.externalSource && typeof requirements.externalSource==="object" && !Array.isArray(requirements.externalSource) ? requirements.externalSource as Record<string,unknown> : {};
+  if (!organizationId || externalSource.conversationId!==organizationId) { res.status(404).json({error:"Support ticket not found"}); return; }
   const messages=await db.select().from(taskMessagesTable).where(eq(taskMessagesTable.taskId,taskId)).orderBy(asc(taskMessagesTable.createdAt));
   res.json({task:{id:task.id,status:task.status,assignee:task.assignee,report:task.report,updatedAt:task.updatedAt},workRequest:request?{id:request.id,state:request.state,approvalDecision:request.approvalDecision}:null,messages:messages.map(m=>({id:m.id,author:m.author,body:m.body,createdAt:m.createdAt}))});
 });

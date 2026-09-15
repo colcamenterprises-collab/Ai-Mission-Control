@@ -58,6 +58,8 @@ test("restaurant support uses a narrow authenticated control-plane route", () =>
   const index = read("artifacts/api-server/src/routes/index.ts");
   const intake = read("artifacts/api-server/src/services/external-intake.ts");
   assert.match(route, /MISSION_CONTROL_SUPPORT_TOKEN/);
+  assert.match(route, /x-organization-id/);
+  assert.match(route, /externalSource\.conversationId/);
   assert.match(route, /timingSafeEqual/);
   assert.match(route, /createRateLimit\("restaurant-support"/);
   assert.match(route, /Customli Restaurant OS Support/);
