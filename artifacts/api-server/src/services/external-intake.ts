@@ -20,7 +20,7 @@ import {
   withExecutionHarnessRequirements,
 } from "./agentic-harness.js";
 
-export type ExternalChannel = "whatsapp";
+export type ExternalChannel = "whatsapp" | "restaurant-support";
 export type ExternalIntakeSource = {
   channel: ExternalChannel;
   externalId: string;
@@ -51,7 +51,13 @@ function cleanTitle(text: string): string {
   return oneLine.length <= 120 ? oneLine : `${oneLine.slice(0, 117)}...`;
 }
 
-async function routeExternalAgent(text: string) {
+async function routeExternalAgent(text: string, channel: ExternalChannel) {
+  if (channel === "restaurant-support") {
+    const support = await db.select().from(agentsTable).where(or(ilike(agentsTable.name, "%support%"),ilike(agentsTable.role, "%customer support%"),ilike(agentsTable.role, "%customer service%"))).orderBy(asc(agentsTable.id)).limit(1);
+    if (support[0]) return support[0];
+    const fallback = await db.select().from(agentsTable).where(or(ilike(agentsTable.name, "%james%"),ilike(agentsTable.role, "%orchestr%"))).orderBy(asc(agentsTable.id)).limit(1);
+    return fallback[0] ?? null;
+  }
   const finance =
     /\b(finance|financial|reconcil|expense|bank|cash|invoice|payment|sales|receipt)\b/i.test(
       text,
@@ -147,6 +153,7 @@ export async function intakeExternalTask(params: {
   source: ExternalIntakeSource;
   text: string;
   project?: string;
+  context?: Record<string, unknown>;
 }): Promise<ExternalIntakeResult> {
   const text = params.text.trim();
   if (!text) throw new Error("External intake text is required");
@@ -158,7 +165,7 @@ export async function intakeExternalTask(params: {
   if (existing) return existing;
 
   const assessment = assessExternalAction(text);
-  const agent = await routeExternalAgent(text);
+  const agent = await routeExternalAgent(text, params.source.channel);
   if (!agent)
     throw new Error(
       "No eligible Mission Control agent found for external intake",
@@ -178,6 +185,7 @@ export async function intakeExternalTask(params: {
         senderId: params.source.senderId,
         conversationId: params.source.conversationId,
       },
+      supportContext: params.context ?? undefined,
       delegationPolicy: {
         riskLevel: assessment.riskLevel,
         actionClass: assessment.actionClass,
