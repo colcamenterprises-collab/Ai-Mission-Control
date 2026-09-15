@@ -41,12 +41,14 @@ import whatsappRouter from "./whatsapp";
 import { requireAdminAuth } from "../lib/auth.js";
 import authSessionRouter from "./auth-session.js";
 import brainGraphRouter from "./brain-graph.js";
+import customerSupportRouter from "./customer-support.js";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authSessionRouter);
 router.use(whatsappRouter);
+router.use(customerSupportRouter);
 router.use("/agents/:id/dispatch", requireAdminAuth);
 router.use("/agents/:id/token", requireAdminAuth);
 router.use("/agents/:id/test", requireAdminAuth);

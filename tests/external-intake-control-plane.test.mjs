@@ -52,3 +52,22 @@ test("L2 orchestrator authorization is explicit and auditable before execution",
   assert.match(supervisor, /authorizeOrchestratorApproval/);
   assert.match(supervisor, /latestRequest\?\.state === "awaiting_approval"/);
 });
+
+test("restaurant support uses a narrow authenticated control-plane route", () => {
+  const route = read("artifacts/api-server/src/routes/customer-support.ts");
+  const index = read("artifacts/api-server/src/routes/index.ts");
+  const intake = read("artifacts/api-server/src/services/external-intake.ts");
+  assert.match(route, /MISSION_CONTROL_SUPPORT_TOKEN/);
+  assert.match(route, /x-organization-id/);
+  assert.match(route, /externalSource\.conversationId/);
+  assert.match(route, /timingSafeEqual/);
+  assert.match(route, /createRateLimit\("restaurant-support"/);
+  assert.match(route, /Customli Restaurant OS Support/);
+  assert.match(route, /MAX_CONTEXT_BYTES/);
+  assert.match(route, /intakeExternalTask/);
+  assert.doesNotMatch(route, /MISSION_CONTROL_ADMIN_TOKEN/);
+  assert.ok(index.indexOf("customerSupportRouter") < index.indexOf("router.use(requireAdminAuth)"));
+  assert.match(intake, /"restaurant-support"/);
+  assert.match(intake, /%customer support%/);
+  assert.match(intake, /supportContext/);
+});
