@@ -383,3 +383,11 @@ The bridge routes finance-oriented messages to Amanda Financial Controller and o
 ### Enterprise external-intake control plane
 
 Authenticated WhatsApp intake is not an agent-execution endpoint. `POST /api/whatsapp/webhook` verifies the webhook signature and allowed chat, then creates or reuses a canonical Task + `work_requests` record keyed by the external message id. The stored Work Request carries channel/source metadata, structured delegation risk and the approval decision. L0/L1 work may enter `approved`; L2 is explicitly authorized by the orchestrator before execution; L3 remains `awaiting_approval` until owner approval. Replays return the existing Task/Work Request and never create duplicate execution.
+
+### Restaurant Platform v3 customer support bridge
+
+`POST /api/support/intake` accepts authenticated service-to-service support requests from Restaurant Platform v3. It uses a dedicated support credential, bounded request payloads and route rate limiting before creating or reusing the canonical Task + `work_requests` record through the external-intake control plane. Restaurant users never receive Mission Control owner/admin credentials.
+
+`GET /api/support/tickets/:taskId` returns the canonical support task status and conversation messages for the requesting service. The route uses the same dedicated support authentication boundary and exposes only support-ticket data required by the Restaurant v3 support surface.
+
+Support requests prefer the dedicated Restaurant Customer Support employee when provisioned; James is the controlled fallback. Tenant context supplied by Restaurant v3 must be server-generated diagnostics only. Raw credentials, integration secrets and cross-tenant data are prohibited. Existing Mission Control risk classification and approval gates remain authoritative for any requested action.
