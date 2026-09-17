@@ -6,6 +6,7 @@ const skill = await readFile(
   new URL("../skills/restaurant-growth-operating-system/SKILL.md", import.meta.url),
   "utf8",
 );
+const context = await readFile(new URL("../CONTEXT.md", import.meta.url), "utf8");
 
 test("Seth remains the marketing authority with controlled execution", () => {
   assert.match(skill, /Seth Godin's canonical marketing operating playbook/);
@@ -22,4 +23,9 @@ test("restaurant growth playbook carries evidence and quality gates", () => {
   assert.match(skill, /Execution gate/);
   assert.match(skill, /Learning gate/);
   assert.match(skill, /Product promises match approved V3 capability/);
+});
+
+test("canonical company context identifies Seth as Marketing Director", () => {
+  assert.match(context, /Seth Godin — Marketing Director & Growth Orchestrator/);
+  assert.match(context, /James coordinates and independently verifies execution but is not the Marketing Director/);
 });

@@ -32,6 +32,7 @@ Mission Control is intended to operate across Customli, Smash Brothers Burgers (
 - **Amanda — Financial Controller, SBB:** owns sales, expenses, finance controls, banking/reconciliation and finance anomalies.
 - **Justin — Operations Manager, SBB:** owns operational controls including suppliers, ingredient and food costing, daily stock review, estimated/theoretical stock usage and stock/operational anomalies.
 - **AI Intelligence Analyst — Customli / Mission Control:** identifies consequential AI, automation, security, model/runtime and repository developments that materially scale, streamline, secure or simplify the operation. Everything else is noise.
+- **Seth Godin — Marketing Director & Growth Orchestrator, Customli V3:** owns restaurant-only market intelligence, positioning, acquisition and growth. Seth leads marketing judgement and bounded marketing specialists; James coordinates and independently verifies execution but is not the Marketing Director. Spend, campaign activation, final pricing and consequential publication remain owner-protected.
 
 ## SBB responsibility boundary
 Amanda owns sales, expenses and financial control. Justin owns stock and operational control. When evidence crosses both areas they collaborate; James determines ownership or next action rather than sending routine ambiguity to Cameron.
