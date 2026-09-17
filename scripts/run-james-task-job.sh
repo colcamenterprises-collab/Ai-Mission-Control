@@ -9,7 +9,8 @@ REPO="${5:-${MISSION_CONTROL_REPO_DIR:-/opt/apps/ai-mission-control}}"
 JAMES_BINARY="${JAMES_BINARY:-/usr/local/bin/james-hermes}"
 JAMES_PROFILE_DIR="${JAMES_PROFILE_DIR:-/root/.hermes/profiles/james-hermes}"
 JAMES_PROFILE_ENV="${JAMES_PROFILE_ENV:-$JAMES_PROFILE_DIR/.env}"
-JAMES_TASK_TIMEOUT_SECONDS="${JAMES_TASK_TIMEOUT_SECONDS:-180}"
+JAMES_TASK_TIMEOUT_SECONDS="${JAMES_TASK_TIMEOUT_SECONDS:-900}"
+MISSION_CONTROL_ENV="${MISSION_CONTROL_ENV:-/opt/apps/ai-mission-control/.env}"
 STATE_DIR="/var/lib/ai-mission-control/james-jobs"
 WORKTREE_ROOT="/var/lib/ai-mission-control/worktrees"
 REPO_KEY="$(basename "$REPO" | tr -c 'A-Za-z0-9._-' '-')"
@@ -28,10 +29,15 @@ if ! git -C "$REPO" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 
 # Detached systemd jobs do not inherit the interactive shell configuration.
-# Load Mission Control first for callback/admin settings, then load James's actual
-# Hermes profile environment last so provider identity/credentials are authoritative
-# for the worker invocation itself.
-if [[ -f "$REPO/.env" ]]; then
+# Mission Control callback credentials must come from Mission Control itself, not
+# from the task execution repository. Execution-repo env may then add task-local
+# settings, while the James profile remains authoritative for model credentials.
+if [[ -f "$MISSION_CONTROL_ENV" ]]; then
+  set -a
+  . "$MISSION_CONTROL_ENV"
+  set +a
+fi
+if [[ -f "$REPO/.env" && "$REPO/.env" != "$MISSION_CONTROL_ENV" ]]; then
   set -a
   . "$REPO/.env"
   set +a
@@ -82,11 +88,31 @@ set +e
 EXIT_CODE=$?
 set -e
 
+# Paid-provider capacity must not strand ordinary work when the authorized free
+# router is available. Preserve the primary evidence, then retry once through the
+# bounded free fallback. Authentication failures are never retried here.
+if grep -Eqi 'HTTP 402|prompt tokens limit exceeded|requires more credits|insufficient credits|credit limit|quota exceeded|key limit exceeded' "$OUTPUT_FILE" "$ERROR_FILE" 2>/dev/null; then
+  mv "$OUTPUT_FILE" "$OUTPUT_FILE.primary"
+  mv "$ERROR_FILE" "$ERROR_FILE.primary"
+  set +e
+  (
+    cd "$WORKTREE"
+    export MAX_TOKENS="${JAMES_FALLBACK_MAX_TOKENS:-1200}"
+    export OPENROUTER_MAX_TOKENS="${JAMES_FALLBACK_MAX_TOKENS:-1200}"
+    export HERMES_MAX_TOKENS="${JAMES_FALLBACK_MAX_TOKENS:-1200}"
+    timeout --signal=TERM --kill-after=15s "$JAMES_TASK_TIMEOUT_SECONDS" "$JAMES_BINARY" \
+      --provider "${JAMES_FALLBACK_PROVIDER:-openrouter}" \
+      -m "${JAMES_FALLBACK_MODEL:-openrouter/free}" -z "$PROMPT"
+  ) >"$OUTPUT_FILE" 2>"$ERROR_FILE"
+  EXIT_CODE=$?
+  set -e
+fi
+
 if [[ "$EXIT_CODE" -eq 124 || "$EXIT_CODE" -eq 137 ]]; then
   printf '\nMission Control terminated James after %ss without a completed runtime response.\n' "$JAMES_TASK_TIMEOUT_SECONDS" >> "$ERROR_FILE"
 fi
 
-PORT="${PORT:-4100}"
+MC_PORT="${MISSION_CONTROL_PORT:-4100}"
 TOKEN="${MISSION_CONTROL_ADMIN_TOKEN:-${VITE_MISSION_CONTROL_ADMIN_TOKEN:-}}"
 
 RESULT_STATE="$(node - "$EXIT_CODE" "$OUTPUT_FILE" <<'NODE'
@@ -111,7 +137,7 @@ NODE
 
 printf '%s\n' "$RESULT_STATE" > "$STATUS_FILE"
 for attempt in $(seq 1 90); do
-  if curl --connect-timeout 3 --max-time 5 -fsS "http://127.0.0.1:${PORT}/api/healthz" >/dev/null 2>&1; then break; fi
+  if curl --connect-timeout 3 --max-time 5 -fsS "http://127.0.0.1:${MC_PORT}/api/healthz" >/dev/null 2>&1; then break; fi
   sleep 2
 done
 
@@ -124,7 +150,7 @@ process.stdout.write(JSON.stringify({ taskId: Number(taskId), commandId: command
 NODE
 )"
 
-curl --connect-timeout 3 --max-time 15 --fail-with-body -sS -X POST "http://127.0.0.1:${PORT}/api/james/report" \
+curl --connect-timeout 3 --max-time 15 --fail-with-body -sS -X POST "http://127.0.0.1:${MC_PORT}/api/james/report" \
   -H 'Content-Type: application/json' \
   ${TOKEN:+-H "Authorization: Bearer $TOKEN"} \
   ${TOKEN:+-H "x-admin-token: $TOKEN"} \
