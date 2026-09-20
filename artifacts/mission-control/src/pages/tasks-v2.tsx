@@ -18,6 +18,7 @@ import { getListTasksQueryKey, type Task } from "@workspace/api-client-react";
 import { AlertTriangle, Check, Clock3, MessageCircle, Paperclip, Plus, Send, Trash2, X } from "lucide-react";
 import { AgentAvatar, agentTone } from "@/components/agent-avatar";
 import { JamesAvatar } from "@/components/james-avatar";
+import NoteComposer from "@/components/note-composer";
 import "./tasks.css";
 import "./tasks-final.css";
 import "./task-timeline.css";
@@ -65,6 +66,7 @@ export default function TasksV2() {
   const [activeWidth, setActiveWidth] = useState<number | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [priorityFilter, setPriorityFilter] = useState("all");
   const [boardError, setBoardError] = useState("");
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -98,8 +100,11 @@ export default function TasksV2() {
 
   const approvalTasks = tasks.filter(needsApproval);
   const tasksByColumn = useMemo(
-    () => Object.fromEntries(COLUMNS.map((column) => [column.id, tasks.filter((task) => column.matches.includes(task.status as never)).sort(newestFirst)])) as Record<ColumnId, TaskMeta[]>,
-    [tasks],
+    () => Object.fromEntries(COLUMNS.map((column) => [column.id, tasks
+      .filter((task) => column.matches.includes(task.status as never))
+      .filter((task) => priorityFilter === "all" || task.priority === priorityFilter)
+      .sort(newestFirst)])) as Record<ColumnId, TaskMeta[]>,
+    [tasks, priorityFilter],
   );
 
   function handleDragStart(event: DragStartEvent) {
@@ -137,14 +142,16 @@ export default function TasksV2() {
 
   return <div className="mc-task-page mc-kanban-v2">
     <header className="mc-task-header">
-      <div><span className="mc-task-header-kicker">Mission Control</span><h1>Kanban</h1></div>
+      <div><span className="mc-task-header-kicker">Mission Control</span><h1>Taskboard</h1></div>
       <div className="mc-task-header-actions">
+        <label className="mc-task-priority-filter">Priority<select aria-label="Filter task priority" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option value="all">All</option><option value="urgent">Urgent</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
         {approvalTasks.length > 0 && <button className="mc-task-approval-button" onClick={() => setSelectedTask(approvalTasks[0])}><AlertTriangle />{approvalTasks.length} owner action{approvalTasks.length === 1 ? "" : "s"}</button>}
         <button className="mc-task-secondary-button" onClick={() => setNoteOpen(true)}><Plus />Add Idea</button>
         <button className="mc-task-primary-button" onClick={() => setCreateOpen(true)}><Plus />Add Task</button>
       </div>
     </header>
     {boardError && <div className="mc-kanban-v2-error" role="alert"><AlertTriangle />{boardError}<button onClick={() => setBoardError("")} aria-label="Dismiss"><X /></button></div>}
+    <span className="mc-task-mobile-hint" aria-hidden="true">Swipe across lanes →</span>
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragCancel={handleDragCancel} onDragEnd={(event) => void handleDragEnd(event)}>
       <main className="mc-task-workspace mc-kanban-v2-board" aria-label="Mission Control Kanban">
         <InboxLane items={inbox} onChanged={() => void refreshInbox()} />
@@ -155,7 +162,7 @@ export default function TasksV2() {
       </DragOverlay>
     </DndContext>
     <CreateTaskModal open={createOpen} projects={projects} onClose={() => setCreateOpen(false)} onCreated={async () => { setCreateOpen(false); await Promise.all([refreshTasks(), refreshProjects()]); }} />
-    <CreateNoteModal open={noteOpen} onClose={() => setNoteOpen(false)} onCreated={async () => { setNoteOpen(false); await refreshInbox(); }} />
+    {noteOpen && <NoteComposer initialKind="idea" onClose={() => setNoteOpen(false)} onSaved={async () => { await refreshInbox(); }} />}
     {selectedTask && <TaskDetailModal task={selectedTask} onClose={() => setSelectedTask(null)} onChanged={refreshTasks} />}
   </div>;
 }
@@ -185,7 +192,7 @@ function TaskCardVisual({ task, onOpen, dragProps, overlay = false, width }: { t
     style={width ? { width } : undefined}
     {...dragProps}
   >
-    {approval && <span className="mc-task-card-alert"><AlertTriangle /> Owner action required</span>}
+    <div className="mc-task-card-meta-top"><span className={`mc-task-priority mc-priority-${task.priority}`}>{task.priority}</span>{approval && <span className="mc-task-card-alert"><AlertTriangle /> Owner action required</span>}</div>
     <h3>{task.title}</h3>
     {task.description && <p>{task.description}</p>}
     {dueDate && <span className="mc-task-card-due"><Clock3 /> {dueDate}</span>}
@@ -204,7 +211,7 @@ function Modal({ children, className = "", onClose, label }: { children: ReactNo
 }
 
 function CreateTaskModal({ open, projects, onClose, onCreated }: { open: boolean; projects: Project[]; onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState({ title: "", description: "", date: "", time: "", recurrence: "one_off", project: "Mission Control", newProject: "", approvalRequired: false, ownerReviewRequired: false });
+  const [form, setForm] = useState({ title: "", description: "", priority: "medium", date: "", time: "", recurrence: "one_off", project: "Mission Control", newProject: "", approvalRequired: false, ownerReviewRequired: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   if (!open) return null;
@@ -219,9 +226,9 @@ function CreateTaskModal({ open, projects, onClose, onCreated }: { open: boolean
         if (!projectResponse.ok && projectResponse.status !== 409) throw new Error("Unable to create project");
       }
       const dueDate = form.date ? new Date(`${form.date}T${form.time || "17:00"}`).toISOString() : null;
-      const response = await fetch("/api/orchestrator/intake", { method: "POST", headers: authHeaders(), body: JSON.stringify({ title: form.title.trim(), description: form.description.trim(), project, dueDate, recurrence: form.recurrence, approvalRequired: form.approvalRequired, ownerReviewRequired: form.ownerReviewRequired }) });
+      const response = await fetch("/api/orchestrator/intake", { method: "POST", headers: authHeaders(), body: JSON.stringify({ title: form.title.trim(), description: form.description.trim(), project, priority: form.priority, dueDate, recurrence: form.recurrence, approvalRequired: form.approvalRequired, ownerReviewRequired: form.ownerReviewRequired }) });
       if (!response.ok) { const body = await response.json().catch(() => ({})) as { error?: string }; throw new Error(body.error || "Unable to create task"); }
-      setForm({ title: "", description: "", date: "", time: "", recurrence: "one_off", project: "Mission Control", newProject: "", approvalRequired: false, ownerReviewRequired: false });
+      setForm({ title: "", description: "", priority: "medium", date: "", time: "", recurrence: "one_off", project: "Mission Control", newProject: "", approvalRequired: false, ownerReviewRequired: false });
       onCreated();
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to create task"); }
     finally { setBusy(false); }
@@ -229,6 +236,7 @@ function CreateTaskModal({ open, projects, onClose, onCreated }: { open: boolean
   return <Modal className="mc-task-create-modal" onClose={onClose} label="Add Task"><header className="mc-task-modal-header"><h2>Add Task</h2><p>Create one canonical Mission Control task.</p></header><div className="mc-task-form">
     <label className="mc-task-form-wide">Task Title<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus /></label>
     <label className="mc-task-form-wide">Description<textarea rows={4} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>
+    <label>Priority<select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}><option value="urgent">Urgent</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
     <label>Due Date<input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></label><label>Due Time<input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} /></label>
     <label>Schedule<select value={form.recurrence} onChange={(e) => setForm({ ...form, recurrence: e.target.value })}><option value="one_off">One off</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
     <label>Project<select value={form.project} onChange={(e) => setForm({ ...form, project: e.target.value })}><option>Mission Control</option>{projects.map((item) => <option key={item.id}>{item.name}</option>)}<option value="__new">Create a project</option></select></label>
@@ -237,20 +245,6 @@ function CreateTaskModal({ open, projects, onClose, onCreated }: { open: boolean
     <label className="mc-task-form-wide mc-task-checkbox"><input type="checkbox" checked={form.ownerReviewRequired} onChange={(e) => setForm({ ...form, ownerReviewRequired: e.target.checked })} /><span><strong>Owner Review Required</strong><small>Human acceptance after verification.</small></span></label>
     {error && <p className="mc-task-form-error mc-task-form-wide">{error}</p>}
   </div><footer className="mc-task-modal-footer"><button className="mc-task-secondary-button" onClick={onClose}>Cancel</button><button className="mc-task-primary-button" onClick={() => void submit()} disabled={busy}>{busy ? "Adding…" : "Add Task"}</button></footer></Modal>;
-}
-
-function CreateNoteModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
-  const [title, setTitle] = useState(""); const [content, setContent] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
-  if (!open) return null;
-  async function save() {
-    if (!content.trim()) { setError("Note content is required."); return; }
-    setBusy(true);
-    const response = await fetch("/api/inbox", { method: "POST", headers: authHeaders(), body: JSON.stringify({ title: title.trim() || null, content, source: "typed", createdBy: "Owner" }) });
-    setBusy(false);
-    if (!response.ok) { setError("Unable to save idea."); return; }
-    setTitle(""); setContent(""); onCreated();
-  }
-  return <Modal className="mc-task-create-modal" onClose={onClose} label="Add Idea"><header className="mc-task-modal-header"><h2>Add Idea</h2><p>Capture only. Nothing executes until Make Task.</p></header><div className="mc-task-form"><label className="mc-task-form-wide">Title (optional)<input value={title} onChange={(e) => setTitle(e.target.value)} /></label><label className="mc-task-form-wide">Note<textarea rows={10} value={content} onChange={(e) => setContent(e.target.value)} /></label>{error && <p className="mc-task-form-error">{error}</p>}</div><footer className="mc-task-modal-footer"><button className="mc-task-secondary-button" onClick={onClose}>Cancel</button><button className="mc-task-primary-button" disabled={busy} onClick={() => void save()}>{busy ? "Saving…" : "Save Idea"}</button></footer></Modal>;
 }
 
 function TaskDetailModal({ task, onClose, onChanged }: { task: TaskMeta; onClose: () => void; onChanged: () => Promise<void> }) {

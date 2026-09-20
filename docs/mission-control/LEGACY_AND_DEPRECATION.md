@@ -1,6 +1,6 @@
 # Mission Control V1.0 — Legacy and Deprecation Register
 
-**Reviewed:** 2026-09-01
+**Reviewed:** 2026-09-20
 
 This register distinguishes code that is old-but-required from code that is genuinely removable. Do not delete a TRANSITIONAL path merely because a newer implementation exists.
 
@@ -25,7 +25,7 @@ This register distinguishes code that is old-but-required from code that is genu
 | `/reports-summary` | LEGACY | Alias to Reports. |
 | `/team/manage` → `/team` | LEGACY | Team management moved into unified Team modal. |
 | `/agent-creation` → `/team?hire=1` | LEGACY | Standalone hire route replaced by Team hire flow. |
-| `/executions` and `/brain/executions` both rendering same surface | TRANSITIONAL/DUPLICATE | Standardize canonical deep-link location and then redirect/remove the duplicate path. |
+| `/executions` and `/brain/executions` | LEGACY | Canonical execution history is `/team/executions`. Retain aliases only for existing bookmarks/deep links, then redirect/remove after compatibility verification. |
 | older `src/pages/tasks.tsx` beside `tasks-v2.tsx` | DEAD CANDIDATE | Kanban V2 owns `/tasks`; remove old page only after import/reference check and tests. |
 
 `business-hub.tsx` is **not** dead: Mission Brain imports it.

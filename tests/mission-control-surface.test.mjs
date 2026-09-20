@@ -56,16 +56,23 @@ test("execution approvals have a canonical owner surface and dashboard inbox", a
   assert.match(approvals, /decision: "approve"/);
 });
 
-test("Notes and Tasks remain explicitly separate", async () => {
-  const [app, component, notesCss] = await Promise.all([
+test("Notes and Tasks remain explicitly separate while Notes use fast preview capture", async () => {
+  const [app, component, notes, notesCss, composer] = await Promise.all([
     read("artifacts/mission-control/src/App.tsx"),
     read("artifacts/mission-control/src/components/operating-surface-enhancements.tsx"),
+    read("artifacts/mission-control/src/pages/notes.tsx"),
     read("artifacts/mission-control/src/pages/notes.css"),
+    read("artifacts/mission-control/src/components/note-composer.tsx"),
   ]);
   assert.match(app, /path="\/notes" component=\{Notes\}/);
   assert.match(component, /\/notes\?create=note/);
-  assert.match(notesCss, /note-paper/);
-  assert.match(notesCss, /--note-accent/);
+  assert.match(notes, /Notes & Ideas/);
+  assert.match(notes, /note-card-preview/);
+  assert.match(notesCss, /notes-board/);
+  assert.match(notesCss, /column-count:2/);
+  assert.match(composer, /Start typing…/);
+  assert.match(composer, /linkedProjectId: projectId/);
+  assert.match(composer, /Toggle checklist/);
 });
 
 test("durable memory sync runs on API startup with canonical categories", async () => {

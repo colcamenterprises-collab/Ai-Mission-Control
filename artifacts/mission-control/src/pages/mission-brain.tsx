@@ -1,5 +1,4 @@
-import { Link } from "wouter";
-import { BookOpen, Brain, History, UsersRound } from "lucide-react";
+import { Brain } from "lucide-react";
 import BusinessHub from "./business-hub";
 import { MissionBrainGraph } from "@/components/mission-brain-graph";
 import "./mission-brain.css";
@@ -12,48 +11,27 @@ export default function MissionBrain() {
           <span className="mission-brain-kicker">Mission intelligence</span>
           <h1>Mission Brain</h1>
           <p>
-            What Mission Control knows, what it can do, what it is working
-            toward, and how that knowledge connects.
+            What Mission Control knows, the projects it understands, and how
+            durable organisational knowledge connects.
           </p>
         </div>
-        <nav className="mission-brain-nav" aria-label="Mission Brain sections">
-          <Link href="/brain" className="is-active">
-            <Brain /> Brain
-          </Link>
-          <Link href="/skills">
-            <BookOpen /> Skills
-          </Link>
-          <Link href="/brain/executions">
-            <History /> Executions
-          </Link>
-          <Link href="/team">
-            <UsersRound /> Agents
-          </Link>
-        </nav>
+        <div className="mission-brain-scope">
+          <Brain />
+          <span>Organisational memory, projects and durable knowledge</span>
+        </div>
       </header>
-      <section
-        className="mission-brain-agent-model"
-        aria-label="Portable agent model"
-      >
+      <section className="mission-brain-agent-model" aria-label="Mission Brain scope">
         <div>
-          <strong>Mission Brain</strong>
-          <span>
-            Shared organisational memory, skills, projects and execution
-            history.
-          </span>
+          <strong>Organisational Memory</strong>
+          <span>Durable facts, decisions and validated knowledge retained by Mission Control.</span>
         </div>
         <div>
-          <strong>Agent Role</strong>
-          <span>
-            Stable responsibilities, permissions and required capabilities.
-          </span>
+          <strong>Projects & Context</strong>
+          <span>Business and system context that gives stored knowledge a clear operating home.</span>
         </div>
         <div>
-          <strong>Agent Profile / Soul</strong>
-          <span>
-            Replaceable identity and working style, separate from organisational
-            truth.
-          </span>
+          <strong>Knowledge Graph</strong>
+          <span>Relationships between memories, projects and the information Mission Control relies on.</span>
         </div>
       </section>
       <MissionBrainGraph />

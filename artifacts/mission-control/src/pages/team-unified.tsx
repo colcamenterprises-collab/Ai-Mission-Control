@@ -91,6 +91,16 @@ export default function TeamUnified() {
   const profileByAgent = useMemo(() => new Map(profiles.map((profile) => [profile.agentId, profile])), [profiles]);
   const selectedAgent = selectedAgentId ? agents.find((agent) => agent.id === selectedAgentId) ?? null : null;
   const selectedProfile = selectedAgentId ? profileByAgent.get(selectedAgentId) : undefined;
+  const departmentGroups = useMemo(() => {
+    const grouped = new Map<string, Agent[]>();
+    for (const agent of agents) {
+      const department = agent.department || "Other";
+      grouped.set(department, [...(grouped.get(department) ?? []), agent]);
+    }
+    return Array.from(grouped.entries())
+      .map(([department, members]) => [department, [...members].sort((a, b) => Number(b.isLead) - Number(a.isLead) || a.name.localeCompare(b.name))] as const)
+      .sort(([a], [b]) => a.localeCompare(b));
+  }, [agents]);
   const refreshAgents = () => { void queryClient.invalidateQueries({ queryKey: getListAgentsQueryKey() }); };
   const updateProfile = (updated: EmployeeProfile) => setProfiles((current) => {
     const exists = current.some((profile) => profile.agentId === updated.agentId);
@@ -113,46 +123,65 @@ export default function TeamUnified() {
         <header className="team-unified-header">
           <div>
             <span className="team-unified-eyebrow"><Sparkles aria-hidden="true" /> AI Team</span>
-            <h1>Your AI employees</h1>
+            <h1>AI Team</h1>
             <p className="team-unified-subtitle">Your active AI workforce, their responsibilities, status and direct controls.</p>
           </div>
         </header>
 
-        <section className="team-employee-grid" aria-label="AI employees">
-          {isLoading ? Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="team-glass-card team-glass-skeleton" />) : (
+        <div className="team-org-chart" aria-label="AI team structure">
+          {isLoading ? (
+            <section className="team-employee-grid" aria-label="Loading AI employees">
+              {Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="team-glass-card team-glass-skeleton" />)}
+            </section>
+          ) : (
             <>
-              {agents.map((agent) => {
-                const profile = profileByAgent.get(agent.id);
-                return (
-                  <article key={agent.id} className="team-glass-card team-agent-card">
-                    <div className="team-avatar-wrap">
-                      {profile?.avatarUrl ? <img src={profile.avatarUrl} alt="" className="team-agent-photo" /> : <div className="team-agent-initials">{initials(agent)}</div>}
-                      <span className={`team-live-dot ${agent.status === "active" ? "online" : ""}`} />
-                    </div>
+              {departmentGroups.map(([department, members]) => (
+                <section className="team-department-block" key={department}>
+                  <header className="team-department-header">
+                    <div><span>Function</span><h2>{department}</h2></div>
+                    <small>{members.length} employee{members.length === 1 ? "" : "s"}</small>
+                  </header>
+                  <div className="team-employee-grid">
+                    {members.map((agent) => {
+                      const profile = profileByAgent.get(agent.id);
+                      return (
+                        <article key={agent.id} className={`team-glass-card team-agent-card ${agent.isLead ? "is-lead" : ""}`}>
+                          {agent.isLead && <span className="team-lead-badge">Lead</span>}
+                          <div className="team-avatar-wrap">
+                            {profile?.avatarUrl ? <img src={profile.avatarUrl} alt="" className="team-agent-photo" /> : <div className="team-agent-initials">{initials(agent)}</div>}
+                            <span className={`team-live-dot ${agent.status === "active" ? "online" : ""}`} />
+                          </div>
+                          <div className="team-card-identity">
+                            <strong>{agent.name}</strong>
+                            <span className="team-card-role">{agent.role}</span>
+                            <p>{description(agent)}</p>
+                          </div>
+                          <span className={`team-card-status status-${agent.status}`}>{statusLabel(agent)}</span>
+                          <div className="team-card-actions">
+                            <button type="button" onClick={() => openAgent(agent.id, "manage")}><Settings2 aria-hidden="true" /> Manage</button>
+                            <button type="button" onClick={() => openAgent(agent.id, "chat")}><MessageCircle aria-hidden="true" /> Chat</button>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+              <section className="team-department-block team-hire-block">
+                <header className="team-department-header"><div><span>Workforce</span><h2>Add specialist</h2></div></header>
+                <div className="team-employee-grid team-hire-grid">
+                  <button type="button" className="team-glass-card team-hire-card" onClick={() => setHireOpen(true)}>
+                    <span className="team-hire-icon"><Plus aria-hidden="true" /></span>
                     <div className="team-card-identity">
-                      <strong>{agent.name}</strong>
-                      <span className="team-card-role">{agent.role}</span>
-                      <p>{description(agent)}</p>
+                      <strong>Hire AI Employee</strong>
+                      <p>Add another specialist to your workforce and connect their runtime, project and approved AI account.</p>
                     </div>
-                    <span className={`team-card-status status-${agent.status}`}>{statusLabel(agent)}</span>
-                    <div className="team-card-actions">
-                      <button type="button" onClick={() => openAgent(agent.id, "manage")}><Settings2 aria-hidden="true" /> Manage</button>
-                      <button type="button" onClick={() => openAgent(agent.id, "chat")}><MessageCircle aria-hidden="true" /> Chat</button>
-                    </div>
-                  </article>
-                );
-              })}
-
-              <button type="button" className="team-glass-card team-hire-card" onClick={() => setHireOpen(true)}>
-                <span className="team-hire-icon"><Plus aria-hidden="true" /></span>
-                <div className="team-card-identity">
-                  <strong>Hire AI Employee</strong>
-                  <p>Add another specialist to your workforce and connect their runtime, project and approved AI account.</p>
+                  </button>
                 </div>
-              </button>
+              </section>
             </>
           )}
-        </section>
+        </div>
       </div>
 
       <AgentModal agent={selectedAgent} profile={selectedProfile} mode={modalMode} onClose={() => setSelectedAgentId(null)} onChanged={refreshAgents} onProfileChanged={updateProfile} />

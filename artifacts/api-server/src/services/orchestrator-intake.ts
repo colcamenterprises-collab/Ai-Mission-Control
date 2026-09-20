@@ -14,7 +14,7 @@ const DEFAULT_PRIORITY = "medium";
 const UNASSIGNED_AGENT_NAME = "Unassigned";
 
 function asCleanString(value: unknown): string | null { if (typeof value !== "string") return null; const trimmed = value.trim(); return trimmed.length ? trimmed : null; }
-function normalizePriority(value: unknown): string { const priority = asCleanString(value)?.toLowerCase(); if (["low", "medium", "high", "critical"].includes(priority ?? "")) return priority!; return DEFAULT_PRIORITY; }
+function normalizePriority(value: unknown): string { const priority = asCleanString(value)?.toLowerCase(); if (["low", "medium", "high", "critical", "urgent"].includes(priority ?? "")) return priority!; return DEFAULT_PRIORITY; }
 function keywordScore(text: string, keywords: string[]): number { const haystack = text.toLowerCase(); return keywords.reduce((score, keyword) => score + (haystack.includes(keyword) ? 1 : 0), 0); }
 function isRealConnectedAgent(agent: AgentRecord): boolean { return Boolean(agent.isPluggedIn || agent.endpoint || agent.inboundToken || (agent.provider && agent.model)); }
 function isJamesHermes(agent: AgentRecord): boolean { return agent.provider === "hermes" || agent.name.toLowerCase().includes("james hermes"); }

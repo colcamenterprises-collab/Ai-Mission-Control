@@ -76,13 +76,14 @@ function RedirectToTeamHire() {
   }
   return null;
 }
+function JamesVoiceRoute() { return <JamesVoice />; }
 function Router() {
   return (
     <Layout>
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/dashboard" component={Dashboard} />
-        <Route path="/james" component={JamesVoice} />
+        <Route path="/james" component={JamesVoiceRoute} />
         <Route path="/notes" component={Notes} />
         <Route path="/tasks" component={TasksRoute} />
         <Route path="/content" component={ContentPipeline} />
@@ -91,6 +92,8 @@ function Router() {
         <Route path="/workspaces" component={Workspaces} />
         <Route path="/reports" component={Reports} />
         <Route path="/approvals" component={Approvals} />
+        <Route path="/team/executions/:id" component={Executions} />
+        <Route path="/team/executions" component={Executions} />
         <Route path="/brain/executions/:id" component={Executions} />
         <Route path="/brain/executions" component={Executions} />
         <Route path="/brain" component={MissionBrain} />

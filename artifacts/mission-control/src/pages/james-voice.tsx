@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, MicOff, Send, Square } from "lucide-react";
+import { Mic, MicOff, Send, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { JamesAvatar } from "@/components/james-avatar";
@@ -48,7 +48,9 @@ async function voiceBridge<T>(voiceAction: "status" | "transcribe" | "ws-ticket"
   try { return JSON.parse(raw || "{}") as T; } catch { throw new Error(`Hermes ${voiceAction} returned invalid JSON`); }
 }
 
-export default function JamesVoice() {
+type JamesVoiceProps = { compact?: boolean; autoStartVoice?: boolean; onClose?: () => void; [key: string]: unknown };
+
+export default function JamesVoice({ compact = false, autoStartVoice = false, onClose }: JamesVoiceProps = {}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [state, setState] = useState<VoiceState>("connecting");
@@ -208,6 +210,11 @@ export default function JamesVoice() {
     if (savedSession) { try { await rpc("session.resume", { session_id: savedSession }, 20_000); sessionId.current = savedSession; } catch { localStorage.removeItem(SESSION_KEY); } }
     if (!sessionId.current) { const created = await rpc("session.create", {}, 20_000) as { session_id?: string }; if (!created?.session_id) throw new Error("Hermes did not return a conversation session id"); sessionId.current = created.session_id; localStorage.setItem(SESSION_KEY, created.session_id); }
     setState("ready"); setStatusText("James is ready. Start voice conversation to talk naturally.");
+    if (autoStartVoice && !creditBlocked.current) {
+      voiceModeRef.current = true;
+      setVoiceMode(true);
+      window.setTimeout(() => void beginListening(), 120);
+    }
   }
   function discardActiveRecording() {
     if (recorder.current?.state === "recording") { discardRecording.current = true; recorder.current.stop(); }
@@ -248,6 +255,26 @@ export default function JamesVoice() {
   }, []);
 
   const canTalk = !["connecting", "error", "credit-limit"].includes(state);
+
+  async function closeCompact() {
+    if (voiceModeRef.current) await stopVoiceConversation();
+    onClose?.();
+  }
+
+  if (compact) {
+    const recentMessages = messages.slice(-4);
+    return <div className="james-quick-voice">
+      <header className="james-quick-voice-header"><div><JamesAvatar className="h-9 w-9" /><span><strong>James</strong><small>Hermes voice</small></span></div><button type="button" onClick={() => void closeCompact()} aria-label="Close James voice"><X /></button></header>
+      <div className={`james-voice-orb state-${state}`}>
+        <button type="button" onClick={() => void bargeIn()} disabled={!canTalk} aria-label={voiceMode ? "Interrupt James and speak" : "Start voice conversation"}>{state === "listening" ? <MicOff /> : <Mic />}</button>
+        <span className="james-voice-ring ring-one" /><span className="james-voice-ring ring-two" />
+      </div>
+      <p className="james-quick-status">{statusText}</p>
+      {recentMessages.length > 0 && <div className="james-quick-transcript">{recentMessages.map((message) => <p key={message.id} className={message.role === "user" ? "is-user" : "is-james"}><strong>{message.role === "user" ? "You" : "James"}</strong>{message.content}</p>)}</div>}
+      <footer><button type="button" onClick={() => void bargeIn()} disabled={!canTalk}><Mic /> {voiceMode ? "Speak / interrupt" : "Start talking"}</button>{voiceMode && <button type="button" onClick={() => void stopVoiceConversation()}><Square /> Stop</button>}</footer>
+    </div>;
+  }
+
   return <div className="flex h-full flex-col overflow-hidden">
     <header className="flex items-center justify-between border-b border-border px-4 py-3 md:px-6"><div className="flex items-center gap-3"><JamesAvatar className="h-10 w-10" /><div><h1 className="font-semibold">Talk to James</h1><p className="text-xs text-muted-foreground">Hermes native conversation · persistent James session</p></div></div>{voiceMode && <Button variant="outline" size="sm" onClick={() => void stopVoiceConversation()}><Square className="mr-2 h-4 w-4" />Stop voice</Button>}</header>
     <div className="border-b border-border bg-muted/30 px-4 py-2 text-center text-xs text-muted-foreground">{statusText}</div>

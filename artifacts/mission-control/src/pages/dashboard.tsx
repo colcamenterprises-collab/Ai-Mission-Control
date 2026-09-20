@@ -168,10 +168,12 @@ export default function Dashboard() {
   return (
     <div className="mission-shell h-full overflow-y-auto">
       <div className="mission-canvas mission-home-canvas mission-operations-home">
-        <section className="mission-capture-actions" aria-label="Quick capture">
-          <Link href="/tasks?create=note">+ Note</Link>
-          <Link href="/tasks?create=task">+ Task</Link>
-        </section>
+        <header className="mission-dashboard-heading">
+          <div><span>Mission Control</span><h1>Dashboard</h1></div>
+          <section className="mission-capture-actions" aria-label="Dashboard actions">
+            <Link href="/tasks?create=task">+ Task</Link>
+          </section>
+        </header>
         {controlPlaneError && (
           <section className="mission-control-data-alert">
             <strong>Control-plane data degraded</strong>
@@ -502,7 +504,7 @@ function CommandPalette({ onClose }: { onClose: () => void }) {
     {
       label: "Add Note",
       detail: "Open quick capture",
-      href: "/tasks?create=note",
+      href: "/notes?create=note",
     },
     {
       label: "Add Task",
