@@ -111,7 +111,7 @@ export default function NoteComposer({ item = null, initialKind = "note", startV
 
   useEffect(() => {
     let active = true;
-    fetch("/api/projects", { headers: missionAuthHeaders(), cache: "no-store" })
+    fetch("/api/projects", { headers: missionAuthHeaders(), credentials: "same-origin", cache: "no-store" })
       .then((response) => response.ok ? response.json() : [])
       .then((payload) => { if (active && Array.isArray(payload)) setProjects(payload); })
       .catch(() => undefined);
@@ -141,7 +141,7 @@ export default function NoteComposer({ item = null, initialKind = "note", startV
     setTranscribing(true); setError("");
     try {
       const dataUrl = await blobToDataUrl(blob);
-      const response = await fetch("/api/james/message", { method: "POST", headers: missionAuthHeaders(), body: JSON.stringify({ voiceAction: "transcribe", data_url: dataUrl, mime_type: blob.type || "audio/webm" }) });
+      const response = await fetch("/api/james/message", { method: "POST", headers: missionAuthHeaders(), credentials: "same-origin", body: JSON.stringify({ voiceAction: "transcribe", data_url: dataUrl, mime_type: blob.type || "audio/webm" }) });
       if (!response.ok) throw new Error(`Voice transcription failed (HTTP ${response.status})`);
       const payload = await response.json() as { transcript?: string; text?: string };
       const transcript = String(payload.transcript ?? payload.text ?? "").trim();
@@ -267,7 +267,7 @@ export default function NoteComposer({ item = null, initialKind = "note", startV
       window.dispatchEvent(new CustomEvent("mission-note-saved", { detail: { id: target.id } }));
       if (path === "/archive") onClose();
       else {
-        const refreshed = await fetch(`/api/inbox`, { headers: missionAuthHeaders(), cache: "no-store" }).then((response) => response.ok ? response.json() : []);
+        const refreshed = await fetch(`/api/inbox`, { headers: missionAuthHeaders(), credentials: "same-origin", cache: "no-store" }).then((response) => response.ok ? response.json() : []);
         const next = Array.isArray(refreshed) ? refreshed.find((entry: InboxItem) => entry.id === target.id) : null;
         if (next) { setLastSaved(next); await onSaved?.(next); }
       }
