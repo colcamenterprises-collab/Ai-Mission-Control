@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { db, agentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { hashToken } from "./security.js";
-import { ownerSessionFromRequest } from "../services/admin-session.js";
+import { ownerSessionFromRequest, safeEqual } from "../services/admin-session.js";
 
 export function requireAdminAuth(
   req: Request,
@@ -30,7 +30,7 @@ export function requireAdminAuth(
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  if (token !== expected) {
+  if (!safeEqual(token, expected)) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
