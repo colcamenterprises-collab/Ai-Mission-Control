@@ -92,7 +92,7 @@ Gate: Seth approves marketing quality; Cameron approves material spend, final pr
 ## Phase 4 — Creative production
 
 Each asset requires a brief containing objective, audience, funnel stage, single message, proof, CTA, format, dimensions, destination and acceptance criteria.
-Production may include landing pages, image ads, video scripts, emails, social content and sales enablement. For every asset:
+Production may include landing pages, image ads, video scripts, generated or captured video, product-demo clips, emails, social content and sales enablement. Video production should route through the approved Video Creative Production skill so Seth can move from brief to generated/captured asset, QA and export without exposing provider complexity to the owner. For every asset:
 
 1. Create from the approved brief and current brand reference.
 2. Check factual claims and source every proof point.
