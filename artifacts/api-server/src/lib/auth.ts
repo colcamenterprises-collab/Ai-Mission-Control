@@ -13,7 +13,7 @@ export function requireAdminAuth(
     next();
     return;
   }
-  const expected = process.env.MISSION_CONTROL_ADMIN_TOKEN;
+  const expected = process.env.MISSION_CONTROL_ADMIN_TOKEN?.trim();
   if (!expected) {
     res.status(403).json({ error: "Forbidden" });
     return;
