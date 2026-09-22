@@ -86,6 +86,7 @@ router.post("/inbox/:id/promote-memory", async (req, res): Promise<void> => {
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid inbox id" }); return; }
   const [item] = await db.select().from(inboxItemsTable).where(eq(inboxItemsTable.id, id));
   if (!item || item.archivedAt) { res.status(404).json({ error: "Inbox item not found" }); return; }
+  if (item.reviewStatus === "promoted") { res.status(409).json({ error: "Note has already been promoted to Mission Brain" }); return; }
   const exposed = exposeNote(item);
   const category = exposed.kind === "decision" ? "decisions" : exposed.kind === "research" ? "research" : "knowledge";
   const memory = await db.transaction(async (transaction) => {

@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Archive,
+  Bell,
+  CheckSquare2,
+  Grid2X2,
+  Image,
+  List,
+  Menu,
+  Mic,
+  Palette,
+  Plus,
+  Settings,
+  Trash2,
+  X,
   BookOpen,
   Check,
   FileText,
@@ -39,6 +51,8 @@ function shortDate(value?: string) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
 }
 
+function FolderKanbanIcon() { return <span aria-hidden="true">#</span>; }
+
 export default function Notes() {
   const [items, setItems] = useState<InboxItem[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -49,6 +63,10 @@ export default function Notes() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerKind, setComposerKind] = useState<NoteKind>("note");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [listView, setListView] = useState(false);
+  const [startVoice, setStartVoice] = useState(false);
   const [error, setError] = useState("");
 
   async function refresh() {
@@ -73,8 +91,7 @@ export default function Notes() {
     const params = new URLSearchParams(window.location.search);
     const requested = params.get("create");
     if (requested && kinds.some((kind) => kind.value === requested)) {
-      setComposerKind(requested as NoteKind);
-      setComposerOpen(true);
+      setComposerKind(requested as NoteKind); setStartVoice(params.get("voice") === "1"); setComposerOpen(true);
     }
     const handleSaved = () => void refresh();
     window.addEventListener("mission-note-saved", handleSaved);
@@ -104,11 +121,13 @@ export default function Notes() {
   return (
     <div className="notes-page">
       <header className="notes-topbar">
+        <button type="button" className="notes-mobile-menu" onClick={() => setDrawerOpen(true)} aria-label="Open Notes menu"><Menu /></button>
         <div>
           <span className="notes-kicker">Capture workspace</span>
           <h1>Notes & Ideas</h1>
         </div>
         <span className="notes-count">{visible.length} shown · {items.length} total</span>
+        <button type="button" className="notes-view-toggle" onClick={() => setListView((value) => !value)} aria-label={listView ? "Use grid view" : "Use list view"}>{listView ? <Grid2X2 /> : <List />}</button>
       </header>
 
       <section className="notes-search-row" aria-label="Notes search and filters">
@@ -134,7 +153,7 @@ export default function Notes() {
 
       {error && <div className="notes-error">{error}</div>}
 
-      <main className="notes-board" aria-label="Notes and ideas">
+      <main className={`notes-board ${listView ? "is-list" : ""}`} aria-label="Notes and ideas">
         {visible.length ? visible.map((item) => {
           const checklist = parseChecklist(item.content);
           const projectName = item.linkedProjectId ? projectNames.get(item.linkedProjectId) : null;
@@ -168,10 +187,19 @@ export default function Notes() {
         )}
       </main>
 
+      {drawerOpen && <><button type="button" className="notes-drawer-scrim" aria-label="Close Notes menu" onClick={() => setDrawerOpen(false)} /><aside className="notes-drawer" aria-label="Notes menu"><header><strong>Notes & Ideas</strong><button type="button" onClick={() => setDrawerOpen(false)} aria-label="Close Notes menu"><X /></button></header><button className="is-active" type="button" onClick={() => { setProjectFilter("all"); setDrawerOpen(false); }}><FileText /> All Notes</button><button type="button" onClick={() => { setProjectFilter("inbox"); setDrawerOpen(false); }}><Archive /> Inbox</button><button type="button" disabled title="Pinning is coming with the notes metadata migration"><Sparkles /> Pinned</button><button type="button" disabled title="Reminders are coming with the notes metadata migration"><Bell /> Reminders</button><span>Projects</span>{projects.slice(0, 6).map((project) => <button type="button" key={project.id} onClick={() => { setProjectFilter(project.id); setDrawerOpen(false); }}><FolderKanbanIcon /> {project.name}</button>)}<hr/><button type="button" disabled><Archive /> Archive</button><button type="button" disabled><Trash2 /> Deleted</button><button type="button" disabled><Settings /> Notes Settings</button></aside></>}
+
+      {quickOpen && <button type="button" className="notes-fab-scrim" aria-label="Close quick note menu" onClick={() => setQuickOpen(false)} />}
+      <div className={`notes-fab-menu ${quickOpen ? "is-open" : ""}`} aria-label="Create note">
+        {quickOpen && <><button type="button" disabled title="Image notes require attachment storage"><span>Image</span><Image /></button><button type="button" disabled title="Drawing notes require attachment storage"><span>Drawing</span><Palette /></button><button type="button" onClick={() => { setQuickOpen(false); setEditing(null); setComposerKind("note"); setStartVoice(true); setComposerOpen(true); }}><span>Voice</span><Mic /></button><button type="button" onClick={() => { setQuickOpen(false); setEditing(null); setComposerKind("note"); setStartVoice(false); setComposerOpen(true); window.setTimeout(() => window.dispatchEvent(new CustomEvent("mission-note-checklist")), 0); }}><span>Checklist</span><CheckSquare2 /></button><button type="button" onClick={() => { setQuickOpen(false); setEditing(null); setComposerKind("note"); setStartVoice(false); setComposerOpen(true); }}><span>Text</span><FileText /></button></>}
+        <button type="button" className="notes-fab" onClick={() => setQuickOpen((value) => !value)} aria-label={quickOpen ? "Close create menu" : "Create note"}>{quickOpen ? <X /> : <Plus />}</button>
+      </div>
+
       {composerOpen && (
         <NoteComposer
           item={editing}
           initialKind={composerKind}
+          startVoice={startVoice}
           onClose={() => { setComposerOpen(false); setEditing(null); }}
           onSaved={async () => { await refresh(); }}
         />

@@ -90,3 +90,15 @@ test("top-level page headings now match their navigation labels", async () => {
   assert.match(team, /<h1>AI Team<\/h1>/);
   assert.match(settings, /<h1 className="text-xl font-semibold tracking-tight">Settings<\/h1>/);
 });
+
+test("Notes Keep-style capture has real voice transcription and project search", async () => {
+  const notes = await read("artifacts/mission-control/src/pages/notes.tsx");
+  const composer = await read("artifacts/mission-control/src/components/note-composer.tsx");
+  const inbox = await read("artifacts/api-server/src/routes/inbox.ts");
+  assert.match(notes, /startVoice/);
+  assert.match(composer, /voiceAction: "transcribe"/);
+  assert.match(composer, /navigator\.mediaDevices\?\.getUserMedia/);
+  assert.match(composer, /Search projects/);
+  assert.match(composer, /Clear completed/);
+  assert.match(inbox, /already been promoted to Mission Brain/);
+});

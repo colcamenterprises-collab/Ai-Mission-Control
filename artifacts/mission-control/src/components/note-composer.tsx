@@ -10,6 +10,8 @@ import {
   Gavel,
   Lightbulb,
   List,
+  ListOrdered,
+  Mic,
   MoreHorizontal,
   Sparkles,
   X,
@@ -38,6 +40,7 @@ type ChecklistItem = { id: string; text: string; checked: boolean };
 type Props = {
   item?: InboxItem | null;
   initialKind?: NoteKind;
+  startVoice?: boolean;
   onClose: () => void;
   onSaved?: (item: InboxItem) => void | Promise<void>;
 };
@@ -79,13 +82,17 @@ function normalizeProjectId(value: number | null | undefined) {
   return Number.isInteger(value) && Number(value) > 0 ? Number(value) : null;
 }
 
-export default function NoteComposer({ item = null, initialKind = "note", onClose, onSaved }: Props) {
+export default function NoteComposer({ item = null, initialKind = "note", startVoice = false, onClose, onSaved }: Props) {
   const initialChecklist = useMemo(() => parseChecklist(item?.content ?? ""), [item]);
   const [title, setTitle] = useState(item?.title ?? "");
   const [kind, setKind] = useState<NoteKind>(item?.kind ?? initialKind);
   const [projectId, setProjectId] = useState<number | null>(normalizeProjectId(item?.linkedProjectId));
   const [text, setText] = useState(initialChecklist ? "" : item?.content ?? "");
   const [checklistMode, setChecklistMode] = useState(Boolean(initialChecklist));
+  const [completedOpen, setCompletedOpen] = useState(true);
+  const [projectQuery, setProjectQuery] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(initialChecklist ?? [{ id: uid(), text: "", checked: false }]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [metaOpen, setMetaOpen] = useState(false);
@@ -94,9 +101,13 @@ export default function NoteComposer({ item = null, initialKind = "note", onClos
   const [error, setError] = useState("");
   const [lastSaved, setLastSaved] = useState<InboxItem | null>(item);
   const textRef = useRef<HTMLTextAreaElement | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   const content = checklistMode ? serializeChecklist(checklist) : text.trimEnd();
   const project = projects.find((entry) => entry.id === projectId) ?? null;
+  const filteredProjects = projects.filter((entry) => entry.name.toLowerCase().includes(projectQuery.trim().toLowerCase()));
 
   useEffect(() => {
     let active = true;
@@ -105,6 +116,12 @@ export default function NoteComposer({ item = null, initialKind = "note", onClos
       .then((payload) => { if (active && Array.isArray(payload)) setProjects(payload); })
       .catch(() => undefined);
     return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    const checklistHandler = () => setChecklistMode(true);
+    window.addEventListener("mission-note-checklist", checklistHandler);
+    return () => window.removeEventListener("mission-note-checklist", checklistHandler);
   }, []);
 
   useEffect(() => {
@@ -118,6 +135,38 @@ export default function NoteComposer({ item = null, initialKind = "note", onClos
     return () => window.removeEventListener("keydown", handler);
   });
 
+  function blobToDataUrl(blob: Blob) { return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onerror = () => reject(reader.error); reader.onload = () => resolve(String(reader.result ?? "")); reader.readAsDataURL(blob); }); }
+
+  async function transcribeVoice(blob: Blob) {
+    setTranscribing(true); setError("");
+    try {
+      const dataUrl = await blobToDataUrl(blob);
+      const response = await fetch("/api/james/message", { method: "POST", headers: missionAuthHeaders(), body: JSON.stringify({ voiceAction: "transcribe", data_url: dataUrl, mime_type: blob.type || "audio/webm" }) });
+      if (!response.ok) throw new Error(`Voice transcription failed (HTTP ${response.status})`);
+      const payload = await response.json() as { transcript?: string; text?: string };
+      const transcript = String(payload.transcript ?? payload.text ?? "").trim();
+      if (!transcript) throw new Error("No speech was detected");
+      setChecklistMode(false); setText((current) => current.trim() ? `${current.trimEnd()}\n${transcript}` : transcript);
+      window.setTimeout(() => textRef.current?.focus(), 0);
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to transcribe voice note"); } finally { setTranscribing(false); }
+  }
+
+  async function toggleVoice() {
+    if (recording && recorderRef.current) { recorderRef.current.stop(); return; }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") { setError("Voice capture is not supported by this browser"); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      streamRef.current = stream; chunksRef.current = []; const recorder = new MediaRecorder(stream); recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => { if (event.data.size) chunksRef.current.push(event.data); };
+      recorder.onstop = () => { const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" }); stream.getTracks().forEach((track) => track.stop()); streamRef.current = null; recorderRef.current = null; setRecording(false); if (blob.size) void transcribeVoice(blob); };
+      recorder.start(); setRecording(true);
+    } catch { setError("Microphone access is required for a voice note"); }
+  }
+
+  useEffect(() => { if (startVoice) void toggleVoice(); return () => { streamRef.current?.getTracks().forEach((track) => track.stop()); }; }, []);
+
+  function clearCompleted() { setChecklist((current) => { const remaining = current.filter((entry) => !entry.checked); return remaining.length ? remaining : [{ id: uid(), text: "", checked: false }]; }); }
+
   function convertChecklist() {
     if (checklistMode) {
       setText(checklist.map((entry) => entry.text).filter(Boolean).join("\n"));
@@ -128,6 +177,14 @@ export default function NoteComposer({ item = null, initialKind = "note", onClos
     const lines = text.split(/\r?\n/).map((line) => line.replace(/^\s*[•*-]\s*/, "").trim()).filter(Boolean);
     setChecklist(lines.length ? lines.map((line) => ({ id: uid(), text: line, checked: false })) : [{ id: uid(), text: "", checked: false }]);
     setChecklistMode(true);
+  }
+
+  function addNumbered() {
+    if (checklistMode) return;
+    const lines = text.split(/\r?\n/);
+    const next = lines.reduce((count, line) => /^\s*\d+\.\s/.test(line) ? count + 1 : count, 0) + 1;
+    setText((current) => current ? `${current.replace(/\s+$/, "")}\n${next}. ` : "1. ");
+    window.setTimeout(() => textRef.current?.focus(), 0);
   }
 
   function addBullet() {
@@ -191,8 +248,10 @@ export default function NoteComposer({ item = null, initialKind = "note", onClos
   }
 
   async function act(path: string, method: "POST" | "PATCH" = "POST", body?: object) {
-    const target = lastSaved ?? item ?? await persist();
+    const savedCurrent = content.trim() ? await persist() : (lastSaved ?? item);
+    const target = savedCurrent ?? lastSaved ?? item;
     if (!target) return;
+    if (path === "/promote-memory" && target.reviewStatus === "promoted") { setMoreOpen(false); return; }
     setSaving(true);
     setError("");
     try {
@@ -232,7 +291,7 @@ export default function NoteComposer({ item = null, initialKind = "note", onClos
           <input className="note-editor-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" aria-label="Note title" />
           {checklistMode ? (
             <div className="note-checklist-editor">
-              {checklist.map((entry, index) => (
+              {checklist.filter((entry) => !entry.checked).map((entry) => { const index = checklist.findIndex((candidate) => candidate.id === entry.id); return (
                 <div className="note-check-row" key={entry.id}>
                   <button type="button" className={`note-check-box ${entry.checked ? "is-checked" : ""}`} onClick={() => updateChecklist(entry.id, { checked: !entry.checked })} aria-label={entry.checked ? "Mark item incomplete" : "Mark item complete"}>{entry.checked && <Check />}</button>
                   <input
@@ -257,7 +316,9 @@ export default function NoteComposer({ item = null, initialKind = "note", onClos
                     placeholder={index === 0 ? "List item" : "Add another item"}
                   />
                 </div>
-              ))}
+              ); })}
+              {checklist.some((entry) => entry.checked) && <div className="note-completed"><button type="button" onClick={() => setCompletedOpen((value) => !value)}>{completedOpen ? "Hide" : "Show"} completed ({checklist.filter((entry) => entry.checked).length})</button><button type="button" onClick={clearCompleted}>Clear completed</button></div>}
+              {completedOpen && checklist.filter((entry) => entry.checked).map((entry) => <div className="note-check-row is-completed" key={entry.id}><button type="button" className="note-check-box is-checked" onClick={() => updateChecklist(entry.id, { checked: false })} aria-label="Mark item incomplete"><Check /></button><input value={entry.text} onChange={(event) => updateChecklist(entry.id, { text: event.target.value })} /></div>)}
               <button type="button" className="note-check-add" onClick={() => setChecklist((current) => [...current, { id: uid(), text: "", checked: false }])}>+ Add item</button>
             </div>
           ) : (
@@ -268,7 +329,7 @@ export default function NoteComposer({ item = null, initialKind = "note", onClos
 
         {moreOpen && (
           <div className="note-editor-more">
-            {(lastSaved ?? item) && <button type="button" onClick={() => void act("/promote-memory")}><Sparkles /> Promote to Mission Brain</button>}
+            {(lastSaved ?? item) && (lastSaved ?? item)?.reviewStatus !== "promoted" && <button type="button" onClick={() => void act("/promote-memory")}><Sparkles /> Promote to Mission Brain</button>}
             {(lastSaved ?? item) && !(lastSaved ?? item)?.linkedTaskId && <button type="button" onClick={() => void act("/convert")}><CheckSquare2 /> Convert to Task</button>}
             {(lastSaved ?? item)?.reviewStatus === "unreviewed" && <button type="button" onClick={() => void act("", "PATCH", { reviewStatus: "reviewed" })}><Check /> Mark reviewed</button>}
             {(lastSaved ?? item) && <button type="button" onClick={() => void act("/archive")}><Archive /> Archive</button>}
@@ -278,8 +339,10 @@ export default function NoteComposer({ item = null, initialKind = "note", onClos
         <footer className="note-editor-toolbar">
           <button type="button" className={checklistMode ? "is-active" : ""} onClick={convertChecklist} aria-label="Toggle checklist"><CheckSquare2 /></button>
           <button type="button" onClick={addBullet} disabled={checklistMode} aria-label="Add bullet point"><List /></button>
+          <button type="button" onClick={addNumbered} disabled={checklistMode} aria-label="Add numbered list"><ListOrdered /></button>
+          <button type="button" onClick={() => void toggleVoice()} className={recording ? "is-active" : ""} aria-label={recording ? "Stop voice note" : "Record voice note"}><Mic /></button>
           <button type="button" className={projectId ? "is-active" : ""} onClick={() => setMetaOpen(true)} aria-label="Choose project"><FolderKanban /></button>
-          <span className="note-editor-save-state">{saving ? "Saving…" : "Auto-saves when closed"}</span>
+          <span className="note-editor-save-state">{recording ? "Recording… tap mic to stop" : transcribing ? "Transcribing…" : saving ? "Saving…" : "Auto-saves when closed"}</span>
           <button type="button" className="note-editor-done" onClick={() => void saveAndClose()} disabled={saving}>Done</button>
         </footer>
 
@@ -288,8 +351,9 @@ export default function NoteComposer({ item = null, initialKind = "note", onClos
             <header><strong>Organise note</strong><button type="button" onClick={() => setMetaOpen(false)} aria-label="Close organise note"><X /></button></header>
             <section>
               <span className="note-meta-label">Project</span>
+              <input className="note-project-search" value={projectQuery} onChange={(event) => setProjectQuery(event.target.value)} placeholder="Search projects" aria-label="Search projects" />
               <button type="button" className={projectId === null ? "is-selected" : ""} onClick={() => { setProjectId(null); setMetaOpen(false); }}>Inbox / Unassigned</button>
-              {projects.map((entry) => <button type="button" key={entry.id} className={projectId === entry.id ? "is-selected" : ""} onClick={() => { setProjectId(entry.id); setMetaOpen(false); }}>{entry.name}</button>)}
+              {filteredProjects.map((entry) => <button type="button" key={entry.id} className={projectId === entry.id ? "is-selected" : ""} onClick={() => { setProjectId(entry.id); setMetaOpen(false); }}>{entry.name}</button>)}
             </section>
             <section>
               <span className="note-meta-label">Type</span>
