@@ -105,10 +105,21 @@ get_service_environment_value() {
 load_dotenv_if_available() {
   local env_file="${repo_root}/.env"
   if [[ ! -f "${env_file}" ]]; then echo "No .env file found; continuing with existing environment and systemd fallbacks."; return 0; fi
+  # Preserve the admin token using systemd EnvironmentFile semantics. Sourcing a
+  # dotenv file as shell code can mutate tokens containing shell metacharacters.
+  local raw_admin_token
+  raw_admin_token="$(sed -n 's/^MISSION_CONTROL_ADMIN_TOKEN=//p' "${env_file}" | head -n 1)"
+  if [[ "${raw_admin_token}" =~ ^".*"$ || "${raw_admin_token}" =~ ^'.*'$ ]]; then
+    raw_admin_token="${raw_admin_token:1:${#raw_admin_token}-2}"
+  fi
   set -a
   # shellcheck disable=SC1090
   . "${env_file}"
   set +a
+  if [[ -n "${raw_admin_token}" ]]; then
+    MISSION_CONTROL_ADMIN_TOKEN="${raw_admin_token}"
+    export MISSION_CONTROL_ADMIN_TOKEN
+  fi
   if [[ -n "${DATABASE_URL:-}" ]]; then echo "DATABASE_URL present"; else echo "DATABASE_URL missing"; fi
   if [[ -n "${MISSION_CONTROL_ADMIN_TOKEN:-${VITE_MISSION_CONTROL_ADMIN_TOKEN:-}}" ]]; then echo "admin token present"; else echo "admin token missing"; fi
 }
