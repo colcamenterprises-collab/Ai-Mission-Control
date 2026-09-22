@@ -72,8 +72,8 @@ export default function Notes() {
   async function refresh() {
     try {
       const [notesResponse, projectsResponse] = await Promise.all([
-        fetch("/api/inbox", { headers: missionAuthHeaders(), cache: "no-store" }),
-        fetch("/api/projects", { headers: missionAuthHeaders(), cache: "no-store" }),
+        fetch("/api/inbox", { headers: missionAuthHeaders(), credentials: "same-origin", cache: "no-store" }),
+        fetch("/api/projects", { headers: missionAuthHeaders(), credentials: "same-origin", cache: "no-store" }),
       ]);
       if (!notesResponse.ok) throw new Error(`Unable to load notes (HTTP ${notesResponse.status})`);
       const notesPayload = await notesResponse.json();
