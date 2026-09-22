@@ -38,6 +38,14 @@ test("production deploy wrapper is exact-SHA locked and rollback-first", async (
   assert.match(deploy, /DEPLOYMENT_CERTIFIED_SHA=/);
 });
 
+test("deploy preserves systemd EnvironmentFile admin token semantics", async () => {
+  const deploy = await read("scripts/deploy-mission-control.sh");
+
+  assert.match(deploy, /raw_admin_token=.*MISSION_CONTROL_ADMIN_TOKEN/);
+  assert.match(deploy, /MISSION_CONTROL_ADMIN_TOKEN="\$\{raw_admin_token\}"/);
+  assert.match(deploy, /export MISSION_CONTROL_ADMIN_TOKEN/);
+});
+
 test("controller enforces green CI and bounded sandboxed Codex repairs", async () => {
   const controller = await read("scripts/continuous-delivery-controller.mjs");
 
