@@ -453,3 +453,113 @@
 .mission-main-canvas {
   min-width: 0;
 }
+
+/* Mission Control IA refresh: five top-level destinations with Team children. */
+.mission-nav-group {
+  margin: .45rem 0;
+  padding: .35rem 0;
+  border-top: 1px solid rgba(255,255,255,.055);
+  border-bottom: 1px solid rgba(255,255,255,.055);
+}
+.mission-nav-parent {
+  min-height: 2.5rem !important;
+  padding: 0 .72rem !important;
+  color: #a19ca8 !important;
+}
+.mission-nav-parent-label {
+  display: flex;
+  align-items: center;
+  gap: .72rem;
+  min-width: 0;
+}
+.mission-nav-group .mission-nav-child {
+  min-height: 2.15rem !important;
+  margin-left: .45rem !important;
+  width: calc(100% - .45rem) !important;
+  padding-left: 1.05rem !important;
+  font-size: .72rem !important;
+}
+.mission-nav-group .mission-nav-child .mission-nav-icon {
+  width: .92rem !important;
+  height: .92rem !important;
+  flex-basis: .92rem !important;
+}
+.mission-nav-brain {
+  margin-top: .18rem !important;
+}
+.mission-sidebar-utility {
+  flex: 0 0 auto;
+  padding: .6rem 0 .45rem;
+  border-top: 1px solid rgba(255,255,255,.065);
+}
+.mission-sidebar-toggle-dock {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  padding-top: .35rem;
+}
+.mission-sidebar-toggle-dock .mission-collapse-button {
+  position: static !important;
+  margin: 0 !important;
+}
+.mission-sidebar-toggle-dock .mission-collapse-button-bottom {
+  margin-left: auto !important;
+}
+.mission-mobile-menu-button,
+.mission-mobile-sidebar-backdrop {
+  display: none;
+}
+@media (max-width: 760px) {
+  .mission-mobile-menu-button {
+    position: fixed;
+    z-index: 880;
+    top: calc(.7rem + env(safe-area-inset-top));
+    left: .7rem;
+    width: 2.75rem;
+    height: 2.75rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: .82rem;
+    background: rgba(24,24,30,.72);
+    color: #f0edf5;
+    backdrop-filter: blur(18px);
+    box-shadow: 0 10px 28px rgba(0,0,0,.28);
+  }
+  .mission-mobile-menu-button svg {
+    width: 1.18rem;
+    height: 1.18rem;
+  }
+  .mission-mobile-sidebar-backdrop {
+    position: fixed;
+    z-index: 1005;
+    inset: 0;
+    display: block;
+    border: 0;
+    background: rgba(0,0,0,.58);
+    backdrop-filter: blur(3px);
+  }
+  .mission-sidebar.mission-sidebar-mobile,
+  .mission-sidebar.mission-sidebar-mobile.mission-sidebar-expanded {
+    position: fixed !important;
+    z-index: 1010 !important;
+    inset: 0 auto 0 0;
+    width: min(18rem, 86vw) !important;
+    min-width: min(18rem, 86vw) !important;
+    transform: translateX(-104%);
+    transition: transform 180ms ease !important;
+    box-shadow: 24px 0 70px rgba(0,0,0,.5) !important;
+  }
+  .mission-sidebar.mission-sidebar-mobile-open {
+    transform: translateX(0);
+  }
+  .mission-sidebar-mobile .mission-sidebar-top {
+    padding-top: calc(.9rem + env(safe-area-inset-top)) !important;
+  }
+  .mission-main-canvas {
+    width: 100vw;
+  }
+}
+
+@media(max-width:760px){.mission-main-canvas{padding-top:3.55rem!important;box-sizing:border-box}.mission-dashboard-heading{padding-left:.15rem!important}}

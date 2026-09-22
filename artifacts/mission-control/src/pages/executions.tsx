@@ -32,11 +32,12 @@ type Execution = {
 
 export default function Executions() {
   const [location] = useLocation();
+  const [, teamParams] = useRoute("/team/executions/:id");
   const [, legacyParams] = useRoute("/executions/:id");
   const [, brainParams] = useRoute("/brain/executions/:id");
-  const params = brainParams ?? legacyParams;
-  const inBrain = location.startsWith("/brain/");
-  const listHref = inBrain ? "/brain/executions" : "/executions";
+  const params = teamParams ?? brainParams ?? legacyParams;
+  const legacySurface = location.startsWith("/brain/") || location.startsWith("/executions");
+  const listHref = "/team/executions";
   const [query, setQuery] = useState("");
   const list = useQuery({ queryKey: ["executions", query], queryFn: () => get<{ data: Execution[] }>(`/executions?query=${encodeURIComponent(query)}`), enabled: !params?.id });
   const detail = useQuery({ queryKey: ["execution", params?.id], queryFn: () => get<{ request: Execution; transitions: unknown[]; approval: unknown; audit: unknown[] }>(`/executions/${params?.id}`), enabled: Boolean(params?.id) });
@@ -44,9 +45,9 @@ export default function Executions() {
   if (params?.id) return (
     <div className="workspaces-shell h-full overflow-y-auto">
       <div className="workspaces-canvas space-y-4">
-        <Link href={listHref}>Back to Mission Brain execution history</Link>
+        <Link href={listHref}>Back to Team execution history</Link>
         {detail.isLoading ? <div>Loading…</div> : detail.error || !detail.data ? <div>Execution unavailable.</div> : <>
-          <header className="mission-page-hero workspace-panel"><p className="workspace-eyebrow">Mission Brain · Execution #{detail.data.request.id}</p><h1 className="mission-page-title">{detail.data.request.requestedAction}</h1><p className="mission-page-subtitle">{detail.data.request.state} · Risk {detail.data.request.riskLevel} · Cost {detail.data.request.providerCost ?? "UNKNOWN"}</p></header>
+          <header className="mission-page-hero workspace-panel"><p className="workspace-eyebrow">Team · Execution #{detail.data.request.id}</p><h1 className="mission-page-title">{detail.data.request.requestedAction}</h1><p className="mission-page-subtitle">{detail.data.request.state} · Risk {detail.data.request.riskLevel} · Cost {detail.data.request.providerCost ?? "UNKNOWN"}</p></header>
           <section className="workspace-panel overflow-auto p-4"><h2 className="font-semibold">Owner report</h2><pre className="mt-3 whitespace-pre-wrap text-sm">{detail.data.request.ownerReport ?? "Not available until completion."}</pre></section>
           <Data title="Result" value={detail.data.request.result} /><Data title="Transitions" value={detail.data.transitions} /><Data title="Approval" value={detail.data.approval} /><Data title="Audit" value={detail.data.audit} />
         </>}
@@ -57,7 +58,7 @@ export default function Executions() {
   return (
     <div className="workspaces-shell h-full overflow-y-auto">
       <div className="workspaces-canvas space-y-4">
-        <header className="mission-page-hero workspace-panel"><p className="workspace-eyebrow">Mission Brain · Control</p><h1 className="mission-page-title">Execution history</h1><p className="mission-page-subtitle">Durable worker runs, policy decisions, results, failures, retries, usage and cost.</p>{inBrain && <div className="mt-3"><Link href="/brain">Back to Mission Brain</Link></div>}</header>
+        <header className="mission-page-hero workspace-panel"><p className="workspace-eyebrow">Team · Control</p><h1 className="mission-page-title">Execution history</h1><p className="mission-page-subtitle">Durable worker runs, policy decisions, results, failures, retries, usage and cost.</p>{legacySurface && <div className="mt-3"><Link href="/team">Back to AI Team</Link></div>}</header>
         <div className="workspace-panel p-4"><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search action or project" /></div>
         <div className="workspace-panel overflow-auto p-4">
           <table className="w-full text-left text-sm"><thead><tr><th>Action</th><th>Status</th><th>Worker</th><th>Task</th><th>Project / Business</th><th>Runtime</th><th>Risk</th><th>Cost</th><th>Started</th></tr></thead><tbody>{list.data?.data.map((row) => <tr className="border-t border-border" key={row.id}><td className="py-2"><Link href={`${listHref}/${row.id}`}>{row.requestedAction}</Link></td><td>{row.state}</td><td>{row.agentId ? `#${row.agentId}` : "UNASSIGNED"}</td><td>{row.taskId ?? "UNKNOWN"}</td><td>{row.project ?? "UNKNOWN"} / {row.business ?? "UNKNOWN"}</td><td>{row.runtime ?? row.provider ?? "UNKNOWN"}</td><td>{row.riskLevel}</td><td>{row.providerCost ?? "UNKNOWN"}</td><td>{new Date(row.createdAt).toLocaleString()}</td></tr>)}</tbody></table>

@@ -1,7 +1,7 @@
 # Mission Control V1.0 — Route Inventory
 
 **Status:** CURRENT
-**Reviewed:** 2026-09-08
+**Reviewed:** 2026-09-20
 **Router sources:** `artifacts/mission-control/src/App.tsx`, `artifacts/api-server/src/app.ts`, `artifacts/api-server/src/routes/*`
 
 This inventory records route ownership and compatibility status. Unless stated otherwise, API routes below are mounted under `/api`.
@@ -12,19 +12,21 @@ This inventory records route ownership and compatibility status. Unless stated o
 |---|---|---|---|
 | `/` | Dashboard | CURRENT | Canonical home. |
 | `/dashboard` | Dashboard | CURRENT | Alternate explicit dashboard URL. |
-| `/notes` | Notes / Inbox | CURRENT | Capture, review, promote/convert workflow. `?create=note` opens capture flow. |
-| `/tasks` | Kanban V2 | CURRENT | Canonical owner work surface. `?create=note` is redirected to Notes. |
+| `/notes` | Notes & Ideas | CURRENT | Canonical rapid-capture surface with preview cards, checklist support, optional post-capture project assignment, review and promote/convert workflow. `?create=note` opens capture flow. |
+| `/tasks` | Taskboard | CURRENT | Canonical owner work surface. `?create=note` is redirected to Notes for compatibility. |
 | `/content` | Content Pipeline | CURRENT | Content management surface. |
 | `/calendar` | Redirect to `/tasks` | LEGACY | Old navigation URL; calendar page source remains in tree but the router no longer renders it. Event API remains current. |
 | `/memory` | Knowledge | CURRENT | Memory/Knowledge UI. |
 | `/workspaces` | Repositories | CURRENT | Git/worktree management. |
 | `/reports` | Reports | CURRENT | Owner reporting surface. |
 | `/approvals` | Redirect to `/tasks` | LEGACY | Owner task review/approval UX consolidated into Tasks. Execution approval API remains current. |
-| `/brain/executions/:id` | Execution detail | CURRENT | Mission Brain execution view. |
-| `/brain/executions` | Executions | CURRENT | Mission Brain execution list. |
-| `/brain` | Mission Brain | CURRENT | Organisational/business hub. |
-| `/executions/:id` | Execution detail | TRANSITIONAL/DUPLICATE | Direct route renders the same execution surface as Brain path. Retain until navigation/deep-link ownership is standardized. |
-| `/executions` | Executions | TRANSITIONAL/DUPLICATE | Same surface as `/brain/executions`. |
+| `/team/executions/:id` | Execution detail | CURRENT | Canonical AI Team execution detail surface. |
+| `/team/executions` | Execution History | CURRENT | Canonical AI Team execution list. |
+| `/brain/executions/:id` | Execution detail | LEGACY | Compatibility alias; execution ownership moved to Team. |
+| `/brain/executions` | Executions | LEGACY | Compatibility alias; execution ownership moved to Team. |
+| `/brain` | Mission Brain | CURRENT | Organisational memory, projects and durable knowledge. |
+| `/executions/:id` | Execution detail | LEGACY | Compatibility alias for `/team/executions/:id`. |
+| `/executions` | Executions | LEGACY | Compatibility alias for `/team/executions`. |
 | `/business` | Redirect to `/brain` | LEGACY | Prior Business route. |
 | `/signals` | Signals | CURRENT | Intelligence/evidence surface. |
 | `/client-pulse` | Client Pulse | CURRENT | Account/source health surface. |
@@ -33,7 +35,7 @@ This inventory records route ownership and compatibility status. Unless stated o
 | `/team/manage` | Redirect to `/team` | LEGACY | Team management consolidated into unified Team modal flow. |
 | `/team` | AI Team | CURRENT | Canonical employee management/chat/hire surface. |
 | `/agent-creation` | Redirect to `/team?hire=1` | LEGACY | Old standalone hire route. |
-| `/skills` | Playbooks / Skills | CURRENT | Shared capability library. |
+| `/skills` | Skills & Instructions | CURRENT | AI Team capability, instruction and operating-playbook library. |
 | `/contacts` | Contacts | CURRENT | Contact records. |
 | `/secrets` | Secrets | CURRENT | Owner secret/provisioning administration surface. |
 | `/onboarding` | Onboarding | CURRENT | Setup/onboarding surface. |

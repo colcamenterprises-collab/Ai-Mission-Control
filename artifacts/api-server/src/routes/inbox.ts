@@ -43,7 +43,9 @@ router.post("/inbox", async (req, res): Promise<void> => {
   const source = clean(req.body?.source) ?? "typed";
   const kind = normalizeNoteKind(req.body?.kind);
   if (!content || !sources.has(source)) { res.status(400).json({ error: "content and a valid source are required" }); return; }
-  const [item] = await db.insert(inboxItemsTable).values({ title: clean(req.body?.title), content: encodeNoteContent(kind, content), source, createdBy: clean(req.body?.createdBy) ?? "Owner" }).returning();
+  const linkedProjectId = req.body?.linkedProjectId === null || req.body?.linkedProjectId === undefined ? null : Number(req.body.linkedProjectId);
+  if (linkedProjectId !== null && (!Number.isInteger(linkedProjectId) || linkedProjectId <= 0)) { res.status(400).json({ error: "Invalid project id" }); return; }
+  const [item] = await db.insert(inboxItemsTable).values({ title: clean(req.body?.title), content: encodeNoteContent(kind, content), source, createdBy: clean(req.body?.createdBy) ?? "Owner", linkedProjectId }).returning();
   try { await writeNoteToObsidian(item); } catch (error) { console.error("Obsidian note write failed", error); }
   res.status(201).json(expose(item));
 });
@@ -84,6 +86,7 @@ router.post("/inbox/:id/promote-memory", async (req, res): Promise<void> => {
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid inbox id" }); return; }
   const [item] = await db.select().from(inboxItemsTable).where(eq(inboxItemsTable.id, id));
   if (!item || item.archivedAt) { res.status(404).json({ error: "Inbox item not found" }); return; }
+  if (item.reviewStatus === "promoted") { res.status(409).json({ error: "Note has already been promoted to Mission Brain" }); return; }
   const exposed = exposeNote(item);
   const category = exposed.kind === "decision" ? "decisions" : exposed.kind === "research" ? "research" : "knowledge";
   const memory = await db.transaction(async (transaction) => {

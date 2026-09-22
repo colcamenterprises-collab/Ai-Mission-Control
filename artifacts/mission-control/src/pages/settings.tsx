@@ -957,7 +957,7 @@ export default function Settings() {
   return (
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-border">
-        <h1 className="text-xl font-semibold tracking-tight">Setup</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-10">

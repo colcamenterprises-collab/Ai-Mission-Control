@@ -16,7 +16,7 @@ type BusinessItem = {
 };
 
 type BusinessSection = {
-  key: "memory" | "skills" | "projects";
+  key: "memory" | "projects";
   title: string;
   subtitle: string;
   endpoint: string;
@@ -28,9 +28,8 @@ type Point = { x: number; y: number };
 type GraphTransform = { x: number; y: number; scale: number };
 
 const SOURCES: Omit<BusinessSection, "items">[] = [
-  { key: "memory", title: "Memory", subtitle: "What James knows", endpoint: "/api/memories" },
-  { key: "skills", title: "Skills", subtitle: "What James can do", endpoint: "/api/skills" },
-  { key: "projects", title: "Projects", subtitle: "Where James works", endpoint: "/api/projects" },
+  { key: "memory", title: "Memory", subtitle: "What Mission Control knows", endpoint: "/api/memories" },
+  { key: "projects", title: "Projects", subtitle: "Where Mission Control works", endpoint: "/api/projects" },
 ];
 
 function authHeaders(json = false) {
@@ -85,7 +84,7 @@ function SectionCard({ section, onOpen }: { section: BusinessSection; onOpen: ()
             <div className="business-detail-main"><div className="business-detail-titleline"><strong>{itemTitle(item)}</strong>{item.status?.trim() && <span className="business-status">{item.status}</span>}</div>{itemDescription(item) && <p>{itemDescription(item)}</p>}</div>
             <div className="business-detail-meta">{itemLabel(item) && <span>{itemLabel(item)}</span>}{formatDate(item.updatedAt || item.createdAt) && <time>{formatDate(item.updatedAt || item.createdAt)}</time>}</div>
           </button>
-        )) : <div className="business-section-empty"><strong>No {section.title.toLowerCase()} recorded yet</strong><span>{section.key === "memory" ? "Persistent business and project knowledge will appear here." : section.key === "skills" ? "James's available capabilities will appear here." : "Active business and system projects will appear here."}</span></div>}
+        )) : <div className="business-section-empty"><strong>No {section.title.toLowerCase()} recorded yet</strong><span>{section.key === "memory" ? "Persistent business and project knowledge will appear here." : "Active business and system projects will appear here."}</span></div>}
       </div>
       <footer className="business-section-footer"><span>{section.items.length ? `${section.items.length} total ${section.title.toLowerCase()} records` : "Waiting for operational data"}</span>{section.items.length > 0 && <button type="button" onClick={onOpen}>{remaining > 0 ? `View all · +${remaining} more` : "View all"}</button>}</footer>
     </article>
