@@ -584,7 +584,7 @@ button[variant="outline"] {
   border-right: 1px solid rgba(255,255,255,.08) !important;
   box-shadow: 18px 0 42px rgba(0,0,0,.14);
 }
-.mission-sidebar-top { justify-content:center; min-height:6rem; padding:1.25rem !important; }
+.mission-sidebar-top { justify-content:flex-start; min-height:6rem; padding:1.25rem !important; }
 .mission-logo,.mission-logo-compact { width:3rem !important; height:3rem !important; }
 .mission-logo-mark { width:2.65rem !important; height:2.65rem !important; filter:drop-shadow(0 8px 18px rgba(124,92,251,.35)) !important; }
 .mission-sidebar-status,.mission-nav-group-trigger { display:none !important; }
@@ -679,7 +679,7 @@ button[variant="outline"] {
 @media (max-width: 760px) {
   .mission-app-bg { overflow:visible !important; }
   .mission-sidebar { position:relative; width:5.5rem; height:100vh; max-height:none; border-bottom:0; }
-  .mission-sidebar-top { min-height:5.5rem; }
+  .mission-sidebar-top { justify-content:flex-start !important; min-height:5.5rem; }
   .mission-sidebar-nav { display:block; overflow:visible; padding:.65rem !important; }
   .mission-nav-group,.mission-nav-home { margin:0 0 .35rem !important; }
   .mission-nav-group-trigger { display:none; }

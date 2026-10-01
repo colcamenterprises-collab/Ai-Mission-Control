@@ -448,6 +448,10 @@
     width: 4.5rem !important;
     min-width: 4.5rem !important;
   }
+
+  .mission-sidebar-collapsed .mission-sidebar-top {
+    justify-content: flex-start !important;
+  }
 }
 
 .mission-main-canvas {
