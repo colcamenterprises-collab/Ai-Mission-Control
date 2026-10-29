@@ -1,0 +1,9 @@
+ M artifacts/api-server/src/lib/security.ts
+ M artifacts/api-server/src/routes/tasks.ts
+ M artifacts/mission-control/src/App.tsx
+ M artifacts/mission-control/src/pages/dashboard-operations.css
+ M artifacts/mission-control/src/pages/dashboard.tsx
+ M artifacts/mission-control/src/pages/james.tsx
+ M artifacts/mission-control/src/pages/settings.tsx
+ M artifacts/mission-control/src/pages/tasks.css
+ M artifacts/mission-control/src/pages/tasks.tsx
